@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles extracted from Stitch export */
+.custom-ring:focus {
+  outline: none;
+  border-color: #f44a3b;
+  box-shadow: 0 0 0 2px rgba(244, 74, 59, 0.2);
+}
+
+.btn-hover:hover {
+  box-shadow: 0 4px 14px 0 rgba(244, 74, 59, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Material Symbols config */
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
