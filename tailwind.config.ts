@@ -12,6 +12,7 @@ const config: Config = {
       colors: {
         // Brand
         "brand-red": "#f44a3b",
+        "coral-red": "#f44a3b",
 
         // Primary
         "primary": "#b51b15",
