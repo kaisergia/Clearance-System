@@ -20,7 +20,7 @@ export default function HeadOfficeLayout({ children }: { children: React.ReactNo
   return (
     <div className="bg-background text-on-background font-body-md min-h-screen">
       {/* SideNavBar */}
-      <aside className="fixed left-0 top-0 h-full w-[280px] bg-surface-container-lowest border-r border-outline-variant flex flex-col py-6 hidden md:flex z-50">
+      <aside className="fixed left-0 top-0 h-full w-[280px] bg-surface-container-lowest border-r border-outline-variant flex flex-col py-6 hidden md:flex">
         <div className="px-6 mb-8 flex items-center gap-3">
           <div className="h-10 w-10 bg-primary rounded-full flex items-center justify-center text-on-primary">
             <span className="font-bold text-label-md">CJC</span>
@@ -77,10 +77,19 @@ export default function HeadOfficeLayout({ children }: { children: React.ReactNo
 
             <li>
               <Link
-                href="#"
-                className="flex items-center gap-3 px-4 py-3 text-secondary hover:bg-surface-container-high border-l-4 border-transparent transition-all duration-150"
+                href="/head-office/clearance-requirements"
+                className={`flex items-center gap-3 px-4 py-3 transition-all duration-150 border-l-4 ${
+                  isLinkActive("/head-office/clearance-requirements")
+                    ? "bg-primary-fixed text-primary border-primary font-bold"
+                    : "text-secondary hover:bg-surface-container-high border-transparent"
+                }`}
               >
-                <span className="material-symbols-outlined">check_circle</span>
+                <span
+                  className="material-symbols-outlined"
+                  style={isLinkActive("/head-office/clearance-requirements") ? { fontVariationSettings: "'FILL' 1" } : {}}
+                >
+                  task_alt
+                </span>
                 <span className="font-body-md text-body-md whitespace-nowrap">
                   Clearance Requirements
                 </span>
@@ -89,10 +98,19 @@ export default function HeadOfficeLayout({ children }: { children: React.ReactNo
 
             <li>
               <Link
-                href="#"
-                className="flex items-center gap-3 px-4 py-3 text-secondary hover:bg-surface-container-high border-l-4 border-transparent transition-all duration-150"
+                href="/head-office/reports"
+                className={`flex items-center gap-3 px-4 py-3 transition-all duration-150 border-l-4 ${
+                  isLinkActive("/head-office/reports")
+                    ? "bg-primary-fixed text-primary border-primary font-bold"
+                    : "text-secondary hover:bg-surface-container-high border-transparent"
+                }`}
               >
-                <span className="material-symbols-outlined">assessment</span>
+                <span
+                  className="material-symbols-outlined"
+                  style={isLinkActive("/head-office/reports") ? { fontVariationSettings: "'FILL' 1" } : {}}
+                >
+                  assessment
+                </span>
                 <span className="font-body-md text-body-md">Reports</span>
               </Link>
             </li>

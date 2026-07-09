@@ -2,38 +2,46 @@
 
 import { useState } from "react";
 
-// Mock constituents list based on the provided reference HTML
+// Mock constituents list based on the updated departments
 const INITIAL_CONSTITUENTS = [
   {
     id: "2021-0492",
     name: "Eleanor Shellstrop",
-    department: "Philosophy",
-    program: "BA Philosophy",
+    department: "CCIS",
+    program: "BS Computer Science",
     year: "4th Year",
     status: "Cleared",
   },
   {
     id: "2022-1103",
     name: "Chidi Anagonye",
-    department: "Ethics",
-    program: "BA Ethics",
+    department: "COE",
+    program: "BS Civil Engineering",
     year: "3rd Year",
     status: "Pending",
   },
   {
     id: "2020-8831",
     name: "Tahani Al-Jamil",
-    department: "Arts",
-    program: "BFA Arts",
+    department: "CEDAS",
+    program: "BS Data Science",
     year: "2nd Year",
     status: "Cleared",
   },
   {
     id: "2023-0012",
     name: "Jason Mendoza",
-    department: "Business",
-    program: "BS Business",
+    department: "CHS",
+    program: "BS Nursing",
     year: "1st Year",
+    status: "Cleared",
+  },
+  {
+    id: "2021-5529",
+    name: "Michael Realman",
+    department: "CABE",
+    program: "BS Business Administration",
+    year: "4th Year",
     status: "Cleared",
   },
 ];
@@ -47,6 +55,21 @@ export default function ConstituentsPage() {
 
   // Keep state for table items to make "Mark Cleared / Uncleared" toggling work instantly!
   const [constituents, setConstituents] = useState(INITIAL_CONSTITUENTS);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Extract unique departments dynamically from state
+  const uniqueDepartments = Array.from(
+    new Set(constituents.map((student) => student.department))
+  ).sort();
+
+  // Extract unique programs dynamically, filtering by department if one is selected
+  const availablePrograms = Array.from(
+    new Set(
+      constituents
+        .filter((student) => department === "All Departments" || student.department === department)
+        .map((student) => student.program)
+    )
+  ).sort();
 
   // Toggle status handler
   const handleToggleStatus = (id: string) => {
@@ -75,17 +98,47 @@ export default function ConstituentsPage() {
     return matchesSearch && matchesYear && matchesDept && matchesProg;
   });
 
-  return (
+  // Selection handlers
+  const isAllSelected =
+    filteredConstituents.length > 0 &&
+    filteredConstituents.every((student) => selectedIds.includes(student.id));
+
+  const handleSelectAllChange = (checked: boolean) => {
+    if (checked) {
+      const allFilteredIds = filteredConstituents.map((student) => student.id);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allFilteredIds])));
+    } else {
+      const filteredIds = filteredConstituents.map((student) => student.id);
+      setSelectedIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+    }
+  };
+
+  const handleSelectStudent = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => [...prev, id]);
+    } else {
+      setSelectedIds((prev) => prev.filter((item) => item !== id));
+    }
+  };
+
+  const handleBulkStatusChange = (status: "Cleared" | "Pending") => {
+    setConstituents((prev) =>
+      prev.map((student) =>
+        selectedIds.includes(student.id) ? { ...student, status } : student
+      )
+    );
+    setSelectedIds([]);
+  };  return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header Section */}
       <section className="pb-4 border-b border-surface-container-high">
         <div className="flex flex-col gap-1">
-          <h2 className="font-headline-lg text-3xl font-bold text-on-background">
+          <h2 className="font-headline-lg text-headline-lg text-on-background">
             Constituents
           </h2>
-          <span className="font-body-md text-sm text-secondary uppercase tracking-widest font-semibold mt-1 flex items-center gap-1.5">
+          <span className="font-body-md text-body-md text-secondary mt-1 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-base text-primary">domain</span>
-            Office: <span className="text-on-surface">Guidance Office</span>
+            Office: <span className="font-semibold text-on-surface">Guidance Office</span>
           </span>
         </div>
       </section>
@@ -94,7 +147,7 @@ export default function ConstituentsPage() {
       <section className="pt-2">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Summary Card 1: Total Constituents */}
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm flex items-center justify-between group hover:-translate-y-1 hover:shadow-md transition-all duration-300 border-l-4 border-l-primary">
+          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-6 flex flex-col justify-between relative overflow-hidden group hover:-translate-y-0.5 shadow-[0px_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0px_8px_16px_rgba(0,0,0,0.04)] transition-all duration-300">
             <div>
               <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-1">
                 Total Constituents
@@ -105,15 +158,23 @@ export default function ConstituentsPage() {
                 last sem
               </p>
             </div>
-            <div className="w-12 h-12 bg-primary/5 rounded-xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-300">
-              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                groups
-              </span>
+          </div>
+
+          {/* Summary Card 2: Cleared Students */}
+          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-6 flex flex-col justify-between relative overflow-hidden group hover:-translate-y-0.5 shadow-[0px_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0px_8px_16px_rgba(0,0,0,0.04)] transition-all duration-300">
+            <div>
+              <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-1">
+                Cleared Students
+              </p>
+              <h3 className="text-3xl font-extrabold text-on-surface leading-none mt-1">1,207</h3>
+              <p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">trending_up</span> 94% of total constituents
+              </p>
             </div>
           </div>
 
-          {/* Summary Card 2: Pending Review */}
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm flex items-center justify-between group hover:-translate-y-1 hover:shadow-md transition-all duration-300 border-l-4 border-l-yellow-500">
+          {/* Summary Card 3: Pending Review */}
+          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-6 flex flex-col justify-between relative overflow-hidden group hover:-translate-y-0.5 shadow-[0px_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0px_8px_16px_rgba(0,0,0,0.04)] transition-all duration-300">
             <div>
               <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-1">
                 Pending Review
@@ -123,35 +184,12 @@ export default function ConstituentsPage() {
                 <span className="material-symbols-outlined text-sm">schedule</span> Action required
               </p>
             </div>
-            <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center text-yellow-600 group-hover:bg-yellow-500 group-hover:text-white transition-all duration-300">
-              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                pending_actions
-              </span>
-            </div>
-          </div>
-
-          {/* Summary Card 3: Cleared Rate */}
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm flex items-center justify-between group hover:-translate-y-1 hover:shadow-md transition-all duration-300 border-l-4 border-l-green-500">
-            <div>
-              <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-1">
-                Clearance Rate
-              </p>
-              <h3 className="text-3xl font-extrabold text-on-surface leading-none mt-1">94%</h3>
-              <div className="w-28 bg-surface-container-low h-2 rounded-full mt-3 overflow-hidden">
-                <div className="bg-green-500 h-full w-[94%]"></div>
-              </div>
-            </div>
-            <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600 group-hover:bg-green-600 group-hover:text-white transition-all duration-300">
-              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                check_circle
-              </span>
-            </div>
           </div>
         </div>
       </section>
 
       {/* Filter Bar */}
-      <section className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant shadow-sm space-y-4">
+      <section className="bg-surface-container-lowest p-6 rounded-xl border border-surface-container-high shadow-[0px_2px_8px_rgba(0,0,0,0.02)] space-y-4">
         <div className="flex flex-wrap gap-4">
           {/* Search Bar */}
           <div className="relative flex-1 min-w-[300px]">
@@ -163,7 +201,7 @@ export default function ConstituentsPage() {
               placeholder="Search by student name or ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-11 pr-4 bg-surface-container-low/50 border border-outline-variant rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all font-body-sm text-sm"
+              className="custom-ring w-full h-11 pl-12 pr-4 bg-surface-container-lowest border border-surface-container-high rounded-lg font-body-sm text-sm outline-none text-on-surface"
             />
           </div>
 
@@ -172,7 +210,7 @@ export default function ConstituentsPage() {
             <select
               value={semester}
               onChange={(e) => setSemester(e.target.value)}
-              className="w-full h-11 pl-4 pr-10 bg-surface-container-low/50 border border-outline-variant rounded-lg appearance-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all font-body-sm text-sm text-on-surface cursor-pointer"
+              className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
             >
               <option>2025-2026 — 1st Semester (Current)</option>
               <option>2024-2025 — 2nd Semester</option>
@@ -185,36 +223,22 @@ export default function ConstituentsPage() {
         </div>
 
         <div className="flex flex-wrap gap-4">
-          {/* Year Level Dropdown */}
-          <div className="relative flex-1 min-w-[150px]">
-            <select
-              value={yearLevel}
-              onChange={(e) => setYearLevel(e.target.value)}
-              className="w-full h-11 pl-4 pr-10 bg-surface-container-low/50 border border-outline-variant rounded-lg appearance-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all font-body-sm text-sm cursor-pointer"
-            >
-              <option>All Years</option>
-              <option value="1st Year">1st Year</option>
-              <option value="2nd Year">2nd Year</option>
-              <option value="3rd Year">3rd Year</option>
-              <option value="4th Year">4th Year</option>
-            </select>
-            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-lg">
-              expand_more
-            </span>
-          </div>
-
           {/* Department Dropdown */}
           <div className="relative flex-1 min-w-[180px]">
             <select
               value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              className="w-full h-11 pl-4 pr-10 bg-surface-container-low/50 border border-outline-variant rounded-lg appearance-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all font-body-sm text-sm cursor-pointer"
+              onChange={(e) => {
+                setDepartment(e.target.value);
+                setProgram("All Programs");
+              }}
+              className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
             >
               <option>All Departments</option>
-              <option>Philosophy</option>
-              <option>Ethics</option>
-              <option>Arts</option>
-              <option>Business</option>
+              {uniqueDepartments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
             </select>
             <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-lg">
               expand_more
@@ -226,13 +250,32 @@ export default function ConstituentsPage() {
             <select
               value={program}
               onChange={(e) => setProgram(e.target.value)}
-              className="w-full h-11 pl-4 pr-10 bg-surface-container-low/50 border border-outline-variant rounded-lg appearance-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all font-body-sm text-sm cursor-pointer"
+              className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
             >
               <option>All Programs</option>
-              <option>BA Philosophy</option>
-              <option>BA Ethics</option>
-              <option>BFA Arts</option>
-              <option>BS Business</option>
+              {availablePrograms.map((prog) => (
+                <option key={prog} value={prog}>
+                  {prog}
+                </option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-lg">
+              expand_more
+            </span>
+          </div>
+
+          {/* Year Level Dropdown */}
+          <div className="relative flex-1 min-w-[150px]">
+            <select
+              value={yearLevel}
+              onChange={(e) => setYearLevel(e.target.value)}
+              className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
+            >
+              <option>All Years</option>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
             </select>
             <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-lg">
               expand_more
@@ -257,11 +300,45 @@ export default function ConstituentsPage() {
       </section>
 
       {/* Constituents List */}
-      <section className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+      <section className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm overflow-hidden">
+        {selectedIds.length > 0 && (
+          <div className="bg-primary/5 px-6 py-3 border-b border-outline-variant flex justify-between items-center">
+            <span className="text-sm font-semibold text-primary">
+              {selectedIds.length} {selectedIds.length === 1 ? "student" : "students"} selected for bulk actions
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleBulkStatusChange("Cleared")}
+                className="bg-green-600 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-green-700 active:scale-95 transition-all flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm font-bold">done</span>
+                Mark Cleared
+              </button>
+              <button
+                onClick={() => handleBulkStatusChange("Pending")}
+                className="bg-red-50 text-coral-red border border-coral-red text-xs font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-coral-red hover:text-white active:scale-95 transition-all flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm font-bold">close</span>
+                Mark Uncleared
+              </button>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead className="bg-surface-container-low border-b border-outline-variant text-left">
               <tr className="font-label-md text-xs font-semibold text-secondary uppercase tracking-wider">
+                <th className="py-4 px-6 text-left">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={(e) => handleSelectAllChange(e.target.checked)}
+                      className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                    />
+                    <span>All</span>
+                  </div>
+                </th>
                 <th className="py-4 px-6 text-left">Student ID</th>
                 <th className="py-4 px-6 text-left">Name</th>
                 <th className="py-4 px-6 text-left">Department</th>
@@ -275,7 +352,7 @@ export default function ConstituentsPage() {
             <tbody className="font-body-sm text-sm text-on-surface divide-y divide-outline-variant/30">
               {filteredConstituents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-secondary font-medium">
+                  <td colSpan={9} className="py-8 text-center text-secondary font-medium">
                     No constituents found matching the filter criteria.
                   </td>
                 </tr>
@@ -285,6 +362,14 @@ export default function ConstituentsPage() {
                     key={student.id}
                     className="hover:bg-surface-container-low/20 transition-all duration-150"
                   >
+                    <td className="py-4 px-6 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(student.id)}
+                        onChange={(e) => handleSelectStudent(student.id, e.target.checked)}
+                        className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                      />
+                    </td>
                     <td className="py-4 px-6 font-mono font-medium text-xs text-secondary">{student.id}</td>
                     <td className="py-4 px-6 font-bold">{student.name}</td>
                     <td className="py-4 px-6 text-secondary">{student.department}</td>
