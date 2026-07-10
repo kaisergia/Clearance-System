@@ -40,7 +40,7 @@ export default function ManageStudentsPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
         <div>
-          <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2">Manage Students</h2>
+          <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2">Manage Constituents</h2>
           <p className="font-body-md text-body-md text-secondary max-w-2xl">
             Overview and management of student clearance statuses across all departments.
           </p>

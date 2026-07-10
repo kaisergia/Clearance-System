@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { mockOffices } from "@/mock/mockData";
 import Link from "next/link";
+import { useOffices } from "@/components/contexts/OfficesContext";
 
 const mockRequirementsByOffice: Record<number, string[]> = {
   1: ["Submit grade sheets", "Verify enrollment records", "Clear academic holds"],
@@ -17,7 +17,8 @@ export default function OfficeDetailPage() {
   const params = useParams();
   const router = useRouter();
   const officeId = Number(params.officeId);
-  const office = mockOffices.find((o) => o.id === officeId);
+  const { offices } = useOffices();
+  const office = offices.find((o) => o.id === officeId);
 
   const [requirements, setRequirements] = useState<string[]>(
     mockRequirementsByOffice[officeId] || ["Submit clearance form"]
@@ -79,10 +80,10 @@ export default function OfficeDetailPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-md mt-lg pt-lg border-t border-surface-container-high">
           {[
-            { label: "Office Head", value: office.head },
-            { label: "Email", value: office.email },
-            { label: "Pending", value: String(office.pending) },
-            { label: "Approved", value: String(office.approved) },
+            { label: "Office Head", value: office.head?.name },
+            { label: "Email", value: office.head?.email },
+            { label: "Pending", value: String(office.pending || 0) },
+            { label: "Approved", value: String(office.approved || 0) },
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="font-label-md text-label-md text-secondary uppercase tracking-wider mb-1">{label}</p>
