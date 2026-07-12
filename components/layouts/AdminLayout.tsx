@@ -3,7 +3,50 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { mockOffices } from "@/mock/mockData";
+import { useOffices } from "@/components/contexts/OfficesContext";
+
+function AddOfficeForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (data: any) => void }) {
+  const [name, setName] = useState("");
+  const [headName, setHeadName] = useState("");
+  const [headEmail, setHeadEmail] = useState("");
+  const [description, setDescription] = useState("");
+
+  const handleSubmit = () => {
+    if (!name.trim() || !headName.trim() || !headEmail.trim()) return;
+    onAdd({ name: name.trim(), description: description.trim(), head: { name: headName.trim(), email: headEmail.trim() } });
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-lg">
+        <h3 className="font-title-md text-title-md text-on-surface">Add Office</h3>
+        <button onClick={onCancel} className="p-1 rounded text-secondary hover:text-on-surface"><span className="material-symbols-outlined">close</span></button>
+      </div>
+      <div className="space-y-md">
+        <div>
+          <label className="block font-body-sm text-body-sm text-on-surface mb-1">Office Name *</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest" placeholder="e.g. Registrar" />
+        </div>
+        <div>
+          <label className="block font-body-sm text-body-sm text-on-surface mb-1">Office Head Name *</label>
+          <input value={headName} onChange={(e) => setHeadName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest" placeholder="e.g. Maria Reyes" />
+        </div>
+        <div>
+          <label className="block font-body-sm text-body-sm text-on-surface mb-1">Office Head Email *</label>
+          <input value={headEmail} onChange={(e) => setHeadEmail(e.target.value)} type="email" className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest" placeholder="e.g. head@uni.edu.ph" />
+        </div>
+        <div>
+          <label className="block font-body-sm text-body-sm text-on-surface mb-1">Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest" placeholder="Optional description" />
+        </div>
+      </div>
+      <div className="flex gap-sm mt-lg">
+        <button onClick={onCancel} className="flex-1 py-2.5 rounded-lg border border-surface-container-high text-secondary hover:bg-surface-container-low transition-colors">Cancel</button>
+        <button onClick={handleSubmit} className="flex-1 py-2.5 rounded-lg bg-brand-red text-white hover:bg-primary transition-colors">Add Office</button>
+      </div>
+    </div>
+  );
+}
 
 // ──────────────────────────────────────────
 // Navigation structure
@@ -11,7 +54,7 @@ import { mockOffices } from "@/mock/mockData";
 
 // Level-2 items under User Management (except Offices which is its own nested dropdown)
 const USER_MGMT_ITEMS = [
-  { label: "Students", href: "/admin/user-management/students", icon: "school" },
+  { label: "Constituents", href: "/admin/user-management/students", icon: "school" },
   { label: "Orgs/Clubs", href: "/admin/user-management/orgs", icon: "groups" },
   { label: "Head Office Accounts", href: "/admin/user-management/head-office-accounts", icon: "corporate_fare" },
 ];
@@ -28,6 +71,7 @@ const BOTTOM_NAV = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { offices, setOpenAddOfficeModal, openAddOfficeModal, addOffice } = useOffices();
 
   // Track which accordion groups are open
   const [userMgmtOpen, setUserMgmtOpen] = useState(
@@ -173,29 +217,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         All Offices
                       </Link>
 
-                      {/* Individual office links */}
-                      {mockOffices.map((office) => (
-                        <Link
-                          key={office.id}
-                          href={`/admin/offices/${office.id}`}
-                          className={`block px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors truncate ${
-                            pathname === `/admin/offices/${office.id}`
-                              ? "bg-brand-red/5 text-brand-red font-semibold"
-                              : "text-secondary hover:text-primary hover:bg-surface-container-low"
-                          }`}
-                        >
-                          {office.name}
-                        </Link>
-                      ))}
+                            {/* Individual office links */}
+                            {offices.map((office) => (
+                              <Link
+                                key={office.id}
+                                href={`/admin/offices/${office.id}`}
+                                className={`block px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors truncate ${
+                                  pathname === `/admin/offices/${office.id}`
+                                    ? "bg-brand-red/5 text-brand-red font-semibold"
+                                    : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                                }`}
+                              >
+                                {office.name}
+                              </Link>
+                            ))}
 
                       {/* + Add Office */}
-                      <Link
-                        href="/admin/offices/new"
+                      <button
+                        onClick={() => setOpenAddOfficeModal(true)}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-label-md text-label-md text-secondary hover:text-brand-red hover:bg-brand-red/5 transition-colors"
                       >
                         <span className="material-symbols-outlined text-[16px]">add</span>
                         Add Office
-                      </Link>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -284,6 +328,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main className="flex-1 overflow-y-auto bg-background">
           {children}
         </main>
+        {/* Add Office Modal (global) */}
+        {openAddOfficeModal && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setOpenAddOfficeModal(false)}>
+            <div className="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-md p-lg" onClick={(e) => e.stopPropagation()}>
+              <AddOfficeForm onCancel={() => setOpenAddOfficeModal(false)} onAdd={(data) => addOffice(data)} />
+            </div>
+          </div>
+        )}
       </div>
 
     </div>
