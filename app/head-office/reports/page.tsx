@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 // Types
 interface Student {
@@ -31,6 +32,21 @@ interface Requirement {
 
 // Mock Data representing different terms
 const TERMS = ["Fall Semester 2024", "Spring Semester 2024", "Fall Semester 2023"];
+
+const DEPARTMENTS = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
+const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+const STATUSES = [
+  { value: "cleared", label: "Cleared" },
+  { value: "uncleared", label: "Uncleared" },
+];
+
+const DEPT_PROGRAMS: Record<string, string[]> = {
+  CCIS: ["BS Computer Science", "BS Information Technology"],
+  COE: ["BS Civil Engineering", "BS Mechanical Engineering", "BS Electrical Engineering"],
+  CEDAS: ["BS Data Science", "BS Applied Mathematics"],
+  CHS: ["BS Nursing", "BS Pharmacy", "BS Medical Technology"],
+  CABE: ["BS Business Administration", "BS Accountancy", "BS Hospitality Management"],
+};
 
 const MOCK_REQUIREMENTS: Requirement[] = [
   { id: "req-1", name: "Library Book Return", description: "Return borrowed library books", isActive: true },
@@ -148,51 +164,72 @@ interface StackedBarChartProps {
 }
 
 function StackedBarChart({ data, title }: StackedBarChartProps) {
+  const [hoveredBar, setHoveredBar] = useState<{ groupIndex: number; type: "cleared" | "uncleared" } | null>(null);
+
   const maxValue = useMemo(() => {
-    const maxVal = Math.max(...data.map((d) => d.cleared + d.uncleared));
-    return maxVal === 0 ? 10 : Math.ceil(maxVal * 1.2);
+    const maxVal = Math.max(...data.map((d) => Math.max(d.cleared, d.uncleared)));
+    return maxVal === 0 ? 5 : Math.ceil(maxVal * 1.25);
   }, [data]);
 
-  const chartHeight = 220;
-  const paddingBottom = 40;
-  const paddingTop = 20;
-  const paddingLeft = 30;
-  const paddingRight = 10;
-  const graphHeight = chartHeight - paddingTop - paddingBottom;
+  const svgWidth = 400;
+  const svgHeight = 240;
+  const paddingBottom = 44;
+  const paddingTop = 24;
+  const paddingLeft = 36;
+  const paddingRight = 12;
+  const graphHeight = svgHeight - paddingTop - paddingBottom;
+  const graphWidth = svgWidth - paddingLeft - paddingRight;
+
+  const CLEARED_COLOR = "#22c55e";   // green-500
+  const UNCLEARED_COLOR = "#f44a3b"; // brand-red
+
+  const totalGroups = data.length;
+  const groupWidth = graphWidth / totalGroups;
+  const barWidth = Math.min(22, groupWidth * 0.32);
+  const barGap = 4;
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1];
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl p-5 flex flex-col justify-between shadow-sm">
-      <h4 className="font-title-md text-sm font-bold text-on-surface mb-4">{title}</h4>
+    <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl p-5 flex flex-col shadow-sm">
+      {/* Card Header */}
+      <div className="mb-4">
+        <h4 className="text-sm font-bold text-on-surface uppercase tracking-wider">{title}</h4>
+      </div>
+
       {data.length === 0 ? (
         <div className="h-[220px] flex items-center justify-center text-secondary font-body-sm text-sm">
           No data available
         </div>
       ) : (
-        <div className="relative w-full overflow-x-auto">
-          <svg viewBox={`0 0 400 ${chartHeight}`} className="w-full min-w-[320px] h-[220px]">
-            {/* Grid Lines */}
-            {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
+        <div className="relative w-full">
+          <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-auto">
+            {/* Horizontal Grid Lines */}
+            {yTicks.map((ratio, i) => {
               const y = paddingTop + graphHeight * (1 - ratio);
-              const labelValue = Math.round(maxValue * ratio);
+              const label = Math.round(maxValue * ratio);
               return (
-                <g key={index} className="opacity-30 dark:opacity-20">
+                <g key={i}>
                   <line
                     x1={paddingLeft}
                     y1={y}
-                    x2={390}
+                    x2={svgWidth - paddingRight}
                     y2={y}
                     stroke="var(--secondary)"
+                    strokeOpacity={ratio === 0 ? 0.3 : 0.12}
+                    strokeDasharray={ratio === 0 ? "0" : "3 4"}
                     strokeWidth="1"
-                    strokeDasharray="4 4"
                   />
                   <text
-                    x={paddingLeft - 5}
+                    x={paddingLeft - 6}
                     y={y + 4}
                     textAnchor="end"
                     fill="var(--secondary)"
-                    className="text-[10px] font-semibold"
+                    fontSize="9"
+                    fontWeight="600"
+                    opacity="0.7"
                   >
-                    {labelValue}
+                    {label}
                   </text>
                 </g>
               );
@@ -200,73 +237,127 @@ function StackedBarChart({ data, title }: StackedBarChartProps) {
 
             {/* Bars */}
             {data.map((item, index) => {
-              const totalBars = data.length;
-              const barSpacing = (400 - paddingLeft - paddingRight) / totalBars;
-              const barWidth = Math.min(30, barSpacing * 0.5);
-              const x = paddingLeft + index * barSpacing + (barSpacing - barWidth) / 2;
+              const groupCenterX = paddingLeft + index * groupWidth + groupWidth / 2;
+              const clearedX = groupCenterX - barWidth - barGap / 2;
+              const unclearedX = groupCenterX + barGap / 2;
 
-              const total = item.cleared + item.uncleared;
-              const clearedHeight = total > 0 ? (item.cleared / maxValue) * graphHeight : 0;
-              const unclearedHeight = total > 0 ? (item.uncleared / maxValue) * graphHeight : 0;
+              const clearedHeight = maxValue > 0 ? (item.cleared / maxValue) * graphHeight : 0;
+              const unclearedHeight = maxValue > 0 ? (item.uncleared / maxValue) * graphHeight : 0;
+              const baseY = paddingTop + graphHeight;
 
-              const clearedY = paddingTop + graphHeight - clearedHeight;
-              const unclearedY = clearedY - unclearedHeight;
+              const isClearedHovered = hoveredBar?.groupIndex === index && hoveredBar?.type === "cleared";
+              const isUnclearedHovered = hoveredBar?.groupIndex === index && hoveredBar?.type === "uncleared";
 
               return (
-                <g key={index} className="group">
+                <g key={index}>
                   {/* Cleared Bar */}
                   {item.cleared > 0 && (
-                    <rect
-                      x={x}
-                      y={clearedY}
-                      width={barWidth}
-                      height={clearedHeight}
-                      fill="#10B981" // emerald-500
-                      rx={item.uncleared === 0 ? 3 : 0}
-                      className="transition-all duration-300 hover:opacity-90 cursor-pointer"
-                    />
+                    <g>
+                      <rect
+                        x={clearedX}
+                        y={baseY - clearedHeight}
+                        width={barWidth}
+                        height={clearedHeight}
+                        fill={CLEARED_COLOR}
+                        opacity={isClearedHovered ? 1 : 0.85}
+                        rx="4"
+                        ry="4"
+                        className="transition-all duration-200 cursor-pointer"
+                        onMouseEnter={() => setHoveredBar({ groupIndex: index, type: "cleared" })}
+                        onMouseLeave={() => setHoveredBar(null)}
+                      />
+                      {/* Value label */}
+                      <text
+                        x={clearedX + barWidth / 2}
+                        y={baseY - clearedHeight - 4}
+                        textAnchor="middle"
+                        fill={CLEARED_COLOR}
+                        fontSize="9"
+                        fontWeight="700"
+                        opacity={clearedHeight > 8 ? 1 : 0}
+                      >
+                        {item.cleared}
+                      </text>
+                    </g>
                   )}
 
                   {/* Uncleared Bar */}
                   {item.uncleared > 0 && (
-                    <rect
-                      x={x}
-                      y={unclearedY}
-                      width={barWidth}
-                      height={unclearedHeight}
-                      fill="#EF4444" // red-500
-                      rx={3}
-                      className="transition-all duration-300 hover:opacity-90 cursor-pointer"
-                    />
+                    <g>
+                      <rect
+                        x={unclearedX}
+                        y={baseY - unclearedHeight}
+                        width={barWidth}
+                        height={unclearedHeight}
+                        fill={UNCLEARED_COLOR}
+                        opacity={isUnclearedHovered ? 1 : 0.85}
+                        rx="4"
+                        ry="4"
+                        className="transition-all duration-200 cursor-pointer"
+                        onMouseEnter={() => setHoveredBar({ groupIndex: index, type: "uncleared" })}
+                        onMouseLeave={() => setHoveredBar(null)}
+                      />
+                      {/* Value label */}
+                      <text
+                        x={unclearedX + barWidth / 2}
+                        y={baseY - unclearedHeight - 4}
+                        textAnchor="middle"
+                        fill={UNCLEARED_COLOR}
+                        fontSize="9"
+                        fontWeight="700"
+                        opacity={unclearedHeight > 8 ? 1 : 0}
+                      >
+                        {item.uncleared}
+                      </text>
+                    </g>
                   )}
 
-                  {/* Axis Label */}
+                  {/* Axis Group Label */}
                   <text
-                    x={x + barWidth / 2}
-                    y={chartHeight - paddingBottom + 18}
+                    x={groupCenterX}
+                    y={svgHeight - paddingBottom + 16}
                     textAnchor="middle"
                     fill="var(--secondary)"
-                    className="text-[10px] font-bold"
+                    fontSize="9"
+                    fontWeight="700"
                   >
                     {item.label}
                   </text>
 
-                  {/* Hover Tooltip Helper (using SVG title) */}
-                  <title>{`${item.label}: ${item.cleared} Cleared, ${item.uncleared} Uncleared (Total: ${total})`}</title>
+                  {/* Hover tooltip (SVG title fallback) */}
+                  <title>{`${item.label} — Cleared: ${item.cleared}, Uncleared: ${item.uncleared}`}</title>
                 </g>
               );
             })}
           </svg>
 
-          {/* Legends */}
-          <div className="flex items-center justify-center gap-4 mt-3 text-xs">
+          {/* Hover tooltip overlay */}
+          {hoveredBar !== null && data[hoveredBar.groupIndex] && (() => {
+            const item = data[hoveredBar.groupIndex];
+            const isCleared = hoveredBar.type === "cleared";
+            const count = isCleared ? item.cleared : item.uncleared;
+            const total = item.cleared + item.uncleared;
+            const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+            return (
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-surface-container-lowest border border-outline-variant/60 rounded-xl shadow-xl px-3 py-2 flex flex-col items-start pointer-events-none z-10 min-w-[120px]">
+                <span className="text-[10px] font-bold text-on-surface">{item.label}</span>
+                <span className="text-[10px] mt-0.5" style={{ color: isCleared ? CLEARED_COLOR : UNCLEARED_COLOR }}>
+                  {isCleared ? "Cleared" : "Uncleared"}: <strong>{count}</strong>
+                  <span className="text-secondary ml-1">({pct}%)</span>
+                </span>
+              </div>
+            );
+          })()}
+
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-5 mt-2 text-[11px]">
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-[#10B981]" />
-              <span className="text-secondary font-medium">Cleared</span>
+              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: CLEARED_COLOR }} />
+              <span className="text-secondary font-semibold">Cleared</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-[#EF4444]" />
-              <span className="text-secondary font-medium">Uncleared</span>
+              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: UNCLEARED_COLOR }} />
+              <span className="text-secondary font-semibold">Uncleared</span>
             </div>
           </div>
         </div>
@@ -279,6 +370,137 @@ export default function ReportsPage() {
   const [selectedTerm, setSelectedTerm] = useState("Fall Semester 2024");
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  // Mounted state for SSR safety (portal)
+  const [mounted, setMounted] = useState(false);
+
+  // Export Modal States
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportDepts, setExportDepts] = useState<string[]>([]);
+  const [exportProgs, setExportProgs] = useState<string[]>([]);
+  const [exportYears, setExportYears] = useState<string[]>([]);
+  const [exportStatuses, setExportStatuses] = useState<string[]>([]);
+
+  // Popover Toggles
+  const [exportDeptPopoverOpen, setExportDeptPopoverOpen] = useState(false);
+  const [exportProgPopoverOpen, setExportProgPopoverOpen] = useState(false);
+  const [exportYearPopoverOpen, setExportYearPopoverOpen] = useState(false);
+
+  // Popover Search Fields
+  const [exportDeptSearch, setExportDeptSearch] = useState("");
+  const [exportProgSearch, setExportProgSearch] = useState("");
+  const [exportYearSearch, setExportYearSearch] = useState("");
+
+  // Refs for click outside
+  const exportDeptRef = useRef<HTMLDivElement>(null);
+  const exportProgRef = useRef<HTMLDivElement>(null);
+  const exportYearRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportDeptRef.current && !exportDeptRef.current.contains(event.target as Node)) {
+        setExportDeptPopoverOpen(false);
+      }
+      if (exportProgRef.current && !exportProgRef.current.contains(event.target as Node)) {
+        setExportProgPopoverOpen(false);
+      }
+      if (exportYearRef.current && !exportYearRef.current.contains(event.target as Node)) {
+        setExportYearPopoverOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const toggleExportDept = (dept: string) => {
+    setExportDepts((prev) => {
+      if (dept === "All Departments") {
+        const isCurrentlyChecked = prev.includes("All Departments");
+        if (isCurrentlyChecked) {
+          setExportProgs([]);
+          return [];
+        } else {
+          return ["All Departments", ...DEPARTMENTS];
+        }
+      } else {
+        const isCurrentlyChecked = prev.includes(dept);
+        let next: string[];
+        if (isCurrentlyChecked) {
+          next = prev.filter((d) => d !== dept && d !== "All Departments");
+          // Remove dependent programs
+          const dependentPrograms = DEPT_PROGRAMS[dept] || [];
+          setExportProgs((curr) => curr.filter((p) => !dependentPrograms.includes(p)));
+        } else {
+          const temp = [...prev, dept];
+          const allSpecificSelected = DEPARTMENTS.every((d) => temp.includes(d));
+          next = allSpecificSelected ? ["All Departments", ...temp] : temp;
+        }
+        return next;
+      }
+    });
+  };
+
+  const getAvailableExportProgramsList = () => {
+    if (exportDepts.includes("All Departments")) {
+      return Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()));
+    }
+    return exportDepts.flatMap((d) => DEPT_PROGRAMS[d] || []);
+  };
+
+  const toggleExportProg = (prog: string) => {
+    const availableProgs = getAvailableExportProgramsList();
+    setExportProgs((prev) => {
+      if (prog === "All Programs") {
+        const isCurrentlyChecked = prev.includes("All Programs");
+        if (isCurrentlyChecked) {
+          return [];
+        } else {
+          return ["All Programs", ...availableProgs];
+        }
+      } else {
+        const isCurrentlyChecked = prev.includes(prog);
+        let next: string[];
+        if (isCurrentlyChecked) {
+          next = prev.filter((p) => p !== prog && p !== "All Programs");
+        } else {
+          const temp = [...prev, prog];
+          const allSpecificSelected = availableProgs.every((p) => temp.includes(p));
+          next = allSpecificSelected ? ["All Programs", ...temp] : temp;
+        }
+        return next;
+      }
+    });
+  };
+
+  const toggleExportYear = (year: string) => {
+    setExportYears((prev) => {
+      if (year === "All Year Levels") {
+        const isCurrentlyChecked = prev.includes("All Year Levels");
+        if (isCurrentlyChecked) {
+          return [];
+        } else {
+          return ["All Year Levels", ...YEAR_LEVELS];
+        }
+      } else {
+        const isCurrentlyChecked = prev.includes(year);
+        let next: string[];
+        if (isCurrentlyChecked) {
+          next = prev.filter((y) => y !== year && y !== "All Year Levels");
+        } else {
+          const temp = [...prev, year];
+          const allSpecificSelected = YEAR_LEVELS.every((y) => temp.includes(y));
+          next = allSpecificSelected ? ["All Year Levels", ...temp] : temp;
+        }
+        return next;
+      }
+    });
+  };
 
   // Fetch / get data for selected term
   const students = useMemo(() => MOCK_STUDENTS_BY_TERM[selectedTerm] || [], [selectedTerm]);
@@ -353,8 +575,7 @@ export default function ReportsPage() {
 
   // Year Level breakdown
   const yearLevelData = useMemo(() => {
-    const years = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
-    return years.map((yr) => {
+    return YEAR_LEVELS.map((yr) => {
       const yrStudents = students.filter((s) => s.yearLevel === yr);
       const cleared = yrStudents.filter((s) => s.status === "cleared").length;
       const uncleared = yrStudents.filter((s) => s.status === "uncleared").length;
@@ -364,38 +585,13 @@ export default function ReportsPage() {
 
   // Department breakdown
   const departmentData = useMemo(() => {
-    const depts = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
-    return depts.map((d) => {
+    return DEPARTMENTS.map((d) => {
       const deptStudents = students.filter((s) => s.department === d);
       const cleared = deptStudents.filter((s) => s.status === "cleared").length;
       const uncleared = deptStudents.filter((s) => s.status === "uncleared").length;
       return { label: d, cleared, uncleared };
     });
   }, [students]);
-
-  // Top Reasons (Remarks) List
-  const topRemarks = useMemo(() => {
-    const remarksCount: Record<string, number> = {};
-    records
-      .filter((r) => r.status === "uncleared" && r.remark)
-      .forEach((r) => {
-        const text = r.remark.trim();
-        // Bucket common remarks or keep literal
-        remarksCount[text] = (remarksCount[text] || 0) + 1;
-      });
-
-    const sorted = Object.entries(remarksCount)
-      .map(([text, count]) => ({ text, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
-    const maxCount = sorted.length > 0 ? sorted[0].count : 1;
-
-    return sorted.map((item) => ({
-      ...item,
-      percentage: Math.round((item.count / maxCount) * 100),
-    }));
-  }, [records]);
 
   // Requirement Completion Table data
   const reqCompletionData = useMemo(() => {
@@ -408,13 +604,56 @@ export default function ReportsPage() {
     });
   }, [records]);
 
-  // Export CSV Handler
+  // Export CSV Modal Trigger
   const handleExportCSV = () => {
-    if (students.length === 0) return;
+    setExportDepts([]);
+    setExportProgs([]);
+    setExportYears([]);
+    setExportStatuses([]);
+    setExportDeptPopoverOpen(false);
+    setExportProgPopoverOpen(false);
+    setExportYearPopoverOpen(false);
+    setExportDeptSearch("");
+    setExportProgSearch("");
+    setExportYearSearch("");
+    setIsExportModalOpen(true);
+  };
+
+  // Actual CSV Generator and Downloader with applied export filters
+  const handleDownloadCSV = () => {
+    let list = MOCK_STUDENTS_BY_TERM[selectedTerm] || [];
+
+    // Filter by selected departments (ignoring the "All Departments" selector)
+    const activeDepts = exportDepts.filter((d) => d !== "All Departments");
+    if (activeDepts.length > 0) {
+      list = list.filter((s) => activeDepts.includes(s.department));
+    }
+
+    // Filter by selected programs (ignoring the "All Programs" selector)
+    const activeProgs = exportProgs.filter((p) => p !== "All Programs");
+    if (activeProgs.length > 0) {
+      list = list.filter((s) => activeProgs.includes(s.course));
+    }
+
+    // Filter by selected year levels (ignoring the "All Year Levels" selector)
+    const activeYears = exportYears.filter((y) => y !== "All Year Levels");
+    if (activeYears.length > 0) {
+      list = list.filter((s) => activeYears.includes(s.yearLevel));
+    }
+
+    // Filter by selected statuses
+    if (exportStatuses.length > 0) {
+      list = list.filter((s) => exportStatuses.includes(s.status));
+    }
+
+    if (list.length === 0) {
+      alert("No students match the selected criteria for export.");
+      return;
+    }
 
     // Headers
     const headers = ["Student ID", "Name", "Course", "Department", "Year Level", "Status", "Last Updated"];
-    const rows = students.map((s) => [
+    const rows = list.map((s) => [
       s.id,
       `"${s.name.replace(/"/g, '""')}"`,
       s.course,
@@ -433,6 +672,7 @@ export default function ReportsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setIsExportModalOpen(false);
   };
 
   return (
@@ -467,6 +707,8 @@ export default function ReportsPage() {
               expand_more
             </span>
           </div>
+
+
 
           {/* Export Button */}
           <button
@@ -759,84 +1001,401 @@ export default function ReportsPage() {
             <StackedBarChart data={departmentData} title="Clearance Status by Department" />
           </div>
 
-          {/* Row 3: Top Reasons and Requirement Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Top Reasons Card */}
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm md:col-span-1 flex flex-col justify-between">
-              <div>
-                <h3 className="text-base font-bold text-on-surface flex items-center gap-2 mb-5">
-                  <span className="material-symbols-outlined text-primary text-xl font-bold">feedback</span>
-                  Top Reasons for Hold
-                </h3>
-                {topRemarks.length === 0 ? (
-                  <div className="py-8 text-center text-secondary text-sm font-medium">
-                    No holds/remarks recorded
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {topRemarks.map((item, index) => (
-                      <div key={index} className="space-y-1">
-                        <div className="flex justify-between text-xs font-semibold text-on-surface">
-                          <span className="truncate max-w-[180px]">{item.text}</span>
-                          <span className="text-secondary">{item.count} holds</span>
-                        </div>
-                        <div className="w-full bg-surface-container-low h-2 rounded-full overflow-hidden">
-                          <div
-                            className="bg-brand-red h-full rounded-full transition-all duration-500"
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Requirement Completion Table */}
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm md:col-span-2">
-              <h3 className="text-base font-bold text-on-surface flex items-center gap-2 mb-5">
-                <span className="material-symbols-outlined text-primary text-xl font-bold">fact_check</span>
-                Requirement Completion Breakdown
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-outline-variant text-[11px] font-bold text-secondary uppercase tracking-wider">
-                      <th className="pb-3">Requirement</th>
-                      <th className="pb-3 text-center">Completion Rate</th>
-                      <th className="pb-3 text-right">Cleared / Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant/30 text-sm font-body-sm">
-                    {reqCompletionData.map((req) => (
-                      <tr key={req.id} className="hover:bg-surface-bright/50 transition-colors">
-                        <td className="py-3.5 pr-4 font-bold text-on-surface">
-                          {req.name}
-                          <span className="block text-[11px] font-normal text-secondary mt-0.5">{req.description}</span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3 justify-center min-w-[120px]">
-                            <span className="font-bold text-xs w-8 text-right">{req.rate}%</span>
-                            <div className="w-24 bg-surface-container-low h-2 rounded-full overflow-hidden">
-                              <div
-                                className="bg-[#10B981] h-full rounded-full transition-all duration-500"
-                                style={{ width: `${req.rate}%` }}
-                              />
-                            </div>
+          {/* Row 3: Requirement Completion Table */}
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+            <h3 className="text-base font-bold text-on-surface flex items-center gap-2 mb-5">
+              <span className="material-symbols-outlined text-primary text-xl font-bold">fact_check</span>
+              Requirement Completion Breakdown
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-outline-variant text-[11px] font-bold text-secondary uppercase tracking-wider">
+                    <th className="pb-3">Requirement</th>
+                    <th className="pb-3 text-center">Completion Rate</th>
+                    <th className="pb-3 text-right">Cleared / Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/30 text-sm font-body-sm">
+                  {reqCompletionData.map((req) => (
+                    <tr key={req.id} className="hover:bg-surface-bright/50 transition-colors">
+                      <td className="py-3.5 pr-4 font-bold text-on-surface">
+                        {req.name}
+                        <span className="block text-[11px] font-normal text-secondary mt-0.5">{req.description}</span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3 justify-center min-w-[120px]">
+                          <span className="font-bold text-xs w-8 text-right">{req.rate}%</span>
+                          <div className="w-24 bg-surface-container-low h-2 rounded-full overflow-hidden">
+                            <div
+                              className="bg-[#10B981] h-full rounded-full transition-all duration-500"
+                              style={{ width: `${req.rate}%` }}
+                            />
                           </div>
-                        </td>
-                        <td className="py-3.5 pl-4 text-right text-secondary font-bold text-xs">
-                          {req.cleared} / {req.total}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 pl-4 text-right text-secondary font-bold text-xs">
+                        {req.cleared} / {req.total}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
+      )}
+
+
+
+      {/* Export Options Modal Portal */}
+      {mounted && isExportModalOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px]">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-2xl p-8 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-outline-variant">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-2xl">download</span>
+                <h3 className="font-title-md text-lg font-bold text-on-surface uppercase tracking-wider">
+                  Export Clearance Report
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsExportModalOpen(false)}
+                className="p-1 rounded-full hover:bg-surface-container-low text-secondary hover:text-on-surface transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-64">
+              <p className="text-xs text-secondary mb-4">
+                Select the filters to apply to the exported clearance report. By default, all constituents of the current term ({selectedTerm}) will be exported.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Department Dropdown Selector (Popover style) */}
+                <div className="space-y-2 relative" ref={exportDeptRef}>
+                  <label className="font-label-sm text-xs font-semibold text-secondary block">
+                    Department
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExportDeptPopoverOpen(!exportDeptPopoverOpen);
+                      setExportProgPopoverOpen(false);
+                      setExportYearPopoverOpen(false);
+                    }}
+                    className="w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm cursor-pointer focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <span className="truncate">
+                      {exportDepts.length === 0
+                        ? "All Departments"
+                        : exportDepts.includes("All Departments")
+                        ? "All Departments"
+                        : exportDepts.length === 1
+                        ? exportDepts[0]
+                        : `${exportDepts.length} Selected`}
+                    </span>
+                    <span className="material-symbols-outlined text-secondary text-base">
+                      expand_more
+                    </span>
+                  </button>
+
+                  {exportDeptPopoverOpen && (
+                    <div className="absolute top-full left-0 w-full bg-surface-container-lowest border border-outline-variant shadow-lg z-20 rounded-lg p-3 mt-1 flex flex-col gap-2.5 max-h-[300px] overflow-hidden">
+                      {/* Search */}
+                      <div className="relative">
+                        <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary text-xs">
+                          search
+                        </span>
+                        <input
+                          type="text"
+                          value={exportDeptSearch}
+                          onChange={(e) => setExportDeptSearch(e.target.value)}
+                          className="w-full h-8 pl-8 pr-2.5 bg-surface-container-low/50 border border-outline-variant rounded-md text-xs outline-none focus:border-primary"
+                          placeholder="Search departments..."
+                        />
+                      </div>
+
+                      {/* Bulk Actions */}
+                      <div className="flex justify-between items-center text-[10px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setExportDepts(["All Departments", ...DEPARTMENTS])}
+                          className="hover:underline"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExportDepts([]);
+                            setExportProgs([]);
+                          }}
+                          className="hover:underline"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+
+                      {/* Options */}
+                      <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
+                        {["All Departments", ...DEPARTMENTS]
+                          .filter((d) => d.toLowerCase().includes(exportDeptSearch.toLowerCase()))
+                          .map((dept) => (
+                            <label
+                              key={dept}
+                              className="flex items-center gap-2 text-xs text-on-surface cursor-pointer py-1 px-1.5 hover:bg-surface-container rounded transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={exportDepts.includes(dept)}
+                                onChange={() => toggleExportDept(dept)}
+                                className="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                              />
+                              <span>{dept}</span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Program Dropdown Selector */}
+                <div className="space-y-2 relative" ref={exportProgRef}>
+                  <label className="font-label-sm text-xs font-semibold text-secondary block">
+                    Program
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExportProgPopoverOpen(!exportProgPopoverOpen);
+                      setExportDeptPopoverOpen(false);
+                      setExportYearPopoverOpen(false);
+                    }}
+                    className="w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm cursor-pointer focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <span className="truncate">
+                      {exportProgs.length === 0
+                        ? "All Programs"
+                        : exportProgs.includes("All Programs")
+                        ? "All Programs"
+                        : exportProgs.length === 1
+                        ? exportProgs[0]
+                        : `${exportProgs.length} Selected`}
+                    </span>
+                    <span className="material-symbols-outlined text-secondary text-base">
+                      expand_more
+                    </span>
+                  </button>
+
+                  {exportProgPopoverOpen && (
+                    <div className="absolute top-full left-0 w-full bg-surface-container-lowest border border-outline-variant shadow-lg z-20 rounded-lg p-3 mt-1 flex flex-col gap-2.5 max-h-[300px] overflow-hidden">
+                      {/* Search */}
+                      <div className="relative">
+                        <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary text-xs">
+                          search
+                        </span>
+                        <input
+                          type="text"
+                          value={exportProgSearch}
+                          onChange={(e) => setExportProgSearch(e.target.value)}
+                          className="w-full h-8 pl-8 pr-2.5 bg-surface-container-low/50 border border-outline-variant rounded-md text-xs outline-none focus:border-primary"
+                          placeholder="Search programs..."
+                        />
+                      </div>
+
+                      {/* Bulk Actions */}
+                      <div className="flex justify-between items-center text-[10px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const available = getAvailableExportProgramsList();
+                            setExportProgs(["All Programs", ...available]);
+                          }}
+                          className="hover:underline"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExportProgs([])}
+                          className="hover:underline"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+
+                      {/* Options */}
+                      <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
+                        {["All Programs", ...getAvailableExportProgramsList()]
+                          .filter((p) => p.toLowerCase().includes(exportProgSearch.toLowerCase()))
+                          .map((prog) => (
+                            <label
+                              key={prog}
+                              className="flex items-center gap-2 text-xs text-on-surface cursor-pointer py-1 px-1.5 hover:bg-surface-container rounded transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={exportProgs.includes(prog)}
+                                onChange={() => toggleExportProg(prog)}
+                                className="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                              />
+                              <span>{prog}</span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Year Level Dropdown Selector */}
+                <div className="space-y-2 relative" ref={exportYearRef}>
+                  <label className="font-label-sm text-xs font-semibold text-secondary block">
+                    Year Level
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExportYearPopoverOpen(!exportYearPopoverOpen);
+                      setExportDeptPopoverOpen(false);
+                      setExportProgPopoverOpen(false);
+                    }}
+                    className="w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm cursor-pointer focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <span className="truncate">
+                      {exportYears.length === 0
+                        ? "All Year Levels"
+                        : exportYears.includes("All Year Levels")
+                        ? "All Year Levels"
+                        : exportYears.length === 1
+                        ? exportYears[0]
+                        : `${exportYears.length} Selected`}
+                    </span>
+                    <span className="material-symbols-outlined text-secondary text-base">
+                      expand_more
+                    </span>
+                  </button>
+
+                  {exportYearPopoverOpen && (
+                    <div className="absolute top-full left-0 w-full bg-surface-container-lowest border border-outline-variant shadow-lg z-20 rounded-lg p-3 mt-1 flex flex-col gap-2.5 max-h-[300px] overflow-hidden">
+                      {/* Search */}
+                      <div className="relative">
+                        <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary text-xs">
+                          search
+                        </span>
+                        <input
+                          type="text"
+                          value={exportYearSearch}
+                          onChange={(e) => setExportYearSearch(e.target.value)}
+                          className="w-full h-8 pl-8 pr-2.5 bg-surface-container-low/50 border border-outline-variant rounded-md text-xs outline-none focus:border-primary"
+                          placeholder="Search year levels..."
+                        />
+                      </div>
+
+                      {/* Bulk Actions */}
+                      <div className="flex justify-between items-center text-[10px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setExportYears(["All Year Levels", ...YEAR_LEVELS])}
+                          className="hover:underline"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExportYears([])}
+                          className="hover:underline"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+
+                      {/* Options */}
+                      <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
+                        {["All Year Levels", ...YEAR_LEVELS]
+                          .filter((y) => y.toLowerCase().includes(exportYearSearch.toLowerCase()))
+                          .map((yr) => (
+                            <label
+                              key={yr}
+                              className="flex items-center gap-2 text-xs text-on-surface cursor-pointer py-1 px-1.5 hover:bg-surface-container rounded transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={exportYears.includes(yr)}
+                                onChange={() => toggleExportYear(yr)}
+                                className="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                              />
+                              <span>{yr}</span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Clearance Status Option */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-secondary uppercase tracking-wider block">Clearance Status</label>
+                <div className="flex gap-4">
+                  {STATUSES.map((status) => {
+                    const isChecked = exportStatuses.includes(status.value);
+                    return (
+                      <label
+                        key={status.value}
+                        className={`flex-1 flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer select-none transition-all ${
+                          isChecked
+                            ? "border-primary bg-primary/5 text-primary font-semibold"
+                            : "border-outline-variant hover:bg-surface-container-low text-on-surface"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            setExportStatuses((prev) =>
+                              prev.includes(status.value)
+                                ? prev.filter((s) => s !== status.value)
+                                : [...prev, status.value]
+                            );
+                          }}
+                          className="sr-only"
+                        />
+                        <span className="material-symbols-outlined text-[18px]">
+                          {isChecked ? "check_box" : "check_box_outline_blank"}
+                        </span>
+                        <span className="text-xs">{status.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-8 pt-4 border-t border-outline-variant bg-surface-container-lowest flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-5 py-2.5 rounded-lg border border-outline-variant hover:bg-surface-container-low font-label-md text-xs text-on-surface transition-colors active:scale-95"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadCSV}
+                className="bg-primary text-white px-6 py-2.5 rounded-lg font-label-md text-xs shadow-sm hover:bg-primary-container transition-all flex items-center gap-2 btn-hover active:scale-95 animate-in fade-in"
+              >
+                <span className="material-symbols-outlined text-[18px]">download</span>
+                Download CSV
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -317,7 +317,7 @@ export default function ClearanceRequirementsPage() {
           day: "numeric",
           year: "numeric",
         }),
-        status: "Live",
+        status: "Draft",
         appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
       };
       setRequirements((prev) => [newReq, ...prev]);
