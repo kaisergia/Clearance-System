@@ -4,6 +4,9 @@ export const mockOrgs = [
     id: 1,
     name: "Computer Science Society",
     category: "Academic",
+    type: "AcademicClub",
+    department: "CCIS",
+    program: "BSCS",
     adviser: "Prof. Santos",
     status: "Active",
     dateAdded: "Aug 1, 2024",
@@ -13,6 +16,9 @@ export const mockOrgs = [
     id: 2,
     name: "Junior Marketing Association",
     category: "Academic",
+    type: "AcademicClub",
+    department: "CABE",
+    program: "BSBA",
     adviser: "Prof. Reyes",
     status: "Active",
     dateAdded: "Aug 1, 2024",
@@ -22,8 +28,11 @@ export const mockOrgs = [
     id: 3,
     name: "University Dance Troupe",
     category: "Cultural",
+    type: "NonAcademicClub",
+    department: null,
+    program: null,
     adviser: "Prof. Lim",
-    status: "Disabled",
+    status: "Active",
     dateAdded: "Aug 5, 2024",
     memberCount: 20,
   },
@@ -31,6 +40,9 @@ export const mockOrgs = [
     id: 4,
     name: "Engineering Society",
     category: "Academic",
+    type: "AcademicClub",
+    department: "COE",
+    program: "BSCE",
     adviser: "Prof. Cruz",
     status: "Active",
     dateAdded: "Aug 1, 2024",
@@ -40,12 +52,34 @@ export const mockOrgs = [
     id: 5,
     name: "Student Government",
     category: "Governance",
+    type: "Gov",
+    department: null,
+    program: null,
     adviser: "Prof. Villanueva",
     status: "Active",
     dateAdded: "Jul 28, 2024",
     memberCount: 15,
   },
+  {
+    id: 6,
+    name: "CCIS LGU",
+    category: "Governance",
+    type: "LGU",
+    department: "CCIS",
+    program: null,
+    adviser: "Prof. Dimaculangan",
+    status: "Active",
+    dateAdded: "Jul 30, 2024",
+    memberCount: 150,
+  },
 ];
+
+// Explicit membership mapping for Non-Academic Clubs
+export const mockOrgMembers = [
+  { orgId: 3, studentId: "2021-00001" }, // Juan Dela Cruz in Dance Troupe
+  { orgId: 3, studentId: "2022-00003" }, // Pedro Reyes in Dance Troupe
+];
+
 
 // Head Offices
 export const mockOffices = [

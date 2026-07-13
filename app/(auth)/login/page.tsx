@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { mockOrgs } from "@/mock/mockData";
 
 // Role options for mock login
 const ROLES = [
@@ -22,12 +23,26 @@ const ROLE_ROUTES: Record<string, string> = {
 export default function LoginPage() {
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState("");
+  const [selectedOrgId, setSelectedOrgId] = useState("");
   const [error, setError] = useState("");
 
   const handleLogin = () => {
     if (!selectedRole) {
       setError("Please select a role to continue.");
       return;
+    }
+
+    if (selectedRole === "org") {
+      if (!selectedOrgId) {
+        setError("Please select an organization to continue.");
+        return;
+      }
+      // Save selected organization ID to localStorage and cookies
+      localStorage.setItem("orgId", selectedOrgId);
+      document.cookie = `orgId=${selectedOrgId}; path=/; max-age=86400`;
+    } else {
+      localStorage.removeItem("orgId");
+      document.cookie = "orgId=; path=/; max-age=0";
     }
 
     // Save role to localStorage AND cookie (cookie is read by middleware RoleGuard)
@@ -73,6 +88,7 @@ export default function LoginPage() {
               value={selectedRole}
               onChange={(e) => {
                 setSelectedRole(e.target.value);
+                setSelectedOrgId("");
                 setError("");
               }}
               className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
@@ -86,10 +102,41 @@ export default function LoginPage() {
                 </option>
               ))}
             </select>
-            {error && (
-              <p className="text-error font-body-sm text-body-sm">{error}</p>
-            )}
           </div>
+
+          {/* Org Selector — Shown only if role is Org Officer */}
+          {selectedRole === "org" && (
+            <div className="space-y-2">
+              <label
+                htmlFor="org"
+                className="block font-body-sm text-body-sm text-on-surface font-medium"
+              >
+                Select your organization
+              </label>
+              <select
+                id="org"
+                value={selectedOrgId}
+                onChange={(e) => {
+                  setSelectedOrgId(e.target.value);
+                  setError("");
+                }}
+                className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
+              >
+                <option value="" disabled>
+                  Choose an organization...
+                </option>
+                {mockOrgs.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name} ({org.category} {org.type === "LGU" ? "LGU" : "Club"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {error && (
+            <p className="text-error font-body-sm text-body-sm">{error}</p>
+          )}
 
           {/* Login Button */}
           <button
