@@ -57,6 +57,73 @@ const DEPT_PROGRAMS: Record<string, string[]> = {
 
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
+function ExpandableAppliesTo({ appliesTo }: { appliesTo: string[] }) {
+  const [expandDept, setExpandDept] = useState(false);
+  const [expandProg, setExpandProg] = useState(false);
+  const [expandYear, setExpandYear] = useState(false);
+
+  const depts = appliesTo.filter((item) => item === "All Departments" || DEPARTMENTS.includes(item));
+  const allProgs = Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()));
+  const progs = appliesTo.filter((item) => item === "All Programs" || allProgs.includes(item));
+  const years = appliesTo.filter((item) => item === "All Year Levels" || YEAR_LEVELS.includes(item));
+
+  const renderGroup = (
+    label: string,
+    items: string[],
+    isExpanded: boolean,
+    setExpanded: (v: boolean) => void,
+    limit = 3
+  ) => {
+    if (items.length === 0) return null;
+    const visibleItems = isExpanded ? items : items.slice(0, limit);
+    const hasMore = items.length > limit;
+
+    return (
+      <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 items-start py-0.5">
+        <span className="text-[10px] font-bold text-secondary min-w-[85px] select-none pt-0.5 uppercase tracking-wider">
+          {label}:
+        </span>
+        <div className="flex flex-wrap gap-1 flex-1">
+          {visibleItems.map((item, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center px-2 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-secondary border border-outline-variant/30"
+            >
+              {item}
+            </span>
+          ))}
+          {hasMore && !isExpanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="inline-flex items-center px-1.5 py-0.5 bg-primary-container/10 text-primary border border-primary-container/20 rounded font-bold text-[10px] hover:bg-primary-container/20 transition-all cursor-pointer"
+            >
+              +{items.length - limit} more
+            </button>
+          )}
+          {isExpanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="inline-flex items-center px-1.5 py-0.5 bg-outline-variant/10 text-secondary border border-outline-variant/20 rounded font-bold text-[10px] hover:bg-outline-variant/20 transition-all cursor-pointer"
+            >
+              Show less
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-1.5 mt-2 p-3 bg-surface-container-low/40 rounded-lg border border-outline-variant/30 max-w-xl">
+      {renderGroup("Departments", depts, expandDept, setExpandDept)}
+      {renderGroup("Programs", progs, expandProg, setExpandProg)}
+      {renderGroup("Year Levels", years, expandYear, setExpandYear)}
+    </div>
+  );
+}
+
 export default function ClearanceRequirementsPage() {
   const [requirements, setRequirements] = useState<Requirement[]>(INITIAL_REQUIREMENTS);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -294,13 +361,13 @@ export default function ClearanceRequirementsPage() {
         prev.map((r) =>
           r.id === editingReqId
             ? {
-                ...r,
-                name: reqName,
-                description: reqDescription,
-                linkName: linkName ? linkName : undefined,
-                linkUrl: linkUrl ? linkUrl : undefined,
-                appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
-              }
+              ...r,
+              name: reqName,
+              description: reqDescription,
+              linkName: linkName ? linkName : undefined,
+              linkUrl: linkUrl ? linkUrl : undefined,
+              appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
+            }
             : r
         )
       );
@@ -386,22 +453,13 @@ export default function ClearanceRequirementsPage() {
                   <span className="font-body-md text-base font-bold text-on-surface">
                     {req.name}
                   </span>
-                    <span className="font-body-sm text-sm text-secondary">
-                      {req.description}
-                    </span>
-                    {req.appliesTo && req.appliesTo.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {req.appliesTo.map((chip, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center px-2 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-secondary border border-outline-variant/30"
-                          >
-                            {chip}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <span className="font-body-sm text-sm text-secondary">
+                    {req.description}
+                  </span>
+                  {req.appliesTo && req.appliesTo.length > 0 && (
+                    <ExpandableAppliesTo appliesTo={req.appliesTo} />
+                  )}
+                </div>
 
                 {/* View/Add Link */}
                 <div className="col-span-2 flex justify-center items-center">
@@ -550,8 +608,8 @@ export default function ClearanceRequirementsPage() {
                           {selectedDepts.length === 0
                             ? "Select Department"
                             : selectedDepts.length === 1
-                            ? selectedDepts[0]
-                            : `${selectedDepts.length} Departments selected`}
+                              ? selectedDepts[0]
+                              : `${selectedDepts.length} Departments selected`}
                         </span>
                         <span className="material-symbols-outlined text-secondary">
                           expand_more
@@ -633,20 +691,19 @@ export default function ClearanceRequirementsPage() {
                           setDeptPopoverOpen(false);
                           setYearPopoverOpen(false);
                         }}
-                        className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant font-body-sm text-sm text-left flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${
-                          selectedDepts.length === 0
+                        className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant font-body-sm text-sm text-left flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${selectedDepts.length === 0
                             ? "bg-surface-container/30 text-secondary/50 cursor-not-allowed opacity-60"
                             : "bg-surface-container-lowest text-on-surface cursor-pointer"
-                        }`}
+                          }`}
                       >
                         <span className="truncate">
                           {selectedDepts.length === 0
                             ? "Select Department first"
                             : selectedProgs.length === 0
-                            ? "Select Program"
-                            : selectedProgs.length === 1
-                            ? selectedProgs[0]
-                            : `${selectedProgs.length} Programs selected`}
+                              ? "Select Program"
+                              : selectedProgs.length === 1
+                                ? selectedProgs[0]
+                                : `${selectedProgs.length} Programs selected`}
                         </span>
                         <span className="material-symbols-outlined text-secondary">
                           expand_more
@@ -741,8 +798,8 @@ export default function ClearanceRequirementsPage() {
                           {selectedYears.length === 0
                             ? "Select Year Level"
                             : selectedYears.length === 1
-                            ? selectedYears[0]
-                            : `${selectedYears.length} Year Levels selected`}
+                              ? selectedYears[0]
+                              : `${selectedYears.length} Year Levels selected`}
                         </span>
                         <span className="material-symbols-outlined text-secondary">
                           expand_more
