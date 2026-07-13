@@ -22,9 +22,11 @@ export default function HeadOfficeLayout({ children }: { children: React.ReactNo
       {/* SideNavBar */}
       <aside className="fixed left-0 top-0 h-full w-[280px] bg-surface-container-lowest border-r border-outline-variant flex flex-col py-6 hidden md:flex">
         <div className="px-6 mb-8 flex items-center gap-3">
-          <div className="h-10 w-10 bg-primary rounded-full flex items-center justify-center text-on-primary">
-            <span className="font-bold text-label-md">CJC</span>
-          </div>
+          <img
+            src="/images/logos/cjc-logo.webp"
+            alt="Cor Jesu College Logo"
+            className="h-10 w-10 object-contain rounded-full shadow-sm"
+          />
           <div>
             <h1 className="font-headline-md text-headline-md font-bold text-primary whitespace-nowrap">
               Cor Jesu College

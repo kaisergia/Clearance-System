@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { mockOrgs, mockOrgMembers } from "@/mock/mockData";
 import { mockStudents } from "@/mock/mockStudents";
-import { ConstituentsFilterBar } from "@/components/ConstituentsFilterBar";
-import { ConstituentsTable } from "@/components/ConstituentsTable";
+import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
+import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 
 export default function OrgConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();

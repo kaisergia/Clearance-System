@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSettings } from "@/components/contexts/SettingsContext";
-import { ConstituentsFilterBar } from "@/components/ConstituentsFilterBar";
-import { ConstituentsTable } from "@/components/ConstituentsTable";
+import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
+import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 
 // Mock constituents list based on the updated departments
 const INITIAL_CONSTITUENTS = [

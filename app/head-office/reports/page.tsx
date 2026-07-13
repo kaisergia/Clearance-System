@@ -55,7 +55,7 @@ const MOCK_REQUIREMENTS: Requirement[] = [
 ];
 
 const MOCK_STUDENTS_BY_TERM: Record<string, Student[]> = {
-  "Fall Semester 2024": [
+  "1st Semester 2025-2026": [
     { id: "2021-0492", name: "Eleanor Shellstrop", course: "BS Computer Science", department: "CCIS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-20" },
     { id: "2022-1103", name: "Chidi Anagonye", course: "BS Civil Engineering", department: "COE", yearLevel: "3rd Year", status: "uncleared", lastUpdated: "2024-11-22" },
     { id: "2020-8831", name: "Tahani Al-Jamil", course: "BS Data Science", department: "CEDAS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-18" },
@@ -67,7 +67,7 @@ const MOCK_STUDENTS_BY_TERM: Record<string, Student[]> = {
     { id: "2022-4815", name: "Hugo Reyes", course: "BS Business Administration", department: "CABE", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-11-17" },
     { id: "2021-1623", name: "Jack Shephard", course: "BS Nursing", department: "CHS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-12" },
   ],
-  "Spring Semester 2024": [
+  "2nd Semester 2024-2025": [
     { id: "2021-0492", name: "Eleanor Shellstrop", course: "BS Computer Science", department: "CCIS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-15" },
     { id: "2022-1103", name: "Chidi Anagonye", course: "BS Civil Engineering", department: "COE", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2024-05-14" },
     { id: "2020-8831", name: "Tahani Al-Jamil", course: "BS Data Science", department: "CEDAS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-18" },
@@ -75,7 +75,7 @@ const MOCK_STUDENTS_BY_TERM: Record<string, Student[]> = {
     { id: "2021-5529", name: "Michael Realman", course: "BS Business Administration", department: "CABE", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-10" },
     { id: "2022-0941", name: "Janet Database", course: "BS Information Technology", department: "CCIS", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2024-05-12" },
   ],
-  "Fall Semester 2023": [
+  "1st Semester 2024-2025": [
     { id: "2021-0492", name: "Eleanor Shellstrop", course: "BS Computer Science", department: "CCIS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2023-11-18" },
     { id: "2022-1103", name: "Chidi Anagonye", course: "BS Civil Engineering", department: "COE", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2023-11-20" },
     { id: "2020-8831", name: "Tahani Al-Jamil", course: "BS Data Science", department: "CEDAS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2023-11-15" },
@@ -84,7 +84,7 @@ const MOCK_STUDENTS_BY_TERM: Record<string, Student[]> = {
 };
 
 const MOCK_RECORDS_BY_TERM: Record<string, ClearanceRecord[]> = {
-  "Fall Semester 2024": [
+  "1st Semester 2025-2026": [
     // Eleanor - Cleared
     { studentId: "2021-0492", requirementId: "req-1", status: "cleared", remark: "All books returned", dateAssigned: "2024-10-01", dateResolved: "2024-10-15" },
     { studentId: "2021-0492", requirementId: "req-2", status: "cleared", remark: "Fully paid", dateAssigned: "2024-10-01", dateResolved: "2024-11-10" },
@@ -126,7 +126,7 @@ const MOCK_RECORDS_BY_TERM: Record<string, ClearanceRecord[]> = {
     { studentId: "2021-1623", requirementId: "req-2", status: "cleared", remark: "Setted balance", dateAssigned: "2024-10-01", dateResolved: "2024-10-22" },
     { studentId: "2021-1623", requirementId: "req-3", status: "cleared", remark: "Interview done", dateAssigned: "2024-10-01", dateResolved: "2024-11-12" },
   ],
-  "Spring Semester 2024": [
+  "2nd Semester 2024-2025": [
     { studentId: "2021-0492", requirementId: "req-1", status: "cleared", remark: "Cleared", dateAssigned: "2024-04-01", dateResolved: "2024-04-10" },
     { studentId: "2021-0492", requirementId: "req-2", status: "cleared", remark: "Cleared", dateAssigned: "2024-04-01", dateResolved: "2024-05-15" },
     { studentId: "2022-1103", requirementId: "req-1", status: "cleared", remark: "Cleared", dateAssigned: "2024-04-01", dateResolved: "2024-04-12" },
@@ -140,7 +140,7 @@ const MOCK_RECORDS_BY_TERM: Record<string, ClearanceRecord[]> = {
     { studentId: "2022-0941", requirementId: "req-1", status: "cleared", remark: "Cleared", dateAssigned: "2024-04-01", dateResolved: "2024-04-22" },
     { studentId: "2022-0941", requirementId: "req-2", status: "cleared", remark: "Cleared", dateAssigned: "2024-04-01", dateResolved: "2024-05-12" },
   ],
-  "Fall Semester 2023": [
+  "1st Semester 2024-2025": [
     { studentId: "2021-0492", requirementId: "req-1", status: "cleared", remark: "Cleared", dateAssigned: "2023-10-01", dateResolved: "2023-10-15" },
     { studentId: "2021-0492", requirementId: "req-2", status: "cleared", remark: "Cleared", dateAssigned: "2023-10-01", dateResolved: "2023-11-18" },
     { studentId: "2022-1103", requirementId: "req-1", status: "cleared", remark: "Cleared", dateAssigned: "2023-10-01", dateResolved: "2023-10-20" },
@@ -395,7 +395,15 @@ export default function ReportsPage() {
   // Fetch / get data for selected term
   const mockTermKey = useMemo(() => {
     if (MOCK_STUDENTS_BY_TERM[selectedTerm]) return selectedTerm;
-    return "Fall Semester 2024";
+    
+    // Semantic fallback based on semester type
+    if (selectedTerm.includes("1st Semester") || selectedTerm.includes("Fall")) {
+      return "1st Semester 2025-2026";
+    }
+    if (selectedTerm.includes("2nd Semester") || selectedTerm.includes("Spring")) {
+      return "2nd Semester 2024-2025";
+    }
+    return "1st Semester 2024-2025";
   }, [selectedTerm]);
 
   const students = useMemo(() => MOCK_STUDENTS_BY_TERM[mockTermKey] || [], [mockTermKey]);
@@ -514,9 +522,9 @@ export default function ReportsPage() {
     setIsExportModalOpen(true);
   };
 
-  // Actual CSV Generator and Downloader with applied export filters
+  // Actual Excel XML Generator and Downloader with applied export filters
   const handleDownloadCSV = () => {
-    let list = MOCK_STUDENTS_BY_TERM[selectedTerm] || [];
+    let list = MOCK_STUDENTS_BY_TERM[mockTermKey] || [];
 
     // Filter by selected departments (ignoring the "All Departments" selector)
     const activeDepts = exportDepts.filter((d) => d !== "All Departments");
@@ -546,24 +554,80 @@ export default function ReportsPage() {
       return;
     }
 
-    // Headers
-    const headers = ["Student ID", "Name", "Course", "Department", "Year Level", "Status", "Last Updated"];
-    const rows = list.map((s) => [
-      s.id,
-      `"${s.name.replace(/"/g, '""')}"`,
-      s.course,
-      s.department,
-      s.yearLevel,
-      s.status.toUpperCase(),
-      s.lastUpdated,
-    ]);
+    const getYearWeight = (yr: string) => {
+      if (yr.includes("1st")) return 1;
+      if (yr.includes("2nd")) return 2;
+      if (yr.includes("3rd")) return 3;
+      if (yr.includes("4th")) return 4;
+      return 9;
+    };
 
-    const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    // XML Spreadsheet 2003 content with header bolding styles
+    const xmlHeader = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+  <Styles>
+    <Style ss:ID="headerStyle">
+      <Font ss:Bold="1" />
+    </Style>
+  </Styles>`;
+
+    const buildSheet = (name: string, dataList: typeof list) => {
+      let sheet = `  <Worksheet ss:Name="${name}">
+    <Table>
+      <Row>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Student ID</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Name</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Course/Program</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Department</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Year Level</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Status</Data></Cell>
+      </Row>`;
+
+      dataList.forEach((s) => {
+        sheet += `
+      <Row>
+        <Cell><Data ss:Type="String">${s.id}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.course.replace(/&/g, "&amp;")}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.department}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.yearLevel}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.status.toUpperCase()}</Data></Cell>
+      </Row>`;
+      });
+
+      sheet += `
+    </Table>
+  </Worksheet>`;
+      return sheet;
+    };
+
+    let xmlSheets = buildSheet("All Students", list);
+
+    // Group and sort students by department dynamically
+    const departments = Array.from(new Set(list.map((s) => s.department))).filter(Boolean).sort();
+    departments.forEach((dept) => {
+      const deptList = list
+        .filter((s) => s.department === dept)
+        .sort((a, b) => {
+          const yrA = getYearWeight(a.yearLevel || "");
+          const yrB = getYearWeight(b.yearLevel || "");
+          if (yrA !== yrB) return yrA - yrB;
+          return a.name.localeCompare(b.name);
+        });
+      xmlSheets += buildSheet(dept, deptList);
+    });
+
+    const xmlContent = xmlHeader + xmlSheets + "</Workbook>";
+    const blob = new Blob([xmlContent], { type: "application/vnd.ms-excel;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Clearance_Report_${selectedTerm.replace(/\s+/g, "_")}.csv`);
+    link.setAttribute("download", `Clearance_Report_${selectedTerm.replace(/\s+/g, "_")}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -850,7 +914,7 @@ export default function ReportsPage() {
                       <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4" />
                       <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
                     </linearGradient>
-                    <linearGradient id="line-gradient" x1="0" y1="0" x2="1" y2="0">
+                    <linearGradient id="line-gradient" x1="50" y1="0" x2="780" y2="0" gradientUnits="userSpaceOnUse">
                       <stop offset="0%" stopColor="#f44a3b" />
                       <stop offset="100%" stopColor="#b51b15" />
                     </linearGradient>

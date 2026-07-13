@@ -1,0 +1,194 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>UniClear - Requirement Settings</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#ffdad6",
+                        "inverse-surface": "#213145",
+                        "on-primary-fixed": "#410001",
+                        "surface-container": "#e5eeff",
+                        "surface-bright": "#f8f9ff",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-tertiary": "#ffffff",
+                        "primary-container": "#d9372a",
+                        "secondary": "#545f73",
+                        "surface-container-high": "#dce9ff",
+                        "secondary-fixed-dim": "#bcc7de",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "tertiary-container": "#727577",
+                        "secondary-container": "#d5e0f8",
+                        "surface": "#f8f9ff",
+                        "inverse-primary": "#ffb4a9",
+                        "tertiary": "#595c5e",
+                        "on-surface-variant": "#5b403c",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-fixed-variant": "#930004",
+                        "outline": "#8f706b",
+                        "surface-container-highest": "#d3e4fe",
+                        "surface-dim": "#cbdbf5",
+                        "primary-fixed": "#ffdad5",
+                        "on-primary-container": "#fffbff",
+                        "surface-variant": "#d3e4fe",
+                        "outline-variant": "#e4beb8",
+                        "on-error-container": "#93000a",
+                        "on-secondary-container": "#586377",
+                        "on-primary": "#ffffff",
+                        "background": "#f8f9ff",
+                        "on-tertiary-container": "#fbfdff",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "on-background": "#0b1c30",
+                        "primary": "#b51b15",
+                        "primary-fixed-dim": "#ffb4a9",
+                        "on-secondary-fixed-variant": "#3c475a",
+                        "surface-tint": "#b91e17",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#0b1c30",
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#d8e3fb",
+                        "on-secondary-fixed": "#111c2d",
+                        "surface-container-low": "#eff4ff",
+                        "tertiary-fixed": "#e0e3e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin_desktop": "32px",
+                        "base_unit": "4px",
+                        "margin_mobile": "16px",
+                        "gutter": "24px",
+                        "sidebar_width": "280px",
+                        "container_max_width": "1440px",
+                        "header_height": "72px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["JetBrains Mono"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-md": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "label-md": ["JetBrains Mono"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+                        "label-md": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #F8FAFC;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased min-h-screen">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[280px] bg-surface-container-lowest dark:bg-inverse-surface border-r border-outline-variant dark:border-outline z-50">
+<div class="flex flex-col h-full py-6">
+<!-- Header -->
+<div class="px-6 mb-8 flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary shrink-0"><span class="font-bold text-body-md">CJC</span></div><div><h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed whitespace-nowrap">Cor Jesu College</h1><p class="font-label-sm text-label-sm text-secondary uppercase tracking-widest">OFFICE PORTAL</p></div></div>
+<!-- Navigation Links -->
+<nav class="flex-1 flex flex-col gap-1 px-4">
+<a class="flex items-center gap-3 px-4 py-3 text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors duration-200 rounded-lg" href="#"><span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+<span class="font-body-md text-body-md">Constituents</span></a>
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-fixed dark:bg-primary-container text-primary dark:text-on-primary-container border-l-4 border-primary font-bold rounded-r-lg" href="#"><span class="material-symbols-outlined">task_alt</span><span class="font-body-md text-body-md whitespace-nowrap">Clearance Requirements</span></a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary dark:text-secondary-fixed-dim hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+<span class="font-body-md text-body-md">Reports</span>
+</a>
+</nav>
+<div class="mt-auto px-6 pt-6 border-t border-outline-variant">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold">
+                A
+            </div>
+<div class="flex flex-col overflow-hidden">
+<span class="font-body-md text-body-md font-bold text-on-surface truncate">Admin User</span>
+<span class="font-body-sm text-body-sm text-secondary truncate">admin@clearance....</span>
+</div>
+</div>
+<button class="text-secondary hover:text-primary transition-colors">
+<span class="material-symbols-outlined">logout</span>
+</button>
+</div>
+</div></div>
+</aside>
+<!-- Main Content Area -->
+<div class="ml-[280px] min-h-screen flex flex-col">
+<!-- TopAppBar -->
+
+<!-- Page Content Canvas -->
+<main class="flex-1 p-margin_desktop w-full max-w-container_max_width mx-auto">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-background mb-1">Clearance Requirements</h2>
+<p class="font-body-md text-body-md text-secondary">Configure your office's clearance criteria</p>
+</div>
+<button class="bg-primary hover:bg-surface-tint text-on-primary px-6 py-3 rounded-lg font-label-md text-label-md flex items-center gap-2 transition-colors duration-200 shadow-sm self-start md:self-auto">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                    Add Requirement
+                </button>
+</div>
+<!-- Content Panel -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-[0_2px_4px_rgba(0,0,0,0.04)] overflow-hidden">
+<!-- Table Header -->
+<div class="grid grid-cols-12 gap-4 px-6 py-4 bg-surface-container-low border-b border-outline-variant font-label-sm text-label-sm text-secondary uppercase"><div class="col-span-4">Requirement</div><div class="col-span-2 text-center">Link</div><div class="col-span-2 text-center">Added</div><div class="col-span-2 text-center">Status</div><div class="col-span-2 text-center">Actions</div></div>
+<!-- Table Rows -->
+<div class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<div class="grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-surface-bright transition-colors group"><div class="flex items-center gap-3 col-span-4"><span class="material-symbols-outlined text-secondary opacity-50 cursor-grab active:cursor-grabbing group-hover:opacity-100 transition-opacity">drag_indicator</span><div class="flex flex-col"><span class="font-body-md text-body-md font-semibold text-on-surface">Library Book Return</span><span class="font-body-sm text-body-sm text-secondary">Ensure all borrowed items are returned to the central library.</span></div></div><div class="col-span-2 flex justify-center items-center"><a href="#" class="text-primary hover:underline font-label-md text-label-md flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">open_in_new</span>View Link</a></div><div class="col-span-2 flex justify-center items-center font-body-sm text-secondary">Oct 24, 2023</div><div class="col-span-2 flex justify-center items-center"><button class="flex items-center gap-1.5 px-2 py-0.5 bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors"><span class="material-symbols-outlined text-[18px]">visibility</span><span class="text-label-sm font-bold uppercase">Live</span></button></div><div class="col-span-2 flex justify-center items-center"><div class="flex items-center gap-2"><button class="text-secondary hover:text-primary transition-colors p-1" title="Edit"><span class="material-symbols-outlined text-[20px]">edit</span></button><button class="hover:text-primary transition-colors p-1 text-error" title="Delete"><span class="material-symbols-outlined text-[20px]">delete</span></button></div></div></div>
+<!-- Row 2 -->
+<div class="grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-surface-bright transition-colors group"><div class="flex items-center gap-3 col-span-4"><span class="material-symbols-outlined text-secondary opacity-50 cursor-grab active:cursor-grabbing group-hover:opacity-100 transition-opacity">drag_indicator</span><div class="flex flex-col"><span class="font-body-md text-body-md font-semibold text-on-surface">Tuition Fee Settlement</span><span class="font-body-sm text-body-sm text-secondary">Clear all outstanding balances with the accounting office.</span></div></div><div class="col-span-2 flex justify-center items-center"><a href="#" class="text-primary hover:underline font-label-md text-label-md flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">open_in_new</span>View Link</a></div><div class="col-span-2 flex justify-center items-center font-body-sm text-secondary">Oct 22, 2023</div><div class="col-span-2 flex justify-center items-center"><button class="flex items-center gap-1.5 px-2 py-0.5 bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors"><span class="material-symbols-outlined text-[18px]">visibility</span><span class="text-label-sm font-bold uppercase">Live</span></button></div><div class="col-span-2 flex justify-center items-center"><div class="flex items-center gap-2"><button class="text-secondary hover:text-primary transition-colors p-1" title="Edit"><span class="material-symbols-outlined text-[20px]">edit</span></button><button class="hover:text-primary transition-colors p-1 text-error" title="Delete"><span class="material-symbols-outlined text-[20px]">delete</span></button></div></div></div>
+<!-- Row 3 -->
+<div class="grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-surface-bright transition-colors group"><div class="flex items-center gap-3 col-span-4"><span class="material-symbols-outlined text-secondary opacity-50 cursor-grab active:cursor-grabbing group-hover:opacity-100 transition-opacity">drag_indicator</span><div class="flex flex-col"><span class="font-body-md text-body-md font-semibold text-tertiary">Exit Interview</span><span class="font-body-sm text-body-sm text-secondary">Optional feedback session with guidance counselor.</span></div></div><div class="col-span-2 flex justify-center items-center"><button class="text-secondary hover:text-primary font-label-md text-label-md flex items-center gap-1 italic"><span class="material-symbols-outlined text-[18px]">add_link</span>Add link</button></div><div class="col-span-2 flex justify-center items-center font-body-sm text-secondary">Oct 20, 2023</div><div class="col-span-2 flex justify-center items-center"><button class="flex items-center gap-1.5 px-2 py-0.5 bg-surface-container-high text-secondary rounded-full hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[18px]">visibility_off</span><span class="text-label-sm font-bold uppercase">Draft</span></button></div><div class="col-span-2 flex justify-center items-center"><div class="flex items-center gap-2"><button class="text-secondary hover:text-primary transition-colors p-1" title="Edit"><span class="material-symbols-outlined text-[20px]">edit</span></button><button class="hover:text-primary transition-colors p-1 text-error" title="Delete"><span class="material-symbols-outlined text-[20px]">delete</span></button></div></div></div>
+</div>
+</div>
+</main>
+</div>
+
+
+
+
+
+
+
+
+</body></html>

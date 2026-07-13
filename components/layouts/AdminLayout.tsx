@@ -107,14 +107,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Brand */}
         <div className="px-md py-lg border-b border-surface-container-high shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-brand-red flex items-center justify-center text-white shadow-sm shrink-0">
-              <span
-                className="material-symbols-outlined text-xl"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                admin_panel_settings
-              </span>
-            </div>
+            <img
+              src="/images/logos/cjc-logo.webp"
+              alt="Cor Jesu College Logo"
+              className="w-10 h-10 object-contain rounded-lg shadow-sm shrink-0"
+            />
             <div className="min-w-0">
               <h1 className="font-title-md text-title-md text-primary leading-tight truncate">
                 Clearance System
