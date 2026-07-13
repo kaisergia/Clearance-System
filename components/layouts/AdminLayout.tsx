@@ -1,15 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useOffices } from "@/components/contexts/OfficesContext";
+import { mockStudents, mockOfficeHeads } from "@/mock/mockStudents";
 
 function AddOfficeForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (data: any) => void }) {
   const [name, setName] = useState("");
   const [headName, setHeadName] = useState("");
   const [headEmail, setHeadEmail] = useState("");
   const [description, setDescription] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  
+  const allConstituents = [...mockStudents, ...mockOfficeHeads];
+  const filteredConstituents = headName 
+    ? allConstituents.filter(c => c.name.toLowerCase().includes(headName.toLowerCase()) || c.email.toLowerCase().includes(headName.toLowerCase()))
+    : allConstituents;
+
+  const handleSelectHead = (constituent: any) => {
+    setHeadName(constituent.name);
+    setHeadEmail(constituent.email);
+    setIsSearching(false);
+  };
 
   const handleSubmit = () => {
     if (!name.trim() || !headName.trim() || !headEmail.trim()) return;
@@ -25,19 +38,43 @@ function AddOfficeForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (data
       <div className="space-y-md">
         <div>
           <label className="block font-body-sm text-body-sm text-on-surface mb-1">Office Name *</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest" placeholder="e.g. Registrar" />
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="e.g. Registrar" />
         </div>
-        <div>
+        <div className="relative">
           <label className="block font-body-sm text-body-sm text-on-surface mb-1">Office Head Name *</label>
-          <input value={headName} onChange={(e) => setHeadName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest" placeholder="e.g. Maria Reyes" />
+          <input 
+            value={headName} 
+            onChange={(e) => {
+              setHeadName(e.target.value);
+              setIsSearching(true);
+            }} 
+            onFocus={() => setIsSearching(true)}
+            onBlur={() => setTimeout(() => setIsSearching(false), 200)}
+            className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" 
+            placeholder="Search for a constituent..." 
+          />
+          {isSearching && filteredConstituents.length > 0 && (
+            <ul className="absolute z-10 w-full bg-surface-container-lowest border border-surface-container-high mt-1 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {filteredConstituents.map(c => (
+                <li 
+                  key={c.id} 
+                  className="px-4 py-2 hover:bg-surface-container-low cursor-pointer flex flex-col"
+                  onClick={() => handleSelectHead(c)}
+                >
+                  <span className="font-medium text-on-surface">{c.name}</span>
+                  <span className="text-xs text-secondary">{c.email}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div>
           <label className="block font-body-sm text-body-sm text-on-surface mb-1">Office Head Email *</label>
-          <input value={headEmail} onChange={(e) => setHeadEmail(e.target.value)} type="email" className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest" placeholder="e.g. head@uni.edu.ph" />
+          <input value={headEmail} onChange={(e) => setHeadEmail(e.target.value)} type="email" className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="e.g. head@uni.edu.ph" />
         </div>
         <div>
           <label className="block font-body-sm text-body-sm text-on-surface mb-1">Description</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest" placeholder="Optional description" />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="Optional description" />
         </div>
       </div>
       <div className="flex gap-sm mt-lg">
@@ -52,11 +89,9 @@ function AddOfficeForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (data
 // Navigation structure
 // ──────────────────────────────────────────
 
-// Level-2 items under User Management (except Offices which is its own nested dropdown)
+// Level-2 items under User Management (except Offices and Organizations which are their own nested dropdowns)
 const USER_MGMT_ITEMS = [
   { label: "Constituents", href: "/admin/user-management/students", icon: "school" },
-  { label: "Orgs/Clubs", href: "/admin/user-management/orgs", icon: "groups" },
-  { label: "Head Office Accounts", href: "/admin/user-management/head-office-accounts", icon: "corporate_fare" },
 ];
 
 // Bottom-level nav items (after the User Management group)
@@ -71,7 +106,7 @@ const BOTTOM_NAV = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { offices, setOpenAddOfficeModal, openAddOfficeModal, addOffice } = useOffices();
+  const { offices, setOpenAddOfficeModal, openAddOfficeModal, addOffice, deleteOffice } = useOffices();
 
   // Track which accordion groups are open
   const [userMgmtOpen, setUserMgmtOpen] = useState(
@@ -79,6 +114,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
   const [officesOpen, setOfficesOpen] = useState(
     pathname.includes("/admin/offices")
+  );
+  const [organizationsOpen, setOrganizationsOpen] = useState(
+    pathname.includes("/admin/organizations")
+  );
+  const [clubsOpen, setClubsOpen] = useState(
+    pathname.includes("/admin/organizations/clubs")
   );
 
   // Returns true when the current path matches or is a sub-path of href
@@ -162,7 +203,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {userMgmtOpen && (
               <div className="pl-8 mt-0.5 space-y-0.5">
 
-                {/* Students, Orgs/Clubs, Head Office Accounts */}
+                {/* Students */}
                 {USER_MGMT_ITEMS.map((sub) => (
                   <Link
                     key={sub.href}
@@ -177,6 +218,100 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     {sub.label}
                   </Link>
                 ))}
+
+                {/* ── Organizations (Level 2 accordion) ── */}
+                <div>
+                  <button
+                    onClick={() => setOrganizationsOpen(!organizationsOpen)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg font-body-sm text-body-sm transition-colors ${
+                      pathname.includes("/admin/organizations")
+                        ? "bg-brand-red/5 text-brand-red font-semibold"
+                        : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">groups</span>
+                    <span className="flex-1 text-left">Organization</span>
+                    <span
+                      className="material-symbols-outlined text-sm transition-transform duration-200"
+                      style={{ transform: organizationsOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                    >
+                      expand_more
+                    </span>
+                  </button>
+
+                  {/* Level-3: Organization categories */}
+                  {organizationsOpen && (
+                    <div className="pl-6 mt-0.5 space-y-0.5">
+                      <Link
+                        href="/admin/organizations/student-government"
+                        className={`block px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors ${
+                          pathname === "/admin/organizations/student-government"
+                            ? "bg-brand-red/5 text-brand-red font-semibold"
+                            : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                        }`}
+                      >
+                        Student Government
+                      </Link>
+                      <Link
+                        href="/admin/organizations/lgu"
+                        className={`block px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors ${
+                          pathname === "/admin/organizations/lgu"
+                            ? "bg-brand-red/5 text-brand-red font-semibold"
+                            : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                        }`}
+                      >
+                        LGU
+                      </Link>
+
+                      {/* ── Clubs (Level 3 accordion) ── */}
+                      <div>
+                        <button
+                          onClick={() => setClubsOpen(!clubsOpen)}
+                          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors ${
+                            pathname.includes("/admin/organizations/clubs")
+                              ? "bg-brand-red/5 text-brand-red font-semibold"
+                              : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                          }`}
+                        >
+                          Clubs
+                          <span
+                            className="material-symbols-outlined text-sm transition-transform duration-200"
+                            style={{ transform: clubsOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                          >
+                            expand_more
+                          </span>
+                        </button>
+                        
+                        {/* Level-4: Club categories */}
+                        {clubsOpen && (
+                          <div className="pl-4 mt-0.5 space-y-0.5">
+                            <Link
+                              href="/admin/organizations/clubs/academic"
+                              className={`block px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-colors ${
+                                pathname === "/admin/organizations/clubs/academic"
+                                  ? "bg-brand-red/5 text-brand-red font-semibold"
+                                  : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                              }`}
+                            >
+                              Academic
+                            </Link>
+                            <Link
+                              href="/admin/organizations/clubs/non-academic"
+                              className={`block px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-colors ${
+                                pathname === "/admin/organizations/clubs/non-academic"
+                                  ? "bg-brand-red/5 text-brand-red font-semibold"
+                                  : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                              }`}
+                            >
+                              Non-Academic
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* end Organizations */}
 
                 {/* ── Offices (Level 2 accordion, nested inside User Management) ── */}
                 <div>
@@ -216,17 +351,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
                             {/* Individual office links */}
                             {offices.map((office) => (
-                              <Link
-                                key={office.id}
-                                href={`/admin/offices/${office.id}`}
-                                className={`block px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors truncate ${
-                                  pathname === `/admin/offices/${office.id}`
-                                    ? "bg-brand-red/5 text-brand-red font-semibold"
-                                    : "text-secondary hover:text-primary hover:bg-surface-container-low"
-                                }`}
-                              >
-                                {office.name}
-                              </Link>
+                              <div key={office.id} className="relative group">
+                                <Link
+                                  href={`/admin/offices/${office.id}`}
+                                  className={`block px-3 py-1.5 pr-8 rounded-lg font-label-md text-label-md transition-colors truncate ${
+                                    pathname === `/admin/offices/${office.id}`
+                                      ? "bg-brand-red/5 text-brand-red font-semibold"
+                                      : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                                  }`}
+                                >
+                                  {office.name}
+                                </Link>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    deleteOffice(office.id);
+                                  }}
+                                  className="absolute right-2 top-1.5 text-secondary hover:text-brand-red opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-brand-red/10 flex items-center justify-center"
+                                  title="Delete Office"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                                </button>
+                              </div>
                             ))}
 
                       {/* + Add Office */}

@@ -10,7 +10,7 @@ import { mockStudents } from "@/mock/mockStudents";
 interface Student {
   id: string;
   name: string;
-  course: string;
+  program: string;
   department: string;
   year: string;
   status: string;
@@ -324,7 +324,7 @@ export default function OrgReportsPage() {
     const mappedStudents: Student[] = mockStudents.map((s) => ({
       id: s.id,
       name: s.name,
-      course: s.course,
+      program: s.program,
       department: s.department,
       year: s.year,
       status: s.status,
@@ -338,7 +338,7 @@ export default function OrgReportsPage() {
     } else if (org.type === "LGU") {
       list = mappedStudents.filter((s) => s.department === org.department);
     } else if (org.type === "AcademicClub") {
-      list = mappedStudents.filter((s) => s.course === org.program);
+      list = mappedStudents.filter((s) => s.program === org.program);
     } else if (org.type === "NonAcademicClub") {
       const memberIds = mockOrgMembers
         .filter((m) => m.orgId === org.id)
@@ -429,7 +429,7 @@ export default function OrgReportsPage() {
     } else if (org.type === "LGU") {
       const programs = DEPT_PROGRAMS[org.department || ""] || [];
       return programs.map((prog) => {
-        const progStudents = constituents.filter((s) => s.course === prog);
+        const progStudents = constituents.filter((s) => s.program === prog);
         const cleared = progStudents.filter((s) => s.status === "Cleared").length;
         const uncleared = progStudents.filter((s) => s.status === "Pending").length;
         return { label: prog, cleared, uncleared };
@@ -498,7 +498,7 @@ export default function OrgReportsPage() {
 
     const activeProgs = exportProgs.filter((p) => p !== "All Programs");
     if (activeProgs.length > 0 && !isExclusiveProg) {
-      list = list.filter((s) => activeProgs.includes(s.course));
+      list = list.filter((s) => activeProgs.includes(s.program));
     }
 
     const activeYears = exportYears.filter((y) => y !== "All Year Levels");
@@ -565,7 +565,7 @@ export default function OrgReportsPage() {
       <Row>
         <Cell><Data ss:Type="String">${s.id}</Data></Cell>
         <Cell><Data ss:Type="String">${s.name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>
-        <Cell><Data ss:Type="String">${s.course.replace(/&/g, "&amp;")}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.program.replace(/&/g, "&amp;")}</Data></Cell>
         <Cell><Data ss:Type="String">${s.department}</Data></Cell>
         <Cell><Data ss:Type="String">${s.year}</Data></Cell>
         <Cell><Data ss:Type="String">${s.status.toUpperCase()}</Data></Cell>

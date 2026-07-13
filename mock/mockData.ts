@@ -198,3 +198,76 @@ export const mockRequirements = [
     remarks: "",
   },
 ];
+
+export const mockTerms = ["1st Sem 2024-2025", "2nd Sem 2023-2024", "1st Sem 2023-2024"];
+
+export const mockTemplates = [
+  {
+    id: 1,
+    name: "General Student Base",
+    type: "Default Workflow",
+    description: "Standard clearance requirements for all actively enrolled undergraduate and graduate students. Includes finance, library, and basic disciplinary checks.",
+    steps: 5,
+    applicable: "~12,400",
+    status: "Published",
+    lastEdited: "Jan 2, 2025",
+    icon: "description",
+    iconBg: "bg-secondary-container/30 text-tertiary",
+  },
+  {
+    id: 2,
+    name: "Graduating Seniors",
+    type: "Specialized Workflow",
+    description: "Extended clearance process requiring registrar audit, alumni association opt-in, and final financial settlement for diploma release.",
+    steps: 9,
+    applicable: "~2,100",
+    status: "Published",
+    lastEdited: "Dec 18, 2024",
+    icon: "school",
+    iconBg: "bg-primary-container/10 text-primary",
+  },
+  {
+    id: 3,
+    name: "Student Org Officers",
+    type: "Condition-Based",
+    description: "Additional requirements for recognized student organization officers, including equipment return and budget reconciliation.",
+    steps: 3,
+    applicable: "--",
+    status: "Draft",
+    lastEdited: "2 days ago",
+    icon: "groups",
+    iconBg: "bg-surface-container-high text-secondary",
+  },
+];
+
+export const mockWeekData = [
+  { week: "Wk 1", total: 20, cleared: 10 },
+  { week: "Wk 2", total: 35, cleared: 15 },
+  { week: "Wk 3", total: 45, cleared: 25 },
+  { week: "Wk 4", total: 60, cleared: 35 },
+  { week: "Wk 5", total: 75, cleared: 50 },
+  { week: "Wk 6", total: 85, cleared: 65 },
+  { week: "Wk 7", total: 95, cleared: 80 },
+];
+
+export const mockRecentReports = [
+  { name: "College of IT Clearance Q1", by: "Admin System", date: "Jan 15, 2025", status: "Completed" },
+  { name: "University Wide Deficiencies", by: "Admin System", date: "Jan 12, 2025", status: "Archived" },
+  { name: "Library Fees Outstanding", by: "J. Doe", date: "Jan 10, 2025", status: "Completed" },
+  { name: "Accounting Clearance Report", by: "R. Cruz", date: "Jan 8, 2025", status: "Completed" },
+];
+
+export const mockRequirementsByOffice: Record<number, string[]> = {
+  1: ["Submit grade sheets", "Verify enrollment records", "Clear academic holds"],
+  2: ["Return all borrowed materials", "Settle overdue fines", "Submit research documents"],
+  3: ["Complete exit interview", "Submit counseling forms", "Clear behavioral records"],
+  4: ["Pay all outstanding fees", "Submit financial clearance form", "Clear scholarship obligations"],
+  5: ["Resolve pending cases", "Submit incident report acknowledgment"],
+};
+
+export const mockRequirementsByOrgType: Record<string, string[]> = {
+  "Gov": ["Submit candidacy forms", "Attend leadership training", "File turnover report"],
+  "LGU": ["Submit LGU liquidation", "Attend general assembly", "Turnover of equipment"],
+  "AcademicClub": ["Submit membership forms", "Pay organization fees", "Attend department seminar"],
+  "NonAcademicClub": ["Submit membership forms", "Pay organization fees", "Attend cultural/sports event"],
+};

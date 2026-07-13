@@ -22,6 +22,7 @@ type OfficesContextType = {
   openAddOfficeModal: boolean;
   setOpenAddOfficeModal: (v: boolean) => void;
   addStaff: (officeId: number, staff: Omit<Staff, "id">) => void;
+  deleteOffice: (id: number) => void;
 };
 
 const OfficesContext = createContext<OfficesContextType | undefined>(undefined);
@@ -43,6 +44,7 @@ function mapInitial() {
 export function OfficesProvider({ children }: { children: React.ReactNode }) {
   const [offices, setOffices] = useState<Office[]>(mapInitial);
   const [openAddOfficeModal, setOpenAddOfficeModal] = useState(false);
+  const [officeToDelete, setOfficeToDelete] = useState<number | null>(null);
 
   const addOffice = (o: Omit<Office, "id" | "staff">) => {
     setOffices((prev) => {
@@ -61,9 +63,47 @@ export function OfficesProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const deleteOffice = (id: number) => {
+    setOfficeToDelete(id);
+  };
+
+  const confirmDeleteOffice = () => {
+    if (officeToDelete !== null) {
+      setOffices((prev) => prev.filter((o) => o.id !== officeToDelete));
+      setOfficeToDelete(null);
+    }
+  };
+
+  const cancelDeleteOffice = () => {
+    setOfficeToDelete(null);
+  };
+
   return (
-    <OfficesContext.Provider value={{ offices, addOffice, openAddOfficeModal, setOpenAddOfficeModal, addStaff }}>
+    <OfficesContext.Provider value={{ offices, addOffice, openAddOfficeModal, setOpenAddOfficeModal, addStaff, deleteOffice }}>
       {children}
+      {officeToDelete !== null && (
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={cancelDeleteOffice}>
+          <div className="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-sm p-lg flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-md">
+              <div className="w-10 h-10 rounded-full bg-error-container text-error flex items-center justify-center">
+                <span className="material-symbols-outlined">warning</span>
+              </div>
+              <h3 className="font-title-lg text-title-lg text-on-surface">Delete Office</h3>
+            </div>
+            <p className="font-body-md text-body-md text-secondary mb-lg">
+              Are you sure you want to delete this office? This action cannot be undone.
+            </p>
+            <div className="flex gap-sm justify-end">
+              <button onClick={cancelDeleteOffice} className="px-4 py-2 rounded-lg font-label-md text-label-md text-secondary hover:bg-surface-container-low transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmDeleteOffice} className="px-4 py-2 rounded-lg font-label-md text-label-md bg-error text-on-error hover:opacity-90 transition-opacity shadow-sm">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </OfficesContext.Provider>
   );
 }

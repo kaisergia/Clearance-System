@@ -8,7 +8,7 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 interface Student {
   id: string;
   name: string;
-  course: string;
+  program: string;
   department: string;
   yearLevel: string;
   status: "cleared" | "uncleared";
@@ -56,30 +56,30 @@ const MOCK_REQUIREMENTS: Requirement[] = [
 
 const MOCK_STUDENTS_BY_TERM: Record<string, Student[]> = {
   "1st Semester 2025-2026": [
-    { id: "2021-0492", name: "Eleanor Shellstrop", course: "BS Computer Science", department: "CCIS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-20" },
-    { id: "2022-1103", name: "Chidi Anagonye", course: "BS Civil Engineering", department: "COE", yearLevel: "3rd Year", status: "uncleared", lastUpdated: "2024-11-22" },
-    { id: "2020-8831", name: "Tahani Al-Jamil", course: "BS Data Science", department: "CEDAS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-18" },
-    { id: "2023-0012", name: "Jason Mendoza", course: "BS Nursing", department: "CHS", yearLevel: "2nd Year", status: "uncleared", lastUpdated: "2024-11-25" },
-    { id: "2021-5529", name: "Michael Realman", course: "BS Business Administration", department: "CABE", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-15" },
-    { id: "2022-0941", name: "Janet Database", course: "BS Information Technology", department: "CCIS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-11-19" },
-    { id: "2023-1492", name: "Simone Garnet", course: "BS Psychology", department: "CHS", yearLevel: "2nd Year", status: "uncleared", lastUpdated: "2024-11-23" },
-    { id: "2024-0312", name: "John Locke", course: "BS Applied Mathematics", department: "CEDAS", yearLevel: "1st Year", status: "uncleared", lastUpdated: "2024-11-24" },
-    { id: "2022-4815", name: "Hugo Reyes", course: "BS Business Administration", department: "CABE", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-11-17" },
-    { id: "2021-1623", name: "Jack Shephard", course: "BS Nursing", department: "CHS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-12" },
+    { id: "2021-0492", name: "Eleanor Shellstrop", program: "BS Computer Science", department: "CCIS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-20" },
+    { id: "2022-1103", name: "Chidi Anagonye", program: "BS Civil Engineering", department: "COE", yearLevel: "3rd Year", status: "uncleared", lastUpdated: "2024-11-22" },
+    { id: "2020-8831", name: "Tahani Al-Jamil", program: "BS Data Science", department: "CEDAS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-18" },
+    { id: "2023-0012", name: "Jason Mendoza", program: "BS Nursing", department: "CHS", yearLevel: "2nd Year", status: "uncleared", lastUpdated: "2024-11-25" },
+    { id: "2021-5529", name: "Michael Realman", program: "BS Business Administration", department: "CABE", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-15" },
+    { id: "2022-0941", name: "Janet Database", program: "BS Information Technology", department: "CCIS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-11-19" },
+    { id: "2023-1492", name: "Simone Garnet", program: "BS Psychology", department: "CHS", yearLevel: "2nd Year", status: "uncleared", lastUpdated: "2024-11-23" },
+    { id: "2024-0312", name: "John Locke", program: "BS Applied Mathematics", department: "CEDAS", yearLevel: "1st Year", status: "uncleared", lastUpdated: "2024-11-24" },
+    { id: "2022-4815", name: "Hugo Reyes", program: "BS Business Administration", department: "CABE", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-11-17" },
+    { id: "2021-1623", name: "Jack Shephard", program: "BS Nursing", department: "CHS", yearLevel: "4th Year", status: "cleared", lastUpdated: "2024-11-12" },
   ],
   "2nd Semester 2024-2025": [
-    { id: "2021-0492", name: "Eleanor Shellstrop", course: "BS Computer Science", department: "CCIS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-15" },
-    { id: "2022-1103", name: "Chidi Anagonye", course: "BS Civil Engineering", department: "COE", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2024-05-14" },
-    { id: "2020-8831", name: "Tahani Al-Jamil", course: "BS Data Science", department: "CEDAS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-18" },
-    { id: "2023-0012", name: "Jason Mendoza", course: "BS Nursing", department: "CHS", yearLevel: "1st Year", status: "uncleared", lastUpdated: "2024-05-20" },
-    { id: "2021-5529", name: "Michael Realman", course: "BS Business Administration", department: "CABE", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-10" },
-    { id: "2022-0941", name: "Janet Database", course: "BS Information Technology", department: "CCIS", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2024-05-12" },
+    { id: "2021-0492", name: "Eleanor Shellstrop", program: "BS Computer Science", department: "CCIS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-15" },
+    { id: "2022-1103", name: "Chidi Anagonye", program: "BS Civil Engineering", department: "COE", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2024-05-14" },
+    { id: "2020-8831", name: "Tahani Al-Jamil", program: "BS Data Science", department: "CEDAS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-18" },
+    { id: "2023-0012", name: "Jason Mendoza", program: "BS Nursing", department: "CHS", yearLevel: "1st Year", status: "uncleared", lastUpdated: "2024-05-20" },
+    { id: "2021-5529", name: "Michael Realman", program: "BS Business Administration", department: "CABE", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2024-05-10" },
+    { id: "2022-0941", name: "Janet Database", program: "BS Information Technology", department: "CCIS", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2024-05-12" },
   ],
   "1st Semester 2024-2025": [
-    { id: "2021-0492", name: "Eleanor Shellstrop", course: "BS Computer Science", department: "CCIS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2023-11-18" },
-    { id: "2022-1103", name: "Chidi Anagonye", course: "BS Civil Engineering", department: "COE", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2023-11-20" },
-    { id: "2020-8831", name: "Tahani Al-Jamil", course: "BS Data Science", department: "CEDAS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2023-11-15" },
-    { id: "2021-5529", name: "Michael Realman", course: "BS Business Administration", department: "CABE", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2023-11-10" },
+    { id: "2021-0492", name: "Eleanor Shellstrop", program: "BS Computer Science", department: "CCIS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2023-11-18" },
+    { id: "2022-1103", name: "Chidi Anagonye", program: "BS Civil Engineering", department: "COE", yearLevel: "2nd Year", status: "cleared", lastUpdated: "2023-11-20" },
+    { id: "2020-8831", name: "Tahani Al-Jamil", program: "BS Data Science", department: "CEDAS", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2023-11-15" },
+    { id: "2021-5529", name: "Michael Realman", program: "BS Business Administration", department: "CABE", yearLevel: "3rd Year", status: "cleared", lastUpdated: "2023-11-10" },
   ],
 };
 
@@ -535,7 +535,7 @@ export default function ReportsPage() {
     // Filter by selected programs (ignoring the "All Programs" selector)
     const activeProgs = exportProgs.filter((p) => p !== "All Programs");
     if (activeProgs.length > 0) {
-      list = list.filter((s) => activeProgs.includes(s.course));
+      list = list.filter((s) => activeProgs.includes(s.program));
     }
 
     // Filter by selected year levels (ignoring the "All Year Levels" selector)
@@ -593,7 +593,7 @@ export default function ReportsPage() {
       <Row>
         <Cell><Data ss:Type="String">${s.id}</Data></Cell>
         <Cell><Data ss:Type="String">${s.name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>
-        <Cell><Data ss:Type="String">${s.course.replace(/&/g, "&amp;")}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.program.replace(/&/g, "&amp;")}</Data></Cell>
         <Cell><Data ss:Type="String">${s.department}</Data></Cell>
         <Cell><Data ss:Type="String">${s.yearLevel}</Data></Cell>
         <Cell><Data ss:Type="String">${s.status.toUpperCase()}</Data></Cell>

@@ -4,50 +4,7 @@ import { useState, useEffect } from "react";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
-
-// Mock constituents list based on the updated departments
-const INITIAL_CONSTITUENTS = [
-  {
-    id: "2021-0492",
-    name: "Eleanor Shellstrop",
-    department: "CCIS",
-    program: "BS Computer Science",
-    year: "4th Year",
-    status: "Cleared",
-  },
-  {
-    id: "2022-1103",
-    name: "Chidi Anagonye",
-    department: "COE",
-    program: "BS Civil Engineering",
-    year: "3rd Year",
-    status: "Pending",
-  },
-  {
-    id: "2020-8831",
-    name: "Tahani Al-Jamil",
-    department: "CEDAS",
-    program: "BS Data Science",
-    year: "2nd Year",
-    status: "Cleared",
-  },
-  {
-    id: "2023-0012",
-    name: "Jason Mendoza",
-    department: "CHS",
-    program: "BS Nursing",
-    year: "1st Year",
-    status: "Cleared",
-  },
-  {
-    id: "2021-5529",
-    name: "Michael Realman",
-    department: "CABE",
-    program: "BS Business Administration",
-    year: "4th Year",
-    status: "Cleared",
-  },
-];
+import { mockStudents } from "@/mock/mockStudents";
 
 export default function ConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -64,7 +21,7 @@ export default function ConstituentsPage() {
   const [program, setProgram] = useState("All Programs");
 
   // Keep state for table items to make "Mark Cleared / Uncleared" toggling work instantly!
-  const [constituents, setConstituents] = useState(INITIAL_CONSTITUENTS);
+  const [constituents, setConstituents] = useState(mockStudents);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Extract unique departments dynamically from state

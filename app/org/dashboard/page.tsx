@@ -32,7 +32,7 @@ export default function OrgDashboard() {
         } else if (currentOrg.type === "LGU") {
           list = mockStudents.filter((s) => s.department === currentOrg.department);
         } else if (currentOrg.type === "AcademicClub") {
-          list = mockStudents.filter((s) => s.course === currentOrg.program);
+          list = mockStudents.filter((s) => s.program === currentOrg.program);
         } else if (currentOrg.type === "NonAcademicClub") {
           const memberIds = mockOrgMembers
             .filter((m) => m.orgId === currentOrg.id)
@@ -189,7 +189,7 @@ export default function OrgDashboard() {
                     <td className="py-4 px-6 font-mono font-medium text-xs">{student.id}</td>
                     <td className="py-4 px-6 font-semibold">{student.name}</td>
                     <td className="py-4 px-6 text-secondary">{student.department || "N/A"}</td>
-                    <td className="py-4 px-6 text-secondary">{student.course}</td>
+                    <td className="py-4 px-6 text-secondary">{student.program}</td>
                     <td className="py-4 px-6 text-secondary">{student.year}</td>
                     <td className="py-4 px-6 text-center">
                       <span
