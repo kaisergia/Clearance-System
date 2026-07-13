@@ -5,7 +5,7 @@ import { useOffices } from "@/components/contexts/OfficesContext";
 
 export default function HeadOfficeAccountsPage() {
   const router = useRouter();
-  const { offices, setOpenAddOfficeModal } = useOffices();
+  const { offices, setOpenAddOfficeModal, deleteOffice } = useOffices();
 
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto">
@@ -48,6 +48,9 @@ export default function HeadOfficeAccountsPage() {
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e)=>{e.stopPropagation(); router.push(`/admin/offices/${o.id}`);}} className="p-1.5 text-secondary hover:text-primary rounded hover:bg-surface-container-low transition-colors" title="Open">
                         <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      </button>
+                      <button onClick={(e)=>{e.stopPropagation(); deleteOffice(o.id);}} className="p-1.5 text-secondary hover:text-brand-red rounded hover:bg-brand-red/10 transition-colors" title="Delete">
+                        <span className="material-symbols-outlined text-sm">delete</span>
                       </button>
                     </div>
                   </td>

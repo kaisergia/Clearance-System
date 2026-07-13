@@ -40,7 +40,7 @@ export default function OrgConstituentsPage() {
           list = mockStudents.filter((s) => s.department === currentOrg.department);
           setDepartment(currentOrg.department || "All Departments"); // Lock department
         } else if (currentOrg.type === "AcademicClub") {
-          list = mockStudents.filter((s) => s.course === currentOrg.program);
+          list = mockStudents.filter((s) => s.program === currentOrg.program);
           setDepartment(currentOrg.department || "All Departments"); // Lock department
           setProgram(currentOrg.program || "All Programs"); // Lock program
         } else if (currentOrg.type === "NonAcademicClub") {
@@ -64,7 +64,7 @@ export default function OrgConstituentsPage() {
     new Set(
       constituents
         .filter((student) => department === "All Departments" || student.department === department)
-        .map((student) => student.course || student.program)
+        .map((student) => student.program)
     )
   ).sort();
 
@@ -90,7 +90,7 @@ export default function OrgConstituentsPage() {
       student.id.includes(search);
     const matchesYear = yearLevel === "All Years" || student.year === yearLevel;
     const matchesDept = department === "All Departments" || student.department === department;
-    const matchesProg = program === "All Programs" || student.course === program || student.program === program;
+    const matchesProg = program === "All Programs" || student.program === program;
 
     return matchesSearch && matchesYear && matchesDept && matchesProg;
   });

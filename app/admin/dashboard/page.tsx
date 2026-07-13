@@ -2,65 +2,61 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { mockOrgs, mockOffices } from "@/mock/mockData";
+import { mockOrgs, mockWeekData } from "@/mock/mockData";
 import { mockStudents } from "@/mock/mockStudents";
-
-const WEEK_DATA = [
-  { week: "Wk 1", total: 20, cleared: 10 },
-  { week: "Wk 2", total: 35, cleared: 15 },
-  { week: "Wk 3", total: 45, cleared: 25 },
-  { week: "Wk 4", total: 60, cleared: 35 },
-  { week: "Wk 5", total: 75, cleared: 50 },
-  { week: "Wk 6", total: 85, cleared: 65 },
-  { week: "Wk 7", total: 95, cleared: 80 },
-];
-
-const STAT_CARDS = [
-  {
-    label: "Total Students",
-    value: "24,592",
-    icon: "groups",
-    trend: "+2.4% this semester",
-    trendUp: true,
-    highlight: false,
-  },
-  {
-    label: "Active Orgs",
-    value: "148",
-    icon: "hub",
-    trend: "Stable",
-    trendUp: null,
-    highlight: false,
-  },
-  {
-    label: "Head Offices",
-    value: "12",
-    icon: "domain",
-    trend: "Stable",
-    trendUp: null,
-    highlight: false,
-  },
-  {
-    label: "Pending",
-    value: "8,430",
-    icon: "pending_actions",
-    trend: "Requires attention",
-    trendUp: false,
-    highlight: false,
-    error: true,
-  },
-  {
-    label: "Cleared",
-    value: "16,162",
-    icon: "check_circle",
-    trend: "65.7% Completion",
-    trendUp: true,
-    highlight: true,
-  },
-];
+import { useOffices } from "@/components/contexts/OfficesContext";
 
 export default function AdminDashboard() {
+  const { offices } = useOffices();
   const activeOrgs = mockOrgs.filter((o) => o.status === "Active").length;
+  const totalStudents = mockStudents.length;
+  const pendingClearances = mockStudents.filter((s) => s.status === "Pending").length;
+  const clearedClearances = mockStudents.filter((s) => s.status === "Cleared").length;
+  const clearedPct = totalStudents > 0 ? ((clearedClearances / totalStudents) * 100).toFixed(1) : "0";
+
+  const STAT_CARDS = [
+    {
+      label: "Total Students",
+      value: totalStudents.toLocaleString(),
+      icon: "groups",
+      trend: "+2.4% this semester",
+      trendUp: true,
+      highlight: false,
+    },
+    {
+      label: "Active Orgs",
+      value: activeOrgs.toString(),
+      icon: "hub",
+      trend: "Stable",
+      trendUp: null,
+      highlight: false,
+    },
+    {
+      label: "Head Offices",
+      value: offices.length.toString(),
+      icon: "domain",
+      trend: "Stable",
+      trendUp: null,
+      highlight: false,
+    },
+    {
+      label: "Pending",
+      value: pendingClearances.toLocaleString(),
+      icon: "pending_actions",
+      trend: "Requires attention",
+      trendUp: false,
+      highlight: false,
+      error: true,
+    },
+    {
+      label: "Cleared",
+      value: clearedClearances.toLocaleString(),
+      icon: "check_circle",
+      trend: `${clearedPct}% Completion`,
+      trendUp: true,
+      highlight: true,
+    },
+  ];
 
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto">
@@ -172,7 +168,7 @@ export default function AdminDashboard() {
             </div>
             {/* Bars */}
             <div className="flex-1 h-full flex items-end justify-between px-md pb-[30px] relative z-10">
-              {WEEK_DATA.map((d) => {
+              {mockWeekData.map((d) => {
                 const totalPct = d.total;
                 const clearedPct = (d.cleared / 100) * 100;
                 return (
@@ -237,10 +233,10 @@ export default function AdminDashboard() {
           <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-md shadow-[0px_1px_3px_rgba(0,0,0,0.05)] flex-1">
             <h4 className="font-title-md text-title-md text-on-surface mb-md">Office Pending</h4>
             <div className="space-y-sm">
-              {mockOffices.slice(0, 4).map((office) => (
+              {offices.slice(0, 4).map((office) => (
                 <div key={office.id} className="flex items-center justify-between">
                   <span className="font-body-sm text-body-sm text-on-surface">{office.name}</span>
-                  <span className="font-label-md text-label-md text-brand-red font-semibold">{office.pending}</span>
+                  <span className="font-label-md text-label-md text-brand-red font-semibold">{office.pending || 0}</span>
                 </div>
               ))}
             </div>

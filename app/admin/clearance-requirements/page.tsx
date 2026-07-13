@@ -2,46 +2,7 @@
 
 import { useState } from "react";
 
-const TERMS = ["1st Sem 2024-2025", "2nd Sem 2023-2024", "1st Sem 2023-2024"];
-
-const mockTemplates = [
-  {
-    id: 1,
-    name: "General Student Base",
-    type: "Default Workflow",
-    description: "Standard clearance requirements for all actively enrolled undergraduate and graduate students. Includes finance, library, and basic disciplinary checks.",
-    steps: 5,
-    applicable: "~12,400",
-    status: "Published",
-    lastEdited: "Jan 2, 2025",
-    icon: "description",
-    iconBg: "bg-secondary-container/30 text-tertiary",
-  },
-  {
-    id: 2,
-    name: "Graduating Seniors",
-    type: "Specialized Workflow",
-    description: "Extended clearance process requiring registrar audit, alumni association opt-in, and final financial settlement for diploma release.",
-    steps: 9,
-    applicable: "~2,100",
-    status: "Published",
-    lastEdited: "Dec 18, 2024",
-    icon: "school",
-    iconBg: "bg-primary-container/10 text-primary",
-  },
-  {
-    id: 3,
-    name: "Student Org Officers",
-    type: "Condition-Based",
-    description: "Additional requirements for recognized student organization officers, including equipment return and budget reconciliation.",
-    steps: 3,
-    applicable: "--",
-    status: "Draft",
-    lastEdited: "2 days ago",
-    icon: "groups",
-    iconBg: "bg-surface-container-high text-secondary",
-  },
-];
+import { mockTerms as TERMS, mockTemplates } from "@/mock/mockData";
 
 export default function ClearanceRequirementsPage() {
   const [activeTerm, setActiveTerm] = useState(TERMS[0]);

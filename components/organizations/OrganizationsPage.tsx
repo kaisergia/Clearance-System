@@ -1,44 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { mockRequirementsByOffice } from "@/mock/mockData";
-import { useOffices } from "@/components/contexts/OfficesContext";
+import { mockOrgs, mockRequirementsByOrgType } from "@/mock/mockData";
 
-export default function OfficeDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const officeId = Number(params.officeId);
-  const { offices } = useOffices();
-  const office = offices.find((o) => o.id === officeId);
+export default function OrganizationDashboard({ title, description, orgType }: { title: string, description: string, orgType: string }) {
+  // Try to find a representative org from mock data, or mock a default one
+  const org = mockOrgs.find((o) => o.type === orgType) || {
+    name: title,
+    adviser: "Prof. Unknown",
+    status: "Active",
+    memberCount: 0,
+  };
 
-  const [requirements, setRequirements] = useState<string[]>(
-    mockRequirementsByOffice[officeId] || ["Submit clearance form"]
-  );
-
-  if (!office) {
-    return (
-      <div className="p-margin-desktop flex flex-col items-center justify-center min-h-[60vh]">
-        <span className="material-symbols-outlined text-6xl text-surface-container-high mb-4">domain_disabled</span>
-        <h3 className="font-title-md text-title-md text-on-surface mb-2">Office Not Found</h3>
-        <p className="font-body-sm text-body-sm text-secondary mb-6">This office doesn't exist or was removed.</p>
-        <Link href="/admin/offices" className="px-md py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md hover:bg-primary transition-colors">
-          Back to Offices
-        </Link>
-      </div>
-    );
-  }
-
-
+  const requirements = mockRequirementsByOrgType[orgType] || [
+    "Submit membership forms",
+    "Pay organization fees",
+    "Attend general assembly",
+  ];
 
   return (
     <div className="p-margin-desktop max-w-5xl mx-auto">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 font-body-sm text-body-sm text-secondary mb-lg">
-        <Link href="/admin/offices" className="hover:text-primary transition-colors">Offices</Link>
+        <span className="hover:text-primary transition-colors">Organizations</span>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
-        <span className="text-on-surface font-medium">{office.name}</span>
+        <span className="text-on-surface font-medium">{title}</span>
       </nav>
 
       {/* Office Header */}
@@ -46,11 +32,11 @@ export default function OfficeDetailPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-md">
           <div className="flex items-center gap-lg">
             <div className="w-16 h-16 rounded-xl bg-primary-fixed flex items-center justify-center">
-              <span className="material-symbols-outlined text-3xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>corporate_fare</span>
+              <span className="material-symbols-outlined text-3xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>groups</span>
             </div>
             <div>
-              <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface font-bold">{office.name}</h2>
-              <p className="font-body-sm text-body-sm text-secondary mt-0.5">Head Office — Administrative Unit</p>
+              <h2 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface font-bold">{title}</h2>
+              <p className="font-body-sm text-body-sm text-secondary mt-0.5">{description}</p>
             </div>
           </div>
           <div className="flex items-center gap-sm">
@@ -63,10 +49,10 @@ export default function OfficeDetailPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-md mt-lg pt-lg border-t border-surface-container-high">
           {[
-            { label: "Office Head", value: office.head?.name },
-            { label: "Email", value: office.head?.email },
-            { label: "Pending", value: String(office.pending || 0) },
-            { label: "Approved", value: String(office.approved || 0) },
+            { label: "Adviser", value: org.adviser },
+            { label: "Category", value: title },
+            { label: "Pending", value: String(Math.floor((org.memberCount || 20) * 0.3)) },
+            { label: "Approved", value: String(Math.floor((org.memberCount || 20) * 0.7)) },
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="font-label-md text-label-md text-secondary uppercase tracking-wider mb-1">{label}</p>
@@ -81,7 +67,7 @@ export default function OfficeDetailPage() {
         <div className="flex items-center justify-between mb-lg">
           <div>
             <h3 className="font-title-md text-title-md text-on-surface">Clearance Requirements</h3>
-            <p className="font-body-sm text-body-sm text-secondary mt-0.5">Current semester requirement checklist for this office</p>
+            <p className="font-body-sm text-body-sm text-secondary mt-0.5">Current semester requirement checklist for this organization</p>
           </div>
         </div>
 

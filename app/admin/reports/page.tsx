@@ -1,26 +1,29 @@
 "use client";
 
-import { mockOffices } from "@/mock/mockData";
-
-const BAR_DATA = [
-  { dept: "BSIT", pct: 80 },
-  { dept: "BSCS", pct: 40 },
-  { dept: "BSBA", pct: 95 },
-  { dept: "BSED", pct: 65 },
-  { dept: "BSN", pct: 20 },
-  { dept: "BSCE", pct: 85 },
-];
-
-const recentReports = [
-  { name: "College of IT Clearance Q1", by: "Admin System", date: "Jan 15, 2025", status: "Completed" },
-  { name: "University Wide Deficiencies", by: "Admin System", date: "Jan 12, 2025", status: "Archived" },
-  { name: "Library Fees Outstanding", by: "J. Doe", date: "Jan 10, 2025", status: "Completed" },
-  { name: "Accounting Clearance Report", by: "R. Cruz", date: "Jan 8, 2025", status: "Completed" },
-];
+import { mockRecentReports } from "@/mock/mockData";
+import { mockStudents } from "@/mock/mockStudents";
+import { useOffices } from "@/components/contexts/OfficesContext";
 
 export default function ReportsPage() {
-  const totalPending = mockOffices.reduce((a, o) => a + o.pending, 0);
-  const totalApproved = mockOffices.reduce((a, o) => a + o.approved, 0);
+  const { offices } = useOffices();
+  const totalPending = offices.reduce((a, o) => a + (o.pending || 0), 0);
+  const totalApproved = offices.reduce((a, o) => a + (o.approved || 0), 0);
+
+  const courseStats: Record<string, { total: number, cleared: number }> = {};
+  mockStudents.forEach(s => {
+    if (!courseStats[s.program]) {
+      courseStats[s.program] = { total: 0, cleared: 0 };
+    }
+    courseStats[s.program].total += 1;
+    if (s.status === "Cleared") {
+      courseStats[s.program].cleared += 1;
+    }
+  });
+
+  const BAR_DATA = Object.entries(courseStats).map(([dept, stats]) => ({
+    dept,
+    pct: Math.round((stats.cleared / stats.total) * 100) || 0
+  }));
 
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto">
@@ -105,9 +108,9 @@ export default function ReportsPage() {
         <div className="col-span-1 md:col-span-5 bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm p-lg">
           <h3 className="font-title-md text-title-md text-on-surface mb-lg">Office Clearance Breakdown</h3>
           <div className="space-y-md">
-            {mockOffices.map((office) => {
-              const total = office.pending + office.approved + office.rejected;
-              const clearedPct = total > 0 ? Math.round((office.approved / total) * 100) : 0;
+            {offices.map((office) => {
+              const total = (office.pending || 0) + (office.approved || 0) + (office.rejected || 0);
+              const clearedPct = total > 0 ? Math.round(((office.approved || 0) / total) * 100) : 0;
               return (
                 <div key={office.id}>
                   <div className="flex justify-between font-body-sm text-body-sm mb-1">
@@ -143,7 +146,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="font-body-sm text-body-sm divide-y divide-surface-container-low">
-                {recentReports.map((r, i) => (
+                {mockRecentReports.map((r, i) => (
                   <tr key={i} className="hover:bg-surface-container-lowest transition-colors">
                     <td className="p-4 flex items-center gap-3 text-on-surface font-medium">
                       <span className="material-symbols-outlined text-secondary shrink-0">description</span>

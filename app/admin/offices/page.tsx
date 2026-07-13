@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { mockOffices } from "@/mock/mockData";
+import { useOffices } from "@/components/contexts/OfficesContext";
 
 const PALETTE = [
   "bg-primary-fixed text-primary",
@@ -12,6 +12,8 @@ const PALETTE = [
 ];
 
 export default function OfficesPage() {
+  const { offices, deleteOffice } = useOffices();
+
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto">
       {/* Page Header */}
@@ -22,21 +24,14 @@ export default function OfficesPage() {
             Manage departmental clearance centers and assign administrative roles.
           </p>
         </div>
-        <Link
-          href="/admin/offices/new"
-          className="inline-flex items-center gap-2 bg-brand-red text-white px-lg py-sm rounded-lg font-semibold shadow-lg shadow-primary/20 hover:bg-primary active:scale-95 transition-all btn-hover"
-        >
-          <span className="material-symbols-outlined">add_circle</span>
-          Add Office
-        </Link>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-lg mb-lg">
         {[
-          { label: "Total Offices", value: mockOffices.length, sub: "Active", icon: "corporate_fare", color: "bg-secondary-fixed text-on-secondary-fixed" },
+          { label: "Total Offices", value: offices.length, sub: "Active", icon: "corporate_fare", color: "bg-secondary-fixed text-on-secondary-fixed" },
           { label: "Assigned Admins", value: 24, sub: "Personnel", icon: "admin_panel_settings", color: "bg-tertiary-fixed text-on-tertiary-fixed" },
-          { label: "Pending Clearances", value: mockOffices.reduce((a, o) => a + o.pending, 0), sub: "Requests", icon: "assignment_late", color: "bg-primary-fixed text-on-primary-fixed-variant", highlight: true },
+          { label: "Pending Clearances", value: offices.reduce((a, o) => a + (o.pending || 0), 0), sub: "Requests", icon: "assignment_late", color: "bg-primary-fixed text-on-primary-fixed-variant", highlight: true },
         ].map((card) => (
           <div key={card.label} className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant hover:shadow-md transition-shadow hover:-translate-y-1 transition-transform duration-200">
             <div className="flex items-center gap-md mb-sm">
@@ -79,7 +74,7 @@ export default function OfficesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant">
-              {mockOffices.map((office, idx) => (
+              {offices.map((office, idx) => (
                 <tr key={office.id} className="hover:bg-surface-container-low transition-colors group">
                   <td className="px-lg py-4">
                     <div className="flex items-center gap-md">
@@ -92,15 +87,15 @@ export default function OfficesPage() {
                   <td className="px-lg py-4">
                     <div className="flex items-center gap-xs">
                       <span className="material-symbols-outlined text-sm text-secondary">person</span>
-                      <span className="font-body-sm text-body-sm text-on-surface">{office.head}</span>
+                      <span className="font-body-sm text-body-sm text-on-surface">{office.head?.name || "Unassigned"}</span>
                     </div>
                   </td>
-                  <td className="px-lg py-4 font-body-sm text-body-sm text-secondary">{office.email}</td>
+                  <td className="px-lg py-4 font-body-sm text-body-sm text-secondary">{office.head?.email || "N/A"}</td>
                   <td className="px-lg py-4">
-                    <span className="font-semibold text-brand-red font-body-sm text-body-sm">{office.pending}</span>
+                    <span className="font-semibold text-brand-red font-body-sm text-body-sm">{office.pending || 0}</span>
                   </td>
                   <td className="px-lg py-4">
-                    <span className="font-semibold text-emerald-600 font-body-sm text-body-sm">{office.approved}</span>
+                    <span className="font-semibold text-emerald-600 font-body-sm text-body-sm">{office.approved || 0}</span>
                   </td>
                   <td className="px-lg py-4 text-right">
                     <div className="flex justify-end gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
@@ -112,6 +107,9 @@ export default function OfficesPage() {
                       <button className="p-2 hover:bg-surface-variant rounded transition-colors text-secondary hover:text-primary">
                         <span className="material-symbols-outlined text-sm">edit</span>
                       </button>
+                      <button onClick={() => deleteOffice(office.id)} className="p-2 hover:bg-brand-red/10 rounded transition-colors text-secondary hover:text-brand-red">
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -120,7 +118,7 @@ export default function OfficesPage() {
           </table>
         </div>
         <div className="px-lg py-4 border-t border-outline-variant bg-surface-container-lowest flex justify-between items-center font-label-md text-label-md text-secondary">
-          <span>Showing {mockOffices.length} of {mockOffices.length} Head Offices</span>
+          <span>Showing {offices.length} of {offices.length} Head Offices</span>
           <div className="flex items-center gap-xs">
             <button className="p-2 border border-outline-variant rounded-lg hover:bg-surface transition-colors opacity-50 cursor-not-allowed" disabled>
               <span className="material-symbols-outlined text-sm">chevron_left</span>
