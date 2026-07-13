@@ -2,70 +2,57 @@
 
 import { useState, useEffect } from "react";
 import { useSettings } from "@/components/contexts/SettingsContext";
+import { mockOrgs, mockOrgMembers } from "@/mock/mockData";
+import { mockStudents } from "@/mock/mockStudents";
 
-// Mock constituents list based on the updated departments
-const INITIAL_CONSTITUENTS = [
-  {
-    id: "2021-0492",
-    name: "Eleanor Shellstrop",
-    department: "CCIS",
-    program: "BS Computer Science",
-    year: "4th Year",
-    status: "Cleared",
-  },
-  {
-    id: "2022-1103",
-    name: "Chidi Anagonye",
-    department: "COE",
-    program: "BS Civil Engineering",
-    year: "3rd Year",
-    status: "Pending",
-  },
-  {
-    id: "2020-8831",
-    name: "Tahani Al-Jamil",
-    department: "CEDAS",
-    program: "BS Data Science",
-    year: "2nd Year",
-    status: "Cleared",
-  },
-  {
-    id: "2023-0012",
-    name: "Jason Mendoza",
-    department: "CHS",
-    program: "BS Nursing",
-    year: "1st Year",
-    status: "Cleared",
-  },
-  {
-    id: "2021-5529",
-    name: "Michael Realman",
-    department: "CABE",
-    program: "BS Business Administration",
-    year: "4th Year",
-    status: "Cleared",
-  },
-];
-
-export default function ConstituentsPage() {
+export default function OrgConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
   const availableTerms = getAvailableTerms();
 
   const [search, setSearch] = useState("");
   const [semester, setSemester] = useState(currentTerm);
-
-  useEffect(() => {
-    setSemester(currentTerm);
-  }, [currentTerm]);
   const [yearLevel, setYearLevel] = useState("All Years");
   const [department, setDepartment] = useState("All Departments");
   const [program, setProgram] = useState("All Programs");
 
-  // Keep state for table items to make "Mark Cleared / Uncleared" toggling work instantly!
-  const [constituents, setConstituents] = useState(INITIAL_CONSTITUENTS);
+  const [org, setOrg] = useState<any>(null);
+  const [constituents, setConstituents] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // Extract unique departments dynamically from state
+  useEffect(() => {
+    setSemester(currentTerm);
+  }, [currentTerm]);
+
+  useEffect(() => {
+    const orgId = localStorage.getItem("orgId");
+    if (orgId) {
+      const currentOrg = mockOrgs.find((o) => o.id === parseInt(orgId));
+      if (currentOrg) {
+        setOrg(currentOrg);
+
+        // Fetch students based on org type/scope logic
+        let list: any[] = [];
+        if (currentOrg.type === "Gov") {
+          list = mockStudents;
+        } else if (currentOrg.type === "LGU") {
+          list = mockStudents.filter((s) => s.department === currentOrg.department);
+          setDepartment(currentOrg.department); // Lock department
+        } else if (currentOrg.type === "AcademicClub") {
+          list = mockStudents.filter((s) => s.course === currentOrg.program);
+          setDepartment(currentOrg.department); // Lock department
+          setProgram(currentOrg.program); // Lock program
+        } else if (currentOrg.type === "NonAcademicClub") {
+          const memberIds = mockOrgMembers
+            .filter((m) => m.orgId === currentOrg.id)
+            .map((m) => m.studentId);
+          list = mockStudents.filter((s) => memberIds.includes(s.id));
+        }
+        setConstituents(list);
+      }
+    }
+  }, []);
+
+  // Extract unique departments dynamically from state (only relevant if Gov/NonAcademic)
   const uniqueDepartments = Array.from(
     new Set(constituents.map((student) => student.department))
   ).sort();
@@ -101,7 +88,7 @@ export default function ConstituentsPage() {
       student.id.includes(search);
     const matchesYear = yearLevel === "All Years" || student.year === yearLevel;
     const matchesDept = department === "All Departments" || student.department === department;
-    const matchesProg = program === "All Programs" || student.program === program;
+    const matchesProg = program === "All Programs" || student.course === program || student.program === program;
 
     return matchesSearch && matchesYear && matchesDept && matchesProg;
   });
@@ -148,21 +135,13 @@ export default function ConstituentsPage() {
     }
     setShowConfirmModal(false);
     setPendingBulkStatus(null);
-  };  // Stats computation: prepared for database integration.
-  // When a real database is connected (e.g. list has many items), it uses direct counts.
-  // For the current mock/design demonstration, it maps to the visual baseline stats (1,284 / 1,207 / 42).
-  const isMock = constituents.length <= 5;
+  };
 
-  const totalCount = isMock ? 1284 : constituents.length;
-  const clearedCount = isMock
-    ? 1207 + (constituents.filter((s) => s.status === "Cleared").length - 4)
-    : constituents.filter((s) => s.status === "Cleared").length;
-  const pendingCount = isMock
-    ? 42 + (constituents.filter((s) => s.status === "Pending").length - 1)
-    : constituents.filter((s) => s.status === "Pending").length;
-
+  // Stats computation
+  const totalCount = constituents.length;
+  const clearedCount = constituents.filter((s) => s.status === "Cleared").length;
+  const pendingCount = totalCount - clearedCount;
   const clearedPercent = totalCount === 0 ? 0 : Math.round((clearedCount / totalCount) * 100);
-  const pendingPercent = totalCount === 0 ? 0 : Math.round((pendingCount / totalCount) * 100);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -173,8 +152,11 @@ export default function ConstituentsPage() {
             Constituents
           </h2>
           <span className="font-body-md text-body-md text-secondary mt-1 flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-base text-primary">domain</span>
-            Office: <span className="font-semibold text-on-surface">Guidance Office</span>
+            <span className="material-symbols-outlined text-base text-primary">groups</span>
+            Organization: <span className="font-semibold text-on-surface">{org?.name || "Loading..."}</span>
+            <span className="text-xs bg-surface-container-high px-2 py-0.5 rounded text-tertiary">
+              {org?.type === "Gov" ? "University-Wide" : org?.type === "LGU" ? `LGU (${org?.department})` : "Club"}
+            </span>
           </span>
         </div>
       </section>
@@ -188,12 +170,9 @@ export default function ConstituentsPage() {
               <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-1">
                 Total Constituents
               </p>
-              <h3 className="text-3xl font-extrabold text-on-surface leading-none mt-1">
-                {totalCount.toLocaleString()}
-              </h3>
-              <p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">trending_up</span> +12% from
-                last sem
+              <h3 className="text-3xl font-extrabold text-on-surface leading-none mt-1">{totalCount}</h3>
+              <p className="text-xs text-secondary mt-2 flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">groups</span> Active roster this semester
               </p>
             </div>
           </div>
@@ -204,11 +183,9 @@ export default function ConstituentsPage() {
               <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-1">
                 Cleared Students
               </p>
-              <h3 className="text-3xl font-extrabold text-on-surface leading-none mt-1">
-                {clearedCount.toLocaleString()}
-              </h3>
+              <h3 className="text-3xl font-extrabold text-on-surface leading-none mt-1">{clearedCount}</h3>
               <p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">trending_up</span> {clearedPercent}% of total constituents
+                <span className="material-symbols-outlined text-sm">trending_up</span> {clearedPercent}% cleared
               </p>
             </div>
           </div>
@@ -217,13 +194,11 @@ export default function ConstituentsPage() {
           <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-6 flex flex-col justify-between relative overflow-hidden group hover:-translate-y-0.5 shadow-[0px_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0px_8px_16px_rgba(0,0,0,0.04)] transition-all duration-300">
             <div>
               <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-1">
-                Pending Review
+                Pending / Deficient
               </p>
-              <h3 className="text-3xl font-extrabold text-on-surface leading-none mt-1">
-                {pendingCount.toLocaleString()}
-              </h3>
+              <h3 className="text-3xl font-extrabold text-on-surface leading-none mt-1">{pendingCount}</h3>
               <p className="text-xs text-yellow-600 font-bold mt-2 flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">schedule</span> {pendingPercent}% pending review
+                <span className="material-symbols-outlined text-sm">schedule</span> Action required
               </p>
             </div>
           </div>
@@ -267,46 +242,58 @@ export default function ConstituentsPage() {
         </div>
 
         <div className="flex flex-wrap gap-4">
-          {/* Department Dropdown */}
-          <div className="relative flex-1 min-w-[180px]">
-            <select
-              value={department}
-              onChange={(e) => {
-                setDepartment(e.target.value);
-                setProgram("All Programs");
-              }}
-              className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
-            >
-              <option>All Departments</option>
-              {uniqueDepartments.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
-                </option>
-              ))}
-            </select>
-            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-lg">
-              expand_more
-            </span>
-          </div>
+          {/* Department Dropdown (Only show/editable if Gov or NonAcademicClub) */}
+          {(!org || org.type === "Gov" || org.type === "NonAcademicClub") ? (
+            <div className="relative flex-1 min-w-[180px]">
+              <select
+                value={department}
+                onChange={(e) => {
+                  setDepartment(e.target.value);
+                  setProgram("All Programs");
+                }}
+                className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
+              >
+                <option value="All Departments">All Departments</option>
+                {uniqueDepartments.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-lg">
+                expand_more
+              </span>
+            </div>
+          ) : (
+            <div className="flex-1 min-w-[180px] bg-surface-container-low px-4 h-11 rounded-lg border border-outline-variant flex items-center text-secondary text-sm">
+              Department: {org.department}
+            </div>
+          )}
 
-          {/* Program Dropdown */}
-          <div className="relative flex-1 min-w-[180px]">
-            <select
-              value={program}
-              onChange={(e) => setProgram(e.target.value)}
-              className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
-            >
-              <option>All Programs</option>
-              {availablePrograms.map((prog) => (
-                <option key={prog} value={prog}>
-                  {prog}
-                </option>
-              ))}
-            </select>
-            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-lg">
-              expand_more
-            </span>
-          </div>
+          {/* Program Dropdown (Editable if Gov, NonAcademicClub, or LGU. Hidden/Locked for AcademicClub) */}
+          {(!org || org.type !== "AcademicClub") ? (
+            <div className="relative flex-1 min-w-[180px]">
+              <select
+                value={program}
+                onChange={(e) => setProgram(e.target.value)}
+                className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
+              >
+                <option value="All Programs">All Programs</option>
+                {availablePrograms.map((prog) => (
+                  <option key={prog} value={prog}>
+                    {prog}
+                  </option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-lg">
+                expand_more
+              </span>
+            </div>
+          ) : (
+            <div className="flex-1 min-w-[180px] bg-surface-container-low px-4 h-11 rounded-lg border border-outline-variant flex items-center text-secondary text-sm">
+              Program: {org.program}
+            </div>
+          )}
 
           {/* Year Level Dropdown */}
           <div className="relative flex-1 min-w-[150px]">
@@ -315,7 +302,7 @@ export default function ConstituentsPage() {
               onChange={(e) => setYearLevel(e.target.value)}
               className="custom-ring w-full h-11 pl-4 pr-10 bg-surface-container-lowest border border-surface-container-high rounded-lg appearance-none font-body-sm text-sm text-on-surface cursor-pointer focus:outline-none"
             >
-              <option>All Years</option>
+              <option value="All Years">All Years</option>
               <option value="1st Year">1st Year</option>
               <option value="2nd Year">2nd Year</option>
               <option value="3rd Year">3rd Year</option>
@@ -327,13 +314,17 @@ export default function ConstituentsPage() {
           </div>
 
           {/* Clear Filters Button */}
-          {(search || yearLevel !== "All Years" || department !== "All Departments" || program !== "All Programs") && (
+          {(search || yearLevel !== "All Years" || (department !== "All Departments" && (!org || org.type === "Gov" || org.type === "NonAcademicClub")) || (program !== "All Programs" && (!org || org.type !== "AcademicClub"))) && (
             <button
               onClick={() => {
                 setSearch("");
                 setYearLevel("All Years");
-                setDepartment("All Departments");
-                setProgram("All Programs");
+                if (!org || org.type === "Gov" || org.type === "NonAcademicClub") {
+                  setDepartment("All Departments");
+                }
+                if (!org || org.type !== "AcademicClub") {
+                  setProgram("All Programs");
+                }
               }}
               className="h-11 px-6 bg-secondary text-white font-bold text-sm rounded-lg hover:bg-opacity-95 transition-all shadow-sm active:scale-95 flex items-center gap-2 whitespace-nowrap"
             >
@@ -416,8 +407,8 @@ export default function ConstituentsPage() {
                     </td>
                     <td className="py-4 px-6 font-mono font-medium text-xs text-secondary">{student.id}</td>
                     <td className="py-4 px-6 font-bold">{student.name}</td>
-                    <td className="py-4 px-6 text-secondary">{student.department}</td>
-                    <td className="py-4 px-6 text-secondary">{student.program}</td>
+                    <td className="py-4 px-6 text-secondary">{student.department || "N/A"}</td>
+                    <td className="py-4 px-6 text-secondary">{student.course}</td>
                     <td className="py-4 px-6 text-secondary">{student.year}</td>
                     <td className="py-4 px-6 text-center">
                       {student.status === "Cleared" ? (

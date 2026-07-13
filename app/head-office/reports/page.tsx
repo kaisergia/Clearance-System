@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useSettings } from "@/components/contexts/SettingsContext";
 
 // Types
 interface Student {
@@ -30,8 +31,6 @@ interface Requirement {
   isActive: boolean;
 }
 
-// Mock Data representing different terms
-const TERMS = ["Fall Semester 2024", "Spring Semester 2024", "Fall Semester 2023"];
 
 const DEPARTMENTS = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
@@ -153,7 +152,7 @@ const MOCK_RECORDS_BY_TERM: Record<string, ClearanceRecord[]> = {
   ],
 };
 
-// Reusable StackedBarChart component utilizing raw SVG
+// Reusable StackedBarChart component matching the admin dashboard chart style
 interface StackedBarChartProps {
   data: {
     label: string;
@@ -164,201 +163,85 @@ interface StackedBarChartProps {
 }
 
 function StackedBarChart({ data, title }: StackedBarChartProps) {
-  const [hoveredBar, setHoveredBar] = useState<{ groupIndex: number; type: "cleared" | "uncleared" } | null>(null);
-
-  const maxValue = useMemo(() => {
-    const maxVal = Math.max(...data.map((d) => Math.max(d.cleared, d.uncleared)));
-    return maxVal === 0 ? 5 : Math.ceil(maxVal * 1.25);
-  }, [data]);
-
-  const svgWidth = 400;
-  const svgHeight = 240;
-  const paddingBottom = 44;
-  const paddingTop = 24;
-  const paddingLeft = 36;
-  const paddingRight = 12;
-  const graphHeight = svgHeight - paddingTop - paddingBottom;
-  const graphWidth = svgWidth - paddingLeft - paddingRight;
-
-  const CLEARED_COLOR = "#22c55e";   // green-500
-  const UNCLEARED_COLOR = "#f44a3b"; // brand-red
-
-  const totalGroups = data.length;
-  const groupWidth = graphWidth / totalGroups;
-  const barWidth = Math.min(22, groupWidth * 0.32);
-  const barGap = 4;
-
-  const yTicks = [0, 0.25, 0.5, 0.75, 1];
-
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl p-5 flex flex-col shadow-sm">
-      {/* Card Header */}
-      <div className="mb-4">
-        <h4 className="text-sm font-bold text-on-surface uppercase tracking-wider">{title}</h4>
+    <div className="bg-surface-container-lowest rounded-xl shadow-[0px_1px_3px_rgba(0,0,0,0.05)] border border-surface-container-high p-lg flex flex-col">
+      {/* Chart Header */}
+      <div className="flex justify-between items-center mb-lg">
+        <div>
+          <h4 className="font-title-md text-title-md text-on-surface">{title}</h4>
+        </div>
+        <div className="flex gap-sm">
+          <span className="flex items-center gap-xs font-label-md text-label-md text-secondary">
+            <span className="w-3 h-3 rounded-full bg-surface-container-high block" /> Pending
+          </span>
+          <span className="flex items-center gap-xs font-label-md text-label-md text-on-surface">
+            <span className="w-3 h-3 rounded-full bg-brand-red block" /> Cleared
+          </span>
+        </div>
       </div>
 
       {data.length === 0 ? (
-        <div className="h-[220px] flex items-center justify-center text-secondary font-body-sm text-sm">
+        <div className="h-[260px] flex items-center justify-center text-secondary font-body-sm text-sm">
           No data available
         </div>
       ) : (
-        <div className="relative w-full">
-          <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-auto">
-            {/* Horizontal Grid Lines */}
-            {yTicks.map((ratio, i) => {
-              const y = paddingTop + graphHeight * (1 - ratio);
-              const label = Math.round(maxValue * ratio);
-              return (
-                <g key={i}>
-                  <line
-                    x1={paddingLeft}
-                    y1={y}
-                    x2={svgWidth - paddingRight}
-                    y2={y}
-                    stroke="var(--secondary)"
-                    strokeOpacity={ratio === 0 ? 0.3 : 0.12}
-                    strokeDasharray={ratio === 0 ? "0" : "3 4"}
-                    strokeWidth="1"
-                  />
-                  <text
-                    x={paddingLeft - 6}
-                    y={y + 4}
-                    textAnchor="end"
-                    fill="var(--secondary)"
-                    fontSize="9"
-                    fontWeight="600"
-                    opacity="0.7"
-                  >
-                    {label}
-                  </text>
-                </g>
-              );
-            })}
-
-            {/* Bars */}
-            {data.map((item, index) => {
-              const groupCenterX = paddingLeft + index * groupWidth + groupWidth / 2;
-              const clearedX = groupCenterX - barWidth - barGap / 2;
-              const unclearedX = groupCenterX + barGap / 2;
-
-              const clearedHeight = maxValue > 0 ? (item.cleared / maxValue) * graphHeight : 0;
-              const unclearedHeight = maxValue > 0 ? (item.uncleared / maxValue) * graphHeight : 0;
-              const baseY = paddingTop + graphHeight;
-
-              const isClearedHovered = hoveredBar?.groupIndex === index && hoveredBar?.type === "cleared";
-              const isUnclearedHovered = hoveredBar?.groupIndex === index && hoveredBar?.type === "uncleared";
+        <div className="w-full h-[260px] relative flex items-end pl-8">
+          {/* Y-axis labels */}
+          <div className="absolute left-0 top-0 h-full flex flex-col justify-between pb-[30px]">
+            {["100%", "75%", "50%", "25%", "0%"].map((pct) => (
+              <span key={pct} className="font-label-md text-label-md text-secondary text-right w-7">
+                {pct}
+              </span>
+            ))}
+          </div>
+          {/* Grid lines */}
+          <div className="absolute left-8 right-0 top-0 h-full flex flex-col justify-between pb-[30px]">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="w-full border-t border-surface-container-high/60" />
+            ))}
+          </div>
+          {/* Bars */}
+          <div className="flex-1 h-full flex items-end justify-between px-md pb-[30px] relative z-10">
+            {data.map((d) => {
+              const total = d.cleared + d.uncleared;
+              const clearedPct = total > 0 ? Math.round((d.cleared / total) * 100) : 0;
+              const pendingPct = total > 0 ? 100 - clearedPct : 0;
+              const totalPct = 100; // Each segment starts with full 100% capacity representing total population
 
               return (
-                <g key={index}>
-                  {/* Cleared Bar */}
-                  {item.cleared > 0 && (
-                    <g>
-                      <rect
-                        x={clearedX}
-                        y={baseY - clearedHeight}
-                        width={barWidth}
-                        height={clearedHeight}
-                        fill={CLEARED_COLOR}
-                        opacity={isClearedHovered ? 1 : 0.85}
-                        rx="4"
-                        ry="4"
-                        className="transition-all duration-200 cursor-pointer"
-                        onMouseEnter={() => setHoveredBar({ groupIndex: index, type: "cleared" })}
-                        onMouseLeave={() => setHoveredBar(null)}
-                      />
-                      {/* Value label */}
-                      <text
-                        x={clearedX + barWidth / 2}
-                        y={baseY - clearedHeight - 4}
-                        textAnchor="middle"
-                        fill={CLEARED_COLOR}
-                        fontSize="9"
-                        fontWeight="700"
-                        opacity={clearedHeight > 8 ? 1 : 0}
-                      >
-                        {item.cleared}
-                      </text>
-                    </g>
-                  )}
-
-                  {/* Uncleared Bar */}
-                  {item.uncleared > 0 && (
-                    <g>
-                      <rect
-                        x={unclearedX}
-                        y={baseY - unclearedHeight}
-                        width={barWidth}
-                        height={unclearedHeight}
-                        fill={UNCLEARED_COLOR}
-                        opacity={isUnclearedHovered ? 1 : 0.85}
-                        rx="4"
-                        ry="4"
-                        className="transition-all duration-200 cursor-pointer"
-                        onMouseEnter={() => setHoveredBar({ groupIndex: index, type: "uncleared" })}
-                        onMouseLeave={() => setHoveredBar(null)}
-                      />
-                      {/* Value label */}
-                      <text
-                        x={unclearedX + barWidth / 2}
-                        y={baseY - unclearedHeight - 4}
-                        textAnchor="middle"
-                        fill={UNCLEARED_COLOR}
-                        fontSize="9"
-                        fontWeight="700"
-                        opacity={unclearedHeight > 8 ? 1 : 0}
-                      >
-                        {item.uncleared}
-                      </text>
-                    </g>
-                  )}
-
-                  {/* Axis Group Label */}
-                  <text
-                    x={groupCenterX}
-                    y={svgHeight - paddingBottom + 16}
-                    textAnchor="middle"
-                    fill="var(--secondary)"
-                    fontSize="9"
-                    fontWeight="700"
+                <div key={d.label} className="flex flex-col items-center gap-1 flex-1 h-full justify-end relative group">
+                  <div
+                    className="w-[50%] max-w-[32px] rounded-t-sm relative overflow-hidden transition-all duration-300 hover:opacity-90 animate-bar-grow"
+                    style={{ height: `${totalPct}%` }}
                   >
-                    {item.label}
-                  </text>
+                    <div className="absolute inset-0 bg-surface-container-high rounded-t-sm" />
+                    <div
+                      className="absolute bottom-0 w-full bg-brand-red rounded-t-sm transition-all duration-500"
+                      style={{ height: `${clearedPct}%` }}
+                    />
+                  </div>
 
-                  {/* Hover tooltip (SVG title fallback) */}
-                  <title>{`${item.label} — Cleared: ${item.cleared}, Uncleared: ${item.uncleared}`}</title>
-                </g>
+                  {/* Tooltip styled like a chat window bubble */}
+                  <div className="absolute bottom-[108%] left-1/2 -translate-x-1/2 bg-surface-container-lowest border border-outline-variant/60 rounded-xl shadow-xl px-3.5 py-2.5 flex flex-col items-start w-max whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-30">
+                    <span className="font-bold border-b border-outline-variant/40 pb-1 mb-1.5 w-full text-xs text-on-surface">{d.label}</span>
+                    <span className="text-[11px] text-secondary flex justify-between w-full gap-4">
+                      <span>Cleared:</span>
+                      <span className="font-bold text-primary">{d.cleared} ({clearedPct}%)</span>
+                    </span>
+                    <span className="text-[11px] text-secondary flex justify-between w-full gap-4">
+                      <span>Pending:</span>
+                      <span className="font-bold text-on-surface">{d.uncleared} ({pendingPct}%)</span>
+                    </span>
+                    {/* Chat Bubble Arrow Pointer */}
+                    <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-surface-container-lowest border-r border-b border-outline-variant/60 rotate-45" />
+                  </div>
+
+                  <span className="absolute -bottom-7 font-label-md text-label-md text-secondary whitespace-nowrap">
+                    {d.label}
+                  </span>
+                </div>
               );
             })}
-          </svg>
-
-          {/* Hover tooltip overlay */}
-          {hoveredBar !== null && data[hoveredBar.groupIndex] && (() => {
-            const item = data[hoveredBar.groupIndex];
-            const isCleared = hoveredBar.type === "cleared";
-            const count = isCleared ? item.cleared : item.uncleared;
-            const total = item.cleared + item.uncleared;
-            const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-            return (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-surface-container-lowest border border-outline-variant/60 rounded-xl shadow-xl px-3 py-2 flex flex-col items-start pointer-events-none z-10 min-w-[120px]">
-                <span className="text-[10px] font-bold text-on-surface">{item.label}</span>
-                <span className="text-[10px] mt-0.5" style={{ color: isCleared ? CLEARED_COLOR : UNCLEARED_COLOR }}>
-                  {isCleared ? "Cleared" : "Uncleared"}: <strong>{count}</strong>
-                  <span className="text-secondary ml-1">({pct}%)</span>
-                </span>
-              </div>
-            );
-          })()}
-
-          {/* Legend */}
-          <div className="flex items-center justify-center gap-5 mt-2 text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: CLEARED_COLOR }} />
-              <span className="text-secondary font-semibold">Cleared</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: UNCLEARED_COLOR }} />
-              <span className="text-secondary font-semibold">Uncleared</span>
-            </div>
           </div>
         </div>
       )}
@@ -367,7 +250,14 @@ function StackedBarChart({ data, title }: StackedBarChartProps) {
 }
 
 export default function ReportsPage() {
-  const [selectedTerm, setSelectedTerm] = useState("Fall Semester 2024");
+  const { getAvailableTerms, currentTerm } = useSettings();
+  const availableTerms = getAvailableTerms();
+  const [selectedTerm, setSelectedTerm] = useState(currentTerm);
+
+  useEffect(() => {
+    setSelectedTerm(currentTerm);
+  }, [currentTerm]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -503,8 +393,13 @@ export default function ReportsPage() {
   };
 
   // Fetch / get data for selected term
-  const students = useMemo(() => MOCK_STUDENTS_BY_TERM[selectedTerm] || [], [selectedTerm]);
-  const records = useMemo(() => MOCK_RECORDS_BY_TERM[selectedTerm] || [], [selectedTerm]);
+  const mockTermKey = useMemo(() => {
+    if (MOCK_STUDENTS_BY_TERM[selectedTerm]) return selectedTerm;
+    return "Fall Semester 2024";
+  }, [selectedTerm]);
+
+  const students = useMemo(() => MOCK_STUDENTS_BY_TERM[mockTermKey] || [], [mockTermKey]);
+  const records = useMemo(() => MOCK_RECORDS_BY_TERM[mockTermKey] || [], [mockTermKey]);
 
   // Trigger loading effect when term changes (to emulate backend connectivity)
   const handleTermChange = (term: string) => {
@@ -697,7 +592,7 @@ export default function ReportsPage() {
               onChange={(e) => handleTermChange(e.target.value)}
               className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-4 pr-10 font-body-sm text-body-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 cursor-pointer shadow-sm hover:bg-surface-bright transition-all appearance-none"
             >
-              {TERMS.map((term) => (
+              {availableTerms.map((term) => (
                 <option key={term} value={term}>
                   {term}
                 </option>
@@ -962,35 +857,49 @@ export default function ReportsPage() {
                   </defs>
                 </svg>
 
-                {/* Custom Interactive Tooltip */}
-                {hoveredIndex !== null && (() => {
-                  const maxCount = Math.max(...progressChartData.map(d => d.count), 1);
-                  const yMax = Math.ceil(maxCount / 4) * 4 || 4;
-                  const points = progressChartData.map((d, index) => {
-                    const x = 50 + (index * (730 / (progressChartData.length - 1)));
-                    const y = 200 - (d.count / yMax) * 170;
-                    return { x, y, label: d.label, count: d.count };
-                  });
-                  const p = points[hoveredIndex];
-                  if (!p) return null;
-
-                  return (
-                    <div
-                      className="absolute bg-surface-container-lowest border border-outline-variant/60 rounded-xl shadow-lg px-4 py-2 flex flex-col pointer-events-none transition-all duration-100 ease-out"
-                      style={{
-                        left: `${(p.x / 800) * 100}%`,
-                        top: `${(p.y / 250) * 100 - 8}%`,
-                        transform: 'translate(-50%, -100%)',
-                        zIndex: 10,
-                      }}
-                    >
-                      <span className="font-bold text-xs text-on-surface">{p.label}</span>
-                      <span className="text-[11px] text-primary font-semibold mt-1 flex items-center gap-1 whitespace-nowrap">
-                        cleared : <span className="font-bold text-primary">{p.count}</span>
-                      </span>
-                    </div>
-                  );
-                })()}
+                 {/* Custom Interactive Tooltip */}
+                 {hoveredIndex !== null && (() => {
+                   const maxCount = Math.max(...progressChartData.map(d => d.count), 1);
+                   const yMax = Math.ceil(maxCount / 4) * 4 || 4;
+                   const points = progressChartData.map((d, index) => {
+                     const x = 50 + (index * (730 / (progressChartData.length - 1)));
+                     const y = 200 - (d.count / yMax) * 170;
+                     return { x, y, label: d.label, count: d.count };
+                   });
+                   const p = points[hoveredIndex];
+                   if (!p) return null;
+ 
+                   const total = stats.totalStudents;
+                   const rate = total > 0 ? Math.round((p.count / total) * 100) : 0;
+                   const pending = total - p.count;
+                   const pendingRate = total > 0 ? 100 - rate : 0;
+ 
+                   return (
+                     <div
+                       className="absolute bg-surface-container-lowest border border-outline-variant/60 rounded-xl shadow-lg px-4 py-2.5 flex flex-col pointer-events-none transition-all duration-100 ease-out w-max whitespace-nowrap z-10"
+                       style={{
+                         left: `${(p.x / 800) * 100}%`,
+                         top: `${(p.y / 250) * 100 - 8}%`,
+                         transform: 'translate(-50%, -100%)',
+                         zIndex: 10,
+                       }}
+                     >
+                       <span className="font-bold text-xs text-on-surface border-b border-outline-variant/40 pb-1 mb-1.5 w-full">{p.label}</span>
+                       <span className="text-[11px] font-semibold text-secondary flex justify-between items-center gap-4">
+                         <span>Cleared:</span>
+                         <span className="text-primary font-bold">{p.count} <span className="text-[10px] font-medium">({rate}%)</span></span>
+                       </span>
+                       <span className="text-[11px] font-semibold text-secondary flex justify-between items-center gap-4">
+                         <span>Pending:</span>
+                         <span className="text-on-surface font-bold">{pending} <span className="text-[10px] font-medium">({pendingRate}%)</span></span>
+                       </span>
+                       <span className="text-[11px] font-semibold text-secondary flex justify-between items-center gap-4 border-t border-outline-variant/20 pt-1 mt-1">
+                         <span>Total:</span>
+                         <span className="text-on-surface font-bold">{total}</span>
+                       </span>
+                     </div>
+                   );
+                 })()}
               </div>
             )}
           </div>

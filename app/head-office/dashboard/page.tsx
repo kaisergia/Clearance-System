@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSettings } from "@/components/contexts/SettingsContext";
 
 export default function HeadOfficeDashboard() {
-  const [selectedTerm, setSelectedTerm] = useState("Fall Semester 2024");
+  const { getAvailableTerms, currentTerm } = useSettings();
+  const availableTerms = getAvailableTerms();
+  const [selectedTerm, setSelectedTerm] = useState(currentTerm);
+
+  useEffect(() => {
+    setSelectedTerm(currentTerm);
+  }, [currentTerm]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -26,15 +33,18 @@ export default function HeadOfficeDashboard() {
             onChange={(e) => setSelectedTerm(e.target.value)}
             className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pl-4 pr-10 font-body-sm text-body-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 cursor-pointer shadow-sm hover:bg-surface-bright transition-all appearance-none"
           >
-            <option>Fall Semester 2024</option>
-            <option>Spring Semester 2024</option>
-            <option>Fall Semester 2023</option>
+            {availableTerms.map((term) => (
+              <option key={term} value={term}>
+                {term}
+              </option>
+            ))}
           </select>
           <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-xl">
             expand_more
           </span>
         </div>
       </div>
+
 
       {/* Bento Grid Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
