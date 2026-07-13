@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { mockOrgs } from "@/mock/mockData";
 import { ExpandableAppliesTo } from "@/components/ui/ExpandableAppliesTo";
+import { AppliesToSelector } from "@/components/ui/AppliesToSelector";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
 interface Requirement {
   id: string;
@@ -15,6 +17,7 @@ interface Requirement {
   addedDate: string;
   status: "Live" | "Draft";
   appliesTo: string[];
+  deadline?: string;
 }
 
 const INITIAL_REQUIREMENTS: Requirement[] = [
@@ -65,37 +68,19 @@ export default function OrgClearanceRequirementsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReqId, setEditingReqId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Form State
   const [reqName, setReqName] = useState("");
   const [reqDescription, setReqDescription] = useState("");
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [deadline, setDeadline] = useState("");
 
   // Applies To States
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [selectedProgs, setSelectedProgs] = useState<string[]>([]);
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
-
-  // Popover Toggles
-  const [deptPopoverOpen, setDeptPopoverOpen] = useState(false);
-  const [progPopoverOpen, setProgPopoverOpen] = useState(false);
-  const [yearPopoverOpen, setYearPopoverOpen] = useState(false);
-
-  // Popover Search Fields
-  const [deptSearch, setDeptSearch] = useState("");
-  const [progSearch, setProgSearch] = useState("");
-  const [yearSearch, setYearSearch] = useState("");
-
-  // Truncation Toggles
-  const [expandDepts, setExpandDepts] = useState(false);
-  const [expandProgs, setExpandProgs] = useState(false);
-  const [expandYears, setExpandYears] = useState(false);
-
-  // References for click-outside detection
-  const deptRef = useRef<HTMLDivElement>(null);
-  const progRef = useRef<HTMLDivElement>(null);
-  const yearRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -110,23 +95,6 @@ export default function OrgClearanceRequirementsPage() {
         setRequirements(list);
       }
     }
-
-    function handleClickOutside(event: MouseEvent) {
-      if (deptRef.current && !deptRef.current.contains(event.target as Node)) {
-        setDeptPopoverOpen(false);
-      }
-      if (progRef.current && !progRef.current.contains(event.target as Node)) {
-        setProgPopoverOpen(false);
-      }
-      if (yearRef.current && !yearRef.current.contains(event.target as Node)) {
-        setYearPopoverOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
   }, []);
 
   useEffect(() => {
@@ -166,15 +134,7 @@ export default function OrgClearanceRequirementsPage() {
     }
 
     setSelectedYears([]);
-    setDeptPopoverOpen(false);
-    setProgPopoverOpen(false);
-    setYearPopoverOpen(false);
-    setDeptSearch("");
-    setProgSearch("");
-    setYearSearch("");
-    setExpandDepts(false);
-    setExpandProgs(false);
-    setExpandYears(false);
+    setDeadline("");
     setIsModalOpen(true);
   };
 
@@ -209,114 +169,18 @@ export default function OrgClearanceRequirementsPage() {
     setSelectedDepts(depts);
     setSelectedProgs(progs);
     setSelectedYears(years);
+    setDeadline(req.deadline || "");
 
-    setDeptPopoverOpen(false);
-    setProgPopoverOpen(false);
-    setYearPopoverOpen(false);
-    setDeptSearch("");
-    setProgSearch("");
-    setYearSearch("");
-    setExpandDepts(false);
-    setExpandProgs(false);
-    setExpandYears(false);
     setIsModalOpen(true);
-  };
-
-  // Helper toggle functions
-  const toggleDept = (dept: string) => {
-    if (isExclusiveDept) return; // Prevent changing if locked
-
-    setSelectedDepts((prev) => {
-      if (dept === "All Departments") {
-        const isCurrentlyChecked = prev.includes("All Departments");
-        if (isCurrentlyChecked) {
-          setSelectedProgs([]);
-          return [];
-        } else {
-          return ["All Departments", ...DEPARTMENTS];
-        }
-      } else {
-        const isCurrentlyChecked = prev.includes(dept);
-        let next: string[];
-        if (isCurrentlyChecked) {
-          next = prev.filter((d) => d !== dept && d !== "All Departments");
-          const dependentPrograms = DEPT_PROGRAMS[dept] || [];
-          setSelectedProgs((curr) => curr.filter((p) => !dependentPrograms.includes(p)));
-        } else {
-          const temp = [...prev, dept];
-          const allSpecificSelected = DEPARTMENTS.every((d) => temp.includes(d));
-          next = allSpecificSelected ? ["All Departments", ...temp] : temp;
-        }
-        return next;
-      }
-    });
-  };
-
-  const getAvailableProgramsList = () => {
-    if (isExclusiveProg && org?.program) {
-      return [org.program];
-    }
-    if (selectedDepts.includes("All Departments")) {
-      return Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()));
-    }
-    return selectedDepts.flatMap((d) => DEPT_PROGRAMS[d] || []);
-  };
-
-  const toggleProg = (prog: string) => {
-    if (isExclusiveProg) return; // Prevent changing if locked
-
-    const availableProgs = getAvailableProgramsList();
-    setSelectedProgs((prev) => {
-      if (prog === "All Programs") {
-        const isCurrentlyChecked = prev.includes("All Programs");
-        if (isCurrentlyChecked) {
-          return [];
-        } else {
-          return ["All Programs", ...availableProgs];
-        }
-      } else {
-        const isCurrentlyChecked = prev.includes(prog);
-        let next: string[];
-        if (isCurrentlyChecked) {
-          next = prev.filter((p) => p !== prog && p !== "All Programs");
-        } else {
-          const temp = [...prev, prog];
-          const allSpecificSelected = availableProgs.every((p) => temp.includes(p));
-          next = allSpecificSelected ? ["All Programs", ...temp] : temp;
-        }
-        return next;
-      }
-    });
-  };
-
-  const toggleYear = (year: string) => {
-    setSelectedYears((prev) => {
-      if (year === "All Year Levels") {
-        const isCurrentlyChecked = prev.includes("All Year Levels");
-        if (isCurrentlyChecked) {
-          return [];
-        } else {
-          return ["All Year Levels", ...YEAR_LEVELS];
-        }
-      } else {
-        const isCurrentlyChecked = prev.includes(year);
-        let next: string[];
-        if (isCurrentlyChecked) {
-          next = prev.filter((y) => y !== year && y !== "All Year Levels");
-        } else {
-          const temp = [...prev, year];
-          const allSpecificSelected = YEAR_LEVELS.every((y) => temp.includes(y));
-          next = allSpecificSelected ? ["All Year Levels", ...temp] : temp;
-        }
-        return next;
-      }
-    });
   };
 
   const handleSaveRequirement = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reqName.trim() || !org) return;
+    setShowConfirm(true);
+  };
 
+  const executeSaveRequirement = () => {
     const appliesTo: string[] = [];
     if (selectedDepts.length > 0) appliesTo.push(...selectedDepts);
     if (selectedProgs.length > 0) appliesTo.push(...selectedProgs);
@@ -333,6 +197,7 @@ export default function OrgClearanceRequirementsPage() {
                 linkName: linkName ? linkName : undefined,
                 linkUrl: linkUrl ? linkUrl : undefined,
                 appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
+                deadline: deadline ? deadline : undefined,
               }
             : r
         )
@@ -353,10 +218,12 @@ export default function OrgClearanceRequirementsPage() {
         }),
         status: "Draft",
         appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
+        deadline: deadline ? deadline : undefined,
       };
       setRequirements((prev) => [newReq, ...prev]);
     }
     setIsModalOpen(false);
+    setShowConfirm(false);
   };
 
   const handleDeleteRequirement = (id: string) => {
@@ -395,12 +262,13 @@ export default function OrgClearanceRequirementsPage() {
       {/* Content Panel */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
         {/* Table Header */}
-        <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-surface-container-low border-b border-outline-variant font-label-sm text-xs font-semibold text-secondary uppercase tracking-wider">
-          <div className="col-span-5">Requirement</div>
-          <div className="col-span-2 text-center">Link</div>
-          <div className="col-span-2 text-center">Added</div>
-          <div className="col-span-2 text-center">Status</div>
-          <div className="col-span-1 text-right">Actions</div>
+        <div className="grid grid-cols-[3fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-4 bg-surface-container-low border-b border-outline-variant font-label-sm text-xs font-semibold text-secondary uppercase tracking-wider">
+          <div className="text-left">Requirement</div>
+          <div className="text-center">Link</div>
+          <div className="text-center">Added</div>
+          <div className="text-center">Deadline</div>
+          <div className="text-center">Status</div>
+          <div className="text-right">Actions</div>
         </div>
 
         {/* Table Rows */}
@@ -413,10 +281,10 @@ export default function OrgClearanceRequirementsPage() {
             requirements.map((req) => (
               <div
                 key={req.id}
-                className="grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-surface-bright/50 transition-colors group"
+                className="grid grid-cols-[3fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-5 items-center hover:bg-surface-bright/50 transition-colors group"
               >
                 {/* Name & Description */}
-                <div className="flex flex-col gap-0.5 col-span-5">
+                <div className="flex flex-col gap-0.5">
                   <span className="font-body-md text-base font-bold text-on-surface">
                     {req.name}
                   </span>
@@ -429,7 +297,7 @@ export default function OrgClearanceRequirementsPage() {
                 </div>
 
                 {/* View/Add Link */}
-                <div className="col-span-2 flex justify-center items-center">
+                <div className="flex justify-center items-center">
                   {req.linkUrl ? (
                     <a
                       href={req.linkUrl}
@@ -441,24 +309,35 @@ export default function OrgClearanceRequirementsPage() {
                       {req.linkName || "View Link"}
                     </a>
                   ) : (
-                    <button className="text-secondary hover:text-primary font-label-md text-sm font-semibold flex items-center gap-1 italic">
-                      <span className="material-symbols-outlined text-lg">add_link</span>
-                      Add link
-                    </button>
+                    <span className="text-secondary/60 font-label-md text-sm font-medium flex items-center gap-1 italic select-none">
+                      <span className="material-symbols-outlined text-lg">link_off</span>
+                      No link
+                    </span>
                   )}
                 </div>
 
                 {/* Added Date */}
-                <div className="col-span-2 flex justify-center items-center font-body-sm text-sm text-secondary">
+                <div className="flex justify-center items-center font-body-sm text-xs text-secondary text-center whitespace-nowrap">
                   {req.addedDate}
                 </div>
 
+                {/* Deadline */}
+                <div className="flex justify-center items-center font-body-sm text-xs text-secondary text-center whitespace-nowrap">
+                  {req.deadline ? (
+                    <span className="text-orange-600 dark:text-orange-400 font-semibold text-center">
+                      {new Date(req.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  ) : (
+                    <span className="text-secondary/40 italic text-center">No deadline</span>
+                  )}
+                </div>
+
                 {/* Status Toggle */}
-                <div className="col-span-2 flex justify-center items-center">
+                <div className="flex justify-center items-center">
                   {req.status === "Live" ? (
                     <button
                       onClick={() => handleToggleStatus(req.id)}
-                      className="flex items-center gap-1.5 px-2.5 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded-full hover:bg-green-100 transition-colors"
+                      className="flex items-center gap-1.5 px-2.5 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded-full hover:bg-green-100 transition-colors cursor-pointer"
                       title="Click to switch to Draft"
                     >
                       <span className="material-symbols-outlined text-base">visibility</span>
@@ -467,7 +346,7 @@ export default function OrgClearanceRequirementsPage() {
                   ) : (
                     <button
                       onClick={() => handleToggleStatus(req.id)}
-                      className="flex items-center gap-1.5 px-2.5 py-0.5 bg-surface-container-high text-secondary border border-outline-variant rounded-full hover:bg-surface-variant transition-colors"
+                      className="flex items-center gap-1.5 px-2.5 py-0.5 bg-surface-container-high text-secondary border border-outline-variant rounded-full hover:bg-surface-variant transition-colors cursor-pointer"
                       title="Click to publish Live"
                     >
                       <span className="material-symbols-outlined text-base">visibility_off</span>
@@ -477,7 +356,7 @@ export default function OrgClearanceRequirementsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="col-span-1 flex justify-end items-center">
+                <div className="flex justify-end items-center">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEditRequirement(req)}
@@ -551,399 +430,74 @@ export default function OrgClearanceRequirementsPage() {
                 </div>
 
                 {/* Applies To Section */}
-                <div className="space-y-4">
-                  <h3 className="font-label-md text-sm font-bold text-on-surface uppercase tracking-wider">
-                    Applies To
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Department Dropdown */}
-                    <div className="space-y-2 relative" ref={deptRef}>
-                      <label className="font-label-sm text-xs font-semibold text-secondary block">
-                        Department
-                      </label>
-                      <button
-                        type="button"
-                        disabled={isExclusiveDept}
-                        onClick={() => {
-                          setDeptPopoverOpen(!deptPopoverOpen);
-                          setProgPopoverOpen(false);
-                          setYearPopoverOpen(false);
-                        }}
-                        className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${
-                          isExclusiveDept ? "bg-surface-container/30 cursor-not-allowed opacity-80" : "cursor-pointer"
-                        }`}
-                      >
-                        <span className="truncate">
-                          {selectedDepts.length === 0
-                            ? "Select Department"
-                            : selectedDepts.length === 1
-                              ? selectedDepts[0]
-                              : `${selectedDepts.length} Departments selected`}
-                        </span>
-                        {!isExclusiveDept && (
-                          <span className="material-symbols-outlined text-secondary">
-                            expand_more
-                          </span>
-                        )}
-                      </button>
+                <AppliesToSelector
+                  selectedDepts={selectedDepts}
+                  setSelectedDepts={setSelectedDepts}
+                  selectedProgs={selectedProgs}
+                  setSelectedProgs={setSelectedProgs}
+                  selectedYears={selectedYears}
+                  setSelectedYears={setSelectedYears}
+                  isExclusiveDept={isExclusiveDept}
+                  isExclusiveProg={isExclusiveProg}
+                />
 
-                      {deptPopoverOpen && !isExclusiveDept && (
-                        <div className="absolute top-full left-0 w-full bg-surface-container-lowest border border-outline-variant shadow-lg z-20 rounded-lg p-3 mt-1 flex flex-col gap-2.5 max-h-[300px] overflow-hidden">
-                          <div className="relative">
-                            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary text-base">
-                              search
-                            </span>
-                            <input
-                              type="text"
-                              value={deptSearch}
-                              onChange={(e) => setDeptSearch(e.target.value)}
-                              className="w-full h-8 pl-8 pr-2.5 bg-surface-container-low/50 border border-outline-variant rounded-md text-xs outline-none focus:border-primary"
-                              placeholder="Search departments..."
-                            />
-                          </div>
-
-                          <div className="flex justify-between items-center text-[11px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedDepts(["All Departments", ...DEPARTMENTS])}
-                              className="hover:underline"
-                            >
-                              Select All
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedDepts([]);
-                                setSelectedProgs([]);
-                              }}
-                              className="hover:underline"
-                            >
-                              Clear All
-                            </button>
-                          </div>
-
-                          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
-                            {["All Departments", ...DEPARTMENTS]
-                              .filter((d) =>
-                                d.toLowerCase().includes(deptSearch.toLowerCase())
-                              )
-                              .map((dept) => (
-                                <label
-                                  key={dept}
-                                  className="flex items-center gap-2 text-xs text-on-surface cursor-pointer py-1 px-1.5 hover:bg-surface-container rounded transition-colors"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedDepts.includes(dept)}
-                                    onChange={() => toggleDept(dept)}
-                                    className="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
-                                  />
-                                  <span>{dept}</span>
-                                </label>
-                              ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Program Dropdown */}
-                    <div className="space-y-2 relative" ref={progRef}>
-                      <label className="font-label-sm text-xs font-semibold text-secondary block">
-                        Program
-                      </label>
-                      <button
-                        type="button"
-                        disabled={selectedDepts.length === 0 || isExclusiveProg}
-                        onClick={() => {
-                          setProgPopoverOpen(!progPopoverOpen);
-                          setDeptPopoverOpen(false);
-                          setYearPopoverOpen(false);
-                        }}
-                        className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant font-body-sm text-sm text-left flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${
-                          selectedDepts.length === 0 || isExclusiveProg
-                            ? "bg-surface-container/30 text-secondary/50 cursor-not-allowed opacity-80"
-                            : "bg-surface-container-lowest text-on-surface cursor-pointer"
-                        }`}
-                      >
-                        <span className="truncate">
-                          {selectedDepts.length === 0
-                            ? "Select Department first"
-                            : selectedProgs.length === 0
-                              ? "Select Program"
-                              : selectedProgs.length === 1
-                                ? selectedProgs[0]
-                                : `${selectedProgs.length} Programs selected`}
-                        </span>
-                        {!isExclusiveProg && selectedDepts.length > 0 && (
-                          <span className="material-symbols-outlined text-secondary">
-                            expand_more
-                          </span>
-                        )}
-                      </button>
-
-                      {progPopoverOpen && selectedDepts.length > 0 && !isExclusiveProg && (
-                        <div className="absolute top-full left-0 w-full bg-surface-container-lowest border border-outline-variant shadow-lg z-20 rounded-lg p-3 mt-1 flex flex-col gap-2.5 max-h-[300px] overflow-hidden">
-                          <div className="relative">
-                            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary text-base">
-                              search
-                            </span>
-                            <input
-                              type="text"
-                              value={progSearch}
-                              onChange={(e) => setProgSearch(e.target.value)}
-                              className="w-full h-8 pl-8 pr-2.5 bg-surface-container-low/50 border border-outline-variant rounded-md text-xs outline-none focus:border-primary"
-                              placeholder="Search programs..."
-                            />
-                          </div>
-
-                          <div className="flex justify-between items-center text-[11px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const allFilteredProgs = selectedDepts.includes("All Departments")
-                                  ? ["All Programs", ...Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()))]
-                                  : ["All Programs", ...selectedDepts.flatMap((d) => DEPT_PROGRAMS[d] || [])];
-                                setSelectedProgs(allFilteredProgs);
-                              }}
-                              className="hover:underline"
-                            >
-                              Select All
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedProgs([])}
-                              className="hover:underline"
-                            >
-                              Clear All
-                            </button>
-                          </div>
-
-                          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
-                            {Array.from(
-                              new Set(
-                                selectedDepts.includes("All Departments")
-                                  ? ["All Programs", ...Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()))]
-                                  : ["All Programs", ...selectedDepts.flatMap((d) => DEPT_PROGRAMS[d] || [])]
-                              )
-                            )
-                              .filter((p) =>
-                                p.toLowerCase().includes(progSearch.toLowerCase())
-                              )
-                              .map((prog) => (
-                                <label
-                                  key={prog}
-                                  className="flex items-center gap-2 text-xs text-on-surface cursor-pointer py-1 px-1.5 hover:bg-surface-container rounded transition-colors"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedProgs.includes(prog)}
-                                    onChange={() => toggleProg(prog)}
-                                    className="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
-                                  />
-                                  <span>{prog}</span>
-                                </label>
-                              ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Year Level Dropdown */}
-                    <div className="space-y-2 relative" ref={yearRef}>
-                      <label className="font-label-sm text-xs font-semibold text-secondary block">
-                        Year Level
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setYearPopoverOpen(!yearPopoverOpen);
-                          setDeptPopoverOpen(false);
-                          setProgPopoverOpen(false);
-                        }}
-                        className="w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm cursor-pointer focus:border-primary focus:ring-1 focus:ring-primary"
-                      >
-                        <span className="truncate">
-                          {selectedYears.length === 0
-                            ? "Select Year Level"
-                            : selectedYears.length === 1
-                              ? selectedYears[0]
-                              : `${selectedYears.length} Year Levels selected`}
-                        </span>
-                        <span className="material-symbols-outlined text-secondary">
-                          expand_more
-                        </span>
-                      </button>
-
-                      {yearPopoverOpen && (
-                        <div className="absolute top-full left-0 w-full bg-surface-container-lowest border border-outline-variant shadow-lg z-20 rounded-lg p-3 mt-1 flex flex-col gap-2.5 max-h-[300px] overflow-hidden">
-                          <div className="relative">
-                            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary text-base">
-                              search
-                            </span>
-                            <input
-                              type="text"
-                              value={yearSearch}
-                              onChange={(e) => setYearSearch(e.target.value)}
-                              className="w-full h-8 pl-8 pr-2.5 bg-surface-container-low/50 border border-outline-variant rounded-md text-xs outline-none focus:border-primary"
-                              placeholder="Search years..."
-                            />
-                          </div>
-
-                          <div className="flex justify-between items-center text-[11px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedYears(["All Year Levels", ...YEAR_LEVELS])}
-                              className="hover:underline"
-                            >
-                              Select All
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedYears([])}
-                              className="hover:underline"
-                            >
-                              Clear All
-                            </button>
-                          </div>
-
-                          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
-                            {["All Year Levels", ...YEAR_LEVELS]
-                              .filter((y) =>
-                                y.toLowerCase().includes(yearSearch.toLowerCase())
-                              )
-                              .map((year) => (
-                                <label
-                                  key={year}
-                                  className="flex items-center gap-2 text-xs text-on-surface cursor-pointer py-1 px-1.5 hover:bg-surface-container rounded transition-colors"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedYears.includes(year)}
-                                    onChange={() => toggleYear(year)}
-                                    className="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
-                                  />
-                                  <span>{year}</span>
-                                </label>
-                              ))}
-                          </div>
-                        </div>
-                      )}
+                {/* Attach Forms/Links */}
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-label-md text-sm font-bold text-on-surface uppercase tracking-wider">
+                      Attach Form/Link
+                    </h3>
+                  </div>
+                  <div className="border border-outline-variant rounded-xl bg-surface p-4 space-y-4">
+                    <div className="flex flex-col md:flex-row gap-4 items-start">
+                      <div className="flex-1 w-full">
+                        <label className="block font-body-sm text-body-sm text-on-surface mb-1">
+                          Link Name
+                        </label>
+                        <input
+                          type="text"
+                          value={linkName}
+                          onChange={(e) => setLinkName(e.target.value)}
+                          className="custom-ring w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none"
+                          placeholder="E.g., Evaluation Form"
+                        />
+                      </div>
+                      <div className="flex-[2] w-full">
+                        <label className="block font-body-sm text-body-sm text-on-surface mb-1">
+                          URL
+                        </label>
+                        <input
+                          type="url"
+                          value={linkUrl}
+                          onChange={(e) => setLinkUrl(e.target.value)}
+                          className="custom-ring w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest font-body-sm text-body-sm text-primary outline-none"
+                          placeholder="E.g., https://forms.google.com/..."
+                        />
+                      </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* Grouped, Labeled Tag Display */}
-                  {(selectedDepts.length > 0 || selectedProgs.length > 0 || selectedYears.length > 0) && (
-                    <div className="space-y-3 pt-2 bg-surface rounded-xl border border-outline-variant/50 p-4">
-                      {/* Department Tags */}
-                      {selectedDepts.length > 0 && (
-                        <div className="flex flex-col md:flex-row gap-2 items-start">
-                          <span className="text-xs font-semibold text-secondary min-w-[90px] pt-1">
-                            Departments:
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(expandDepts ? selectedDepts : selectedDepts.slice(0, 4)).map((dept) => (
-                              <span
-                                key={dept}
-                                className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-primary-container/10 text-primary border border-primary-container/30 rounded-full font-label-sm text-xs font-medium"
-                              >
-                                {dept}
-                                {!isExclusiveDept && (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleDept(dept)}
-                                    className="material-symbols-outlined text-sm hover:bg-primary-container/20 rounded-full leading-none p-0.5"
-                                  >
-                                    close
-                                  </button>
-                                )}
-                              </span>
-                            ))}
-                            {selectedDepts.length > 4 && (
-                              <button
-                                type="button"
-                                onClick={() => setExpandDepts(!expandDepts)}
-                                className="inline-flex items-center px-2 py-0.5 bg-secondary/10 text-secondary border border-secondary/20 rounded-full font-label-sm text-xs font-bold hover:bg-secondary/20"
-                              >
-                                {expandDepts ? "Show less" : `+${selectedDepts.length - 4} more`}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Program Tags */}
-                      {selectedProgs.length > 0 && (
-                        <div className="flex flex-col md:flex-row gap-2 items-start">
-                          <span className="text-xs font-semibold text-secondary min-w-[90px] pt-1">
-                            Programs:
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(expandProgs ? selectedProgs : selectedProgs.slice(0, 4)).map((prog) => (
-                              <span
-                                key={prog}
-                                className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-primary-container/10 text-primary border border-primary-container/30 rounded-full font-label-sm text-xs font-medium"
-                              >
-                                {prog}
-                                {!isExclusiveProg && (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleProg(prog)}
-                                    className="material-symbols-outlined text-sm hover:bg-primary-container/20 rounded-full leading-none p-0.5"
-                                  >
-                                    close
-                                  </button>
-                                )}
-                              </span>
-                            ))}
-                            {selectedProgs.length > 4 && (
-                              <button
-                                type="button"
-                                onClick={() => setExpandProgs(!expandProgs)}
-                                className="inline-flex items-center px-2 py-0.5 bg-secondary/10 text-secondary border border-secondary/20 rounded-full font-label-sm text-xs font-bold hover:bg-secondary/20"
-                              >
-                                {expandProgs ? "Show less" : `+${selectedProgs.length - 4} more`}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Year Level Tags */}
-                      {selectedYears.length > 0 && (
-                        <div className="flex flex-col md:flex-row gap-2 items-start">
-                          <span className="text-xs font-semibold text-secondary min-w-[90px] pt-1">
-                            Year Levels:
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(expandYears ? selectedYears : selectedYears.slice(0, 4)).map((year) => (
-                              <span
-                                key={year}
-                                className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-primary-container/10 text-primary border border-primary-container/30 rounded-full font-label-sm text-xs font-medium"
-                              >
-                                {year}
-                                <button
-                                  type="button"
-                                  onClick={() => toggleYear(year)}
-                                  className="material-symbols-outlined text-sm hover:bg-primary-container/20 rounded-full leading-none p-0.5"
-                                >
-                                  close
-                                </button>
-                              </span>
-                            ))}
-                            {selectedYears.length > 4 && (
-                              <button
-                                type="button"
-                                onClick={() => setExpandYears(!expandYears)}
-                                className="inline-flex items-center px-2 py-0.5 bg-secondary/10 text-secondary border border-secondary/20 rounded-full font-label-sm text-xs font-bold hover:bg-secondary/20"
-                              >
-                                {expandYears ? "Show less" : `+${selectedYears.length - 4} more`}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                {/* Deadline Section */}
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-label-md text-sm font-bold text-on-surface uppercase tracking-wider">
+                      Deadline
+                    </h3>
+                  </div>
+                  <div className="border border-outline-variant rounded-xl bg-surface p-4">
+                    <div className="w-full">
+                      <label className="block font-body-sm text-body-sm text-on-surface mb-1">
+                        Due Date (Optional)
+                      </label>
+                      <input
+                        type="date"
+                        value={deadline}
+                        onChange={(e) => setDeadline(e.target.value)}
+                        className="custom-ring w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none"
+                      />
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Modal Footer */}
@@ -968,6 +522,19 @@ export default function OrgClearanceRequirementsPage() {
         </div>,
         document.body
       )}
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showConfirm}
+        title={editingReqId ? "Save Changes" : "Create Requirement"}
+        message={
+          editingReqId
+            ? "Are you sure you want to update this clearance requirement? This will update it for all constituents."
+            : "Are you sure you want to create this new clearance requirement?"
+        }
+        confirmText={editingReqId ? "Save Changes" : "Create"}
+        onConfirm={executeSaveRequirement}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 }
