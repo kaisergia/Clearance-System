@@ -18,6 +18,7 @@ interface ConstituentsTableProps {
   onToggleStatus: (id: string) => void;
   onBulkStatusChange: (status: "Cleared" | "Pending") => void;
   isAllSelected: boolean;
+  isSysAdmin?: boolean;
 }
 
 export function ConstituentsTable({
@@ -28,6 +29,7 @@ export function ConstituentsTable({
   onToggleStatus,
   onBulkStatusChange,
   isAllSelected,
+  isSysAdmin = false,
 }: ConstituentsTableProps) {
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm overflow-hidden">
@@ -58,24 +60,26 @@ export function ConstituentsTable({
         <table className="w-full border-collapse">
           <thead className="bg-surface-container-low border-b border-outline-variant text-left">
             <tr className="font-label-md text-xs font-semibold text-secondary uppercase tracking-wider">
-              <th className="py-4 px-6 text-left">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={isAllSelected}
-                    onChange={(e) => onSelectAllChange(e.target.checked)}
-                    className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
-                  />
-                  <span>All</span>
-                </div>
-              </th>
+              {!isSysAdmin && (
+                <th className="py-4 px-6 text-left">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={(e) => onSelectAllChange(e.target.checked)}
+                      className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                    />
+                    <span>All</span>
+                  </div>
+                </th>
+              )}
               <th className="py-4 px-6 text-left">Student ID</th>
               <th className="py-4 px-6 text-left">Name</th>
               <th className="py-4 px-6 text-left">Department</th>
               <th className="py-4 px-6 text-left">Program</th>
               <th className="py-4 px-6 text-left">Year</th>
               <th className="py-4 px-6 text-center">Status</th>
-              <th className="py-4 px-6 text-center">Action</th>
+              {!isSysAdmin && <th className="py-4 px-6 text-center">Action</th>}
               <th className="py-4 px-6 text-center">Progress</th>
             </tr>
           </thead>
@@ -92,14 +96,16 @@ export function ConstituentsTable({
                   key={student.id}
                   className="hover:bg-surface-container-low/20 transition-all duration-150"
                 >
-                  <td className="py-4 px-6 text-left">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(student.id)}
-                      onChange={(e) => onSelectStudent(student.id, e.target.checked)}
-                      className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
-                    />
-                  </td>
+                  {!isSysAdmin && (
+                    <td className="py-4 px-6 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(student.id)}
+                        onChange={(e) => onSelectStudent(student.id, e.target.checked)}
+                        className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                      />
+                    </td>
+                  )}
                   <td className="py-4 px-6 font-mono font-medium text-xs text-secondary">{student.id}</td>
                   <td className="py-4 px-6 font-bold">{student.name}</td>
                   <td className="py-4 px-6 text-secondary">{student.department}</td>
@@ -116,27 +122,38 @@ export function ConstituentsTable({
                       </span>
                     )}
                   </td>
+                  {!isSysAdmin && (
+                    <td className="py-4 px-6 text-center">
+                      {student.status === "Cleared" ? (
+                        <button
+                          onClick={() => onToggleStatus(student.id)}
+                          className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-red-50 text-coral-red hover:bg-coral-red hover:text-white border border-coral-red active:scale-95 shadow-sm"
+                        >
+                          Mark Uncleared
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onToggleStatus(student.id)}
+                          className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-green-50 text-green-600 hover:bg-green-600 hover:text-white border border-green-600 active:scale-95 shadow-sm"
+                        >
+                          Mark Cleared
+                        </button>
+                      )}
+                    </td>
+                  )}
                   <td className="py-4 px-6 text-center">
-                    {student.status === "Cleared" ? (
-                      <button
-                        onClick={() => onToggleStatus(student.id)}
-                        className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-red-50 text-coral-red hover:bg-coral-red hover:text-white border border-coral-red active:scale-95 shadow-sm"
+                    {isSysAdmin ? (
+                      <a 
+                        href={`/student/clearance?studentId=${student.id}`}
+                        className="text-primary hover:text-primary-dark transition-colors font-bold text-xs"
                       >
-                        Mark Uncleared
-                      </button>
+                        View Details
+                      </a>
                     ) : (
-                      <button
-                        onClick={() => onToggleStatus(student.id)}
-                        className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-green-50 text-green-600 hover:bg-green-600 hover:text-white border border-green-600 active:scale-95 shadow-sm"
-                      >
-                        Mark Cleared
+                      <button className="text-coral-red hover:text-primary transition-colors font-bold text-xs">
+                        View Details
                       </button>
                     )}
-                  </td>
-                  <td className="py-4 px-6 text-center">
-                    <button className="text-coral-red hover:text-primary transition-colors font-bold text-xs">
-                      View Details
-                    </button>
                   </td>
                 </tr>
               ))

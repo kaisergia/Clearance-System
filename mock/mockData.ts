@@ -74,10 +74,13 @@ export const mockOrgs = [
   },
 ];
 
-// Explicit membership mapping for Non-Academic Clubs
+// Explicit membership mapping for Non-Academic Clubs and some default students
 export const mockOrgMembers = [
   { orgId: 3, studentId: "2021-00001" }, // Juan Dela Cruz in Dance Troupe
   { orgId: 3, studentId: "2022-00003" }, // Pedro Reyes in Dance Troupe
+  { orgId: 1, studentId: "2021-0492" }, // Eleanor - Computer Science Society
+  { orgId: 5, studentId: "2021-0492" }, // Eleanor - Student Government
+  { orgId: 4, studentId: "2022-1103" }, // Chidi - Engineering Society
 ];
 
 
@@ -130,7 +133,7 @@ export const mockOffices = [
   },
 ];
 
-// Clearance Requirements (Student view)
+// Clearance Requirements (Student view) - Legacy static array (kept for fallback)
 export const mockRequirements = [
   // Offices
   {
@@ -198,6 +201,29 @@ export const mockRequirements = [
     remarks: "",
   },
 ];
+
+// Dynamic explicit mock clearance status per student for offices and orgs
+export const mockStudentClearanceRecords: Record<string, any[]> = {
+  // Eleanor Shellstrop - Fully Cleared
+  "2021-0492": [
+    { officeId: 1, status: "Cleared", dateCleared: "Jan 10, 2025", remarks: "No outstanding books." },
+    { officeId: 2, status: "Cleared", dateCleared: "Jan 11, 2025", remarks: "All fees settled." },
+    { officeId: 3, status: "Cleared", dateCleared: "Jan 11, 2025", remarks: "" },
+    { officeId: 4, status: "Cleared", dateCleared: "Jan 9, 2025", remarks: "No records found." },
+    { officeId: 5, status: "Cleared", dateCleared: "Jan 12, 2025", remarks: "Good standing." },
+    { orgId: 1, status: "Cleared", dateCleared: "Jan 12, 2025", remarks: "Dues paid." },
+    { orgId: 5, status: "Cleared", dateCleared: "Jan 12, 2025", remarks: "Clearance signed." }
+  ],
+  // Chidi Anagonye - Pending
+  "2022-1103": [
+    { officeId: 1, status: "Cleared", dateCleared: "Jan 10, 2025", remarks: "No outstanding books." },
+    { officeId: 2, status: "Pending", dateCleared: null, remarks: "" },
+    { officeId: 3, status: "Cleared", dateCleared: "Jan 11, 2025", remarks: "" },
+    { officeId: 4, status: "Rejected", dateCleared: null, remarks: "Needs to settle library fees first." },
+    { officeId: 5, status: "Pending", dateCleared: null, remarks: "Pending interview." },
+    { orgId: 4, status: "Pending", dateCleared: null, remarks: "" }
+  ]
+};
 
 export const mockTerms = ["1st Sem 2024-2025", "2nd Sem 2023-2024", "1st Sem 2023-2024"];
 

@@ -5,6 +5,7 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import { mockStudents } from "@/mock/mockStudents";
+import { mockOffices, mockStudentClearanceRecords } from "@/mock/mockData";
 
 export default function ConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -21,8 +22,36 @@ export default function ConstituentsPage() {
   const [program, setProgram] = useState("All Programs");
 
   // Keep state for table items to make "Mark Cleared / Uncleared" toggling work instantly!
-  const [constituents, setConstituents] = useState(mockStudents);
+  const [constituents, setConstituents] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [activeOffice, setActiveOffice] = useState<any>(null);
+
+  useEffect(() => {
+    const officeId = localStorage.getItem("officeId");
+    let currentOffice = null;
+    if (officeId) {
+      currentOffice = mockOffices.find((o) => o.id === Number(officeId));
+      if (currentOffice) setActiveOffice(currentOffice);
+    }
+
+    let storedRecords = localStorage.getItem("studentClearanceRecords");
+    if (!storedRecords) {
+      localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
+      storedRecords = JSON.stringify(mockStudentClearanceRecords);
+    }
+    const records = JSON.parse(storedRecords);
+
+    // Map mockStudents to their office-specific status
+    const mappedStudents = mockStudents.map(student => {
+      const studentRecs = records[student.id] || [];
+      const officeRec = studentRecs.find((r: any) => r.officeId === Number(officeId));
+      return {
+        ...student,
+        status: officeRec?.status || "Pending",
+      };
+    });
+    setConstituents(mappedStudents);
+  }, []);
 
   // Extract unique departments dynamically from state
   const uniqueDepartments = Array.from(
@@ -43,14 +72,41 @@ export default function ConstituentsPage() {
     setConstituents((prev) =>
       prev.map((student) => {
         if (student.id === id) {
+          const newStatus = student.status === "Cleared" ? "Pending" : "Cleared";
+          updateClearanceRecord(id, newStatus);
           return {
             ...student,
-            status: student.status === "Cleared" ? "Pending" : "Cleared",
+            status: newStatus,
           };
         }
         return student;
       })
     );
+  };
+
+  const updateClearanceRecord = (studentId: string, newStatus: string) => {
+    const officeId = localStorage.getItem("officeId");
+    if (!officeId) return;
+
+    let storedRecords = localStorage.getItem("studentClearanceRecords");
+    let records = storedRecords ? JSON.parse(storedRecords) : { ...mockStudentClearanceRecords };
+
+    if (!records[studentId]) records[studentId] = [];
+    
+    const existingRecIndex = records[studentId].findIndex((r: any) => r.officeId === Number(officeId));
+    if (existingRecIndex >= 0) {
+      records[studentId][existingRecIndex].status = newStatus;
+      records[studentId][existingRecIndex].dateCleared = newStatus === "Cleared" ? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+    } else {
+      records[studentId].push({
+        officeId: Number(officeId),
+        status: newStatus,
+        dateCleared: newStatus === "Cleared" ? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null,
+        remarks: ""
+      });
+    }
+
+    localStorage.setItem("studentClearanceRecords", JSON.stringify(records));
   };
 
   // Filter students based on state
@@ -99,9 +155,13 @@ export default function ConstituentsPage() {
   const confirmBulkStatusChange = () => {
     if (pendingBulkStatus) {
       setConstituents((prev) =>
-        prev.map((student) =>
-          selectedIds.includes(student.id) ? { ...student, status: pendingBulkStatus } : student
-        )
+        prev.map((student) => {
+          if (selectedIds.includes(student.id)) {
+            updateClearanceRecord(student.id, pendingBulkStatus);
+            return { ...student, status: pendingBulkStatus };
+          }
+          return student;
+        })
       );
       setSelectedIds([]);
     }
@@ -133,7 +193,7 @@ export default function ConstituentsPage() {
           </h2>
           <span className="font-body-md text-body-md text-secondary mt-1 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-base text-primary">domain</span>
-            Office: <span className="font-semibold text-on-surface">Guidance Office</span>
+            Office: <span className="font-semibold text-on-surface">{activeOffice ? activeOffice.name : "Loading..."}</span>
           </span>
         </div>
       </section>

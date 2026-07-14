@@ -145,7 +145,13 @@ export default function StudentClearance() {
     // Load student profile
     const storedStudents = localStorage.getItem("students");
     const studentsList = storedStudents ? JSON.parse(storedStudents) : mockStudents;
-    const currentStudent = studentsList.find((s: any) => s.id === "2021-0492") || studentsList[0];
+    
+    // Check if studentId is passed in URL
+    const params = new URLSearchParams(window.location.search);
+    const studentIdParam = params.get("studentId");
+    
+    const targetStudentId = studentIdParam || "2021-0492";
+    const currentStudent = studentsList.find((s: any) => s.id === targetStudentId) || studentsList[0];
     setStudent(currentStudent);
 
     // Load requirements and normalize Rejected status to Pending
@@ -180,6 +186,11 @@ export default function StudentClearance() {
           </h2>
           <p className="text-secondary text-body-sm">
             Track and complete requirements for {student.semester}
+            {new URLSearchParams(window.location.search).get("studentId") && (
+              <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded-md font-medium text-xs">
+                Viewing for {student.name} ({student.id})
+              </span>
+            )}
           </p>
         </div>
       </section>

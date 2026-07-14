@@ -35,6 +35,10 @@ export function middleware(request: NextRequest) {
   if (role && isProtectedRoute) {
     const allowedPath = ROLE_ACCESS[role];
     if (!pathname.startsWith(allowedPath)) {
+      // Allow admin to view student clearance details
+      if (role === "admin" && pathname.startsWith("/student/clearance")) {
+        return NextResponse.next();
+      }
       return NextResponse.redirect(new URL(`${allowedPath}/dashboard`, request.url));
     }
   }

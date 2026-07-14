@@ -222,6 +222,7 @@ export default function ManageStudentsPage() {
         onToggleStatus={handleToggleStatus}
         onBulkStatusChange={triggerBulkStatusChange}
         isAllSelected={isAllSelected}
+        isSysAdmin={true}
       />
 
       {showConfirmModal && (

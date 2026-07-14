@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { mockStudents } from "@/mock/mockStudents";
-import { mockRequirements } from "@/mock/mockData";
+import { mockOffices, mockOrgs, mockOrgMembers, mockStudentClearanceRecords, mockRequirements as fallbackReqs } from "@/mock/mockData";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 import { Check } from "lucide-react";
 
@@ -33,18 +33,62 @@ export default function StudentDashboard() {
     const currentStudent = studentsList.find((s: any) => s.id === "2021-0492") || studentsList[0];
     setStudent(currentStudent);
 
-    // Load requirements from localStorage or initialize/reset with mockRequirements
-    let storedReqs = localStorage.getItem("requirements");
-    if (!storedReqs || storedReqs.includes("Tuition & Fees Settlement")) {
-      localStorage.setItem("requirements", JSON.stringify(mockRequirements));
-      storedReqs = JSON.stringify(mockRequirements);
+    let storedRecords = localStorage.getItem("studentClearanceRecords");
+    if (!storedRecords) {
+      localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
+      storedRecords = JSON.stringify(mockStudentClearanceRecords);
     }
-    const reqsList = JSON.parse(storedReqs);
-    const normalizedReqs = reqsList.map((r: any) => ({
-      ...r,
-      status: r.status === "Rejected" ? "Pending" : r.status,
-    }));
-    setRequirements(normalizedReqs);
+    const records = JSON.parse(storedRecords);
+    const studentRecords = records[currentStudent.id];
+    
+    if (studentRecords) {
+      let idCounter = 1;
+      const dynamicReqs: ClearanceItem[] = [];
+
+      // Add all active offices as requirements
+      mockOffices.forEach((office) => {
+        const record = studentRecords.find((r: any) => r.officeId === office.id);
+        dynamicReqs.push({
+          id: idCounter++,
+          name: `${office.name} Clearance`,
+          responsible: office.name,
+          type: "office",
+          status: record?.status || "Pending",
+          dateCleared: record?.dateCleared || null,
+          remarks: record?.remarks || "",
+        });
+      });
+
+      // Add org requirements for the student
+      const joinedOrgs = mockOrgMembers
+        .filter((m) => m.studentId === currentStudent.id)
+        .map((m) => mockOrgs.find((o) => o.id === m.orgId))
+        .filter(Boolean);
+
+      joinedOrgs.forEach((org: any) => {
+        const record = studentRecords.find((r: any) => r.orgId === org.id);
+        dynamicReqs.push({
+          id: idCounter++,
+          name: "Org Membership Clearance",
+          responsible: org.name,
+          type: "org",
+          status: record?.status || "Pending",
+          dateCleared: record?.dateCleared || null,
+          remarks: record?.remarks || "",
+        });
+      });
+
+      setRequirements(dynamicReqs);
+    } else {
+      // Load requirements from localStorage or initialize/reset with mockRequirements (fallback)
+      let storedReqs = localStorage.getItem("requirements");
+      if (!storedReqs || storedReqs.includes("Tuition & Fees Settlement")) {
+        localStorage.setItem("requirements", JSON.stringify(fallbackReqs));
+        storedReqs = JSON.stringify(fallbackReqs);
+      }
+      const reqsList = JSON.parse(storedReqs);
+      setRequirements(reqsList);
+    }
   }, []);
 
   if (!student) {

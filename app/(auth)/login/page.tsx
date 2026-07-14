@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { mockOrgs } from "@/mock/mockData";
+import { mockOrgs, mockOffices } from "@/mock/mockData";
 
 // Role options for mock login
 const ROLES = [
@@ -24,6 +24,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [selectedOfficeId, setSelectedOfficeId] = useState("");
   const [error, setError] = useState("");
 
   const handleLogin = () => {
@@ -40,9 +41,23 @@ export default function LoginPage() {
       // Save selected organization ID to localStorage and cookies
       localStorage.setItem("orgId", selectedOrgId);
       document.cookie = `orgId=${selectedOrgId}; path=/; max-age=86400`;
-    } else {
+      localStorage.removeItem("officeId");
+      document.cookie = "officeId=; path=/; max-age=0";
+    } else if (selectedRole === "head-office") {
+      if (!selectedOfficeId) {
+        setError("Please select a Head Office to continue.");
+        return;
+      }
+      // Save selected office ID to localStorage and cookies
+      localStorage.setItem("officeId", selectedOfficeId);
+      document.cookie = `officeId=${selectedOfficeId}; path=/; max-age=86400`;
       localStorage.removeItem("orgId");
       document.cookie = "orgId=; path=/; max-age=0";
+    } else {
+      localStorage.removeItem("orgId");
+      localStorage.removeItem("officeId");
+      document.cookie = "orgId=; path=/; max-age=0";
+      document.cookie = "officeId=; path=/; max-age=0";
     }
 
     // Save role to localStorage AND cookie (cookie is read by middleware RoleGuard)
@@ -89,6 +104,7 @@ export default function LoginPage() {
               onChange={(e) => {
                 setSelectedRole(e.target.value);
                 setSelectedOrgId("");
+                setSelectedOfficeId("");
                 setError("");
               }}
               className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
@@ -128,6 +144,36 @@ export default function LoginPage() {
                 {mockOrgs.map((org) => (
                   <option key={org.id} value={org.id}>
                     {org.name} ({org.category} {org.type === "LGU" ? "LGU" : "Club"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Head Office Selector — Shown only if role is Head Office */}
+          {selectedRole === "head-office" && (
+            <div className="space-y-2">
+              <label
+                htmlFor="office"
+                className="block font-body-sm text-body-sm text-on-surface font-medium"
+              >
+                Select Head Office
+              </label>
+              <select
+                id="office"
+                value={selectedOfficeId}
+                onChange={(e) => {
+                  setSelectedOfficeId(e.target.value);
+                  setError("");
+                }}
+                className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
+              >
+                <option value="" disabled>
+                  Choose an office...
+                </option>
+                {mockOffices.map((office) => (
+                  <option key={office.id} value={office.id}>
+                    {office.name}
                   </option>
                 ))}
               </select>
