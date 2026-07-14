@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { mockOrgs, mockOrgMembers } from "@/mock/mockData";
 import { mockStudents } from "@/mock/mockStudents";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
 // Types
 interface Student {
@@ -488,7 +489,13 @@ export default function OrgReportsPage() {
     setIsExportModalOpen(true);
   };
 
+  const [showConfirmDownload, setShowConfirmDownload] = useState(false);
+
   const handleDownloadCSV = () => {
+    setShowConfirmDownload(true);
+  };
+
+  const executeDownloadCSV = () => {
     let list = [...constituents];
 
     const activeDepts = exportDepts.filter((d) => d !== "All Departments");
@@ -603,6 +610,7 @@ export default function OrgReportsPage() {
     link.click();
     document.body.removeChild(link);
     setIsExportModalOpen(false);
+    setShowConfirmDownload(false);
   };
 
   return (
@@ -1266,6 +1274,15 @@ export default function OrgReportsPage() {
         </div>,
         document.body
       )}
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showConfirmDownload}
+        title="Confirm Report Export"
+        message="Are you sure you want to download this student clearance report? This will generate and download the report based on your selected filters."
+        confirmText="Download"
+        onConfirm={executeDownloadCSV}
+        onCancel={() => setShowConfirmDownload(false)}
+      />
     </div>
   );
 }

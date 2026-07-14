@@ -174,7 +174,7 @@ export const mockRequirements = [
     name: "Discipline Clearance",
     responsible: "Discipline Office",
     type: "office",
-    status: "Rejected",
+    status: "Pending",
     dateCleared: null,
     remarks: "Pending resolution of disciplinary case.",
   },

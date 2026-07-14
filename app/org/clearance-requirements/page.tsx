@@ -268,7 +268,7 @@ export default function OrgClearanceRequirementsPage() {
           <div className="text-center">Added</div>
           <div className="text-center">Deadline</div>
           <div className="text-center">Status</div>
-          <div className="text-right">Actions</div>
+          <div className="text-center">Actions</div>
         </div>
 
         {/* Table Rows */}
@@ -356,7 +356,7 @@ export default function OrgClearanceRequirementsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex justify-end items-center">
+                <div className="flex justify-center items-center">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEditRequirement(req)}

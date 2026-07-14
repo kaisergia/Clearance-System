@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
 // Types
 interface Student {
@@ -522,8 +523,14 @@ export default function ReportsPage() {
     setIsExportModalOpen(true);
   };
 
-  // Actual Excel XML Generator and Downloader with applied export filters
+  const [showConfirmDownload, setShowConfirmDownload] = useState(false);
+
   const handleDownloadCSV = () => {
+    setShowConfirmDownload(true);
+  };
+
+  // Actual Excel XML Generator and Downloader with applied export filters
+  const executeDownloadCSV = () => {
     let list = MOCK_STUDENTS_BY_TERM[mockTermKey] || [];
 
     // Filter by selected departments (ignoring the "All Departments" selector)
@@ -632,6 +639,7 @@ export default function ReportsPage() {
     link.click();
     document.body.removeChild(link);
     setIsExportModalOpen(false);
+    setShowConfirmDownload(false);
   };
 
   return (
@@ -1370,6 +1378,15 @@ export default function ReportsPage() {
         </div>,
         document.body
       )}
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showConfirmDownload}
+        title="Confirm Report Export"
+        message="Are you sure you want to download this student clearance report? This will generate and download the report based on your selected filters."
+        confirmText="Download"
+        onConfirm={executeDownloadCSV}
+        onCancel={() => setShowConfirmDownload(false)}
+      />
     </div>
   );
 }

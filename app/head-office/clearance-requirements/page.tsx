@@ -305,7 +305,7 @@ export default function ClearanceRequirementsPage() {
           <div className="text-center">Added</div>
           <div className="text-center">Deadline</div>
           <div className="text-center">Status</div>
-          <div className="text-right">Actions</div>
+          <div className="text-center">Actions</div>
         </div>
 
         {/* Table Rows */}
@@ -315,6 +315,7 @@ export default function ClearanceRequirementsPage() {
               No clearance requirements configured yet. Click "Add Requirement" to create one.
             </div>
           ) : (
+            requirements.map((req) => (
               <div
                 key={req.id}
                 className="grid grid-cols-[3fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-5 items-center hover:bg-surface-bright/50 transition-colors group"
@@ -392,7 +393,7 @@ export default function ClearanceRequirementsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex justify-end items-center">
+                <div className="flex justify-center items-center">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEditRequirement(req)}
