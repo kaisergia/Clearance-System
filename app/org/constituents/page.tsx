@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useSettings } from "@/components/contexts/SettingsContext";
-import { mockOrgs, mockOrgMembers } from "@/mock/mockData";
+import { mockOrgs, mockOrgMembers, mockRequirements } from "@/mock/mockData";
 import { mockStudents } from "@/mock/mockStudents";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
-import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
+import { ConstituentsTable, TableStudent } from "@/components/constituents/ConstituentsTable";
+import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function OrgConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -118,8 +119,41 @@ export default function OrgConstituentsPage() {
     }
   };
 
+  const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<TableStudent | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingBulkStatus, setPendingBulkStatus] = useState<"Cleared" | "Pending" | null>(null);
+
+  const getSelectedStudentRequirements = () => {
+    if (!selectedStudentForDetails) return [];
+    const storedReqs = localStorage.getItem("requirements");
+    const reqsList = storedReqs ? JSON.parse(storedReqs) : mockRequirements;
+    
+    // Normalize Rejected to Pending
+    const normalized = reqsList.map((r: any) => ({
+      ...r,
+      status: r.status === "Rejected" ? "Pending" : r.status
+    }));
+
+    // Find the student in the current page constituents state to get their local toggle status
+    const currentStudentState = constituents.find((s) => s.id === selectedStudentForDetails.id);
+    const isOrgCleared = currentStudentState ? currentStudentState.status === "Cleared" : false;
+
+    return normalized.map((r: any) => {
+      // Check if the requirement name or responsible matches the organization name
+      const matchesOrg = org && (
+        r.responsible.toLowerCase() === org.name.toLowerCase() ||
+        r.name.toLowerCase().includes(org.name.toLowerCase())
+      );
+      if (matchesOrg) {
+        return {
+          ...r,
+          status: isOrgCleared ? "Cleared" : "Pending",
+          dateCleared: isOrgCleared ? (r.dateCleared || "Jan 14, 2026") : null
+        };
+      }
+      return r;
+    });
+  };
 
   const triggerBulkStatusChange = (status: "Cleared" | "Pending") => {
     setPendingBulkStatus(status);
@@ -231,11 +265,12 @@ export default function OrgConstituentsPage() {
         onSelectAllChange={handleSelectAllChange}
         onToggleStatus={handleToggleStatus}
         onBulkStatusChange={triggerBulkStatusChange}
+        onViewDetails={setSelectedStudentForDetails}
         isAllSelected={isAllSelected}
       />
 
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-6 max-w-md w-full mx-4 shadow-lg animate-scale-up">
             <div className="flex items-center gap-3 text-amber-600 mb-4">
               <span className="material-symbols-outlined text-3xl">warning</span>
@@ -265,6 +300,30 @@ export default function OrgConstituentsPage() {
               >
                 Confirm
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedStudentForDetails && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl max-w-xl w-full shadow-lg animate-scale-up overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-surface-container-high bg-surface-container-low">
+              <div>
+                <h3 className="font-bold text-lg text-on-surface">Student Clearance Status</h3>
+                <p className="text-xs text-secondary mt-0.5">{selectedStudentForDetails.name} ({selectedStudentForDetails.id})</p>
+              </div>
+              <button 
+                onClick={() => setSelectedStudentForDetails(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container-high text-secondary transition-colors"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+            {/* Modal Content */}
+            <div className="p-6 max-h-[70vh] overflow-y-auto">
+              <ClearanceStatus requirements={getSelectedStudentRequirements()} />
             </div>
           </div>
         </div>

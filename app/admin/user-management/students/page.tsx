@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
-import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
+import { ConstituentsTable, TableStudent } from "@/components/constituents/ConstituentsTable";
 import { mockStudents } from "@/mock/mockStudents";
+import { mockRequirements } from "@/mock/mockData";
+import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function ManageStudentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -92,8 +94,33 @@ export default function ManageStudentsPage() {
     }
   };
 
+  const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<TableStudent | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingBulkStatus, setPendingBulkStatus] = useState<"Cleared" | "Pending" | null>(null);
+
+  const getSelectedStudentRequirements = () => {
+    if (!selectedStudentForDetails) return [];
+    const storedReqs = localStorage.getItem("requirements");
+    const reqsList = storedReqs ? JSON.parse(storedReqs) : mockRequirements;
+    
+    // Normalize Rejected to Pending
+    const normalized = reqsList.map((r: any) => ({
+      ...r,
+      status: r.status === "Rejected" ? "Pending" : r.status
+    }));
+
+    const currentStudentState = constituents.find((s) => s.id === selectedStudentForDetails.id);
+    const isOverallCleared = currentStudentState ? currentStudentState.status === "Cleared" : false;
+
+    if (isOverallCleared) {
+      return normalized.map((r: any) => ({
+        ...r,
+        status: "Cleared",
+        dateCleared: r.dateCleared || "Jan 14, 2026"
+      }));
+    }
+    return normalized;
+  };
 
   const triggerBulkStatusChange = (status: "Cleared" | "Pending") => {
     setPendingBulkStatus(status);
@@ -221,11 +248,12 @@ export default function ManageStudentsPage() {
         onSelectAllChange={handleSelectAllChange}
         onToggleStatus={handleToggleStatus}
         onBulkStatusChange={triggerBulkStatusChange}
+        onViewDetails={setSelectedStudentForDetails}
         isAllSelected={isAllSelected}
       />
 
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-6 max-w-md w-full mx-4 shadow-lg animate-scale-up">
             <div className="flex items-center gap-3 text-amber-600 mb-4">
               <span className="material-symbols-outlined text-3xl">warning</span>
@@ -255,6 +283,30 @@ export default function ManageStudentsPage() {
               >
                 Confirm
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedStudentForDetails && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl max-w-xl w-full shadow-lg animate-scale-up overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-surface-container-high bg-surface-container-low">
+              <div>
+                <h3 className="font-bold text-lg text-on-surface">Student Clearance Status</h3>
+                <p className="text-xs text-secondary mt-0.5">{selectedStudentForDetails.name} ({selectedStudentForDetails.id})</p>
+              </div>
+              <button 
+                onClick={() => setSelectedStudentForDetails(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container-high text-secondary transition-colors"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+            {/* Modal Content */}
+            <div className="p-6 max-h-[70vh] overflow-y-auto">
+              <ClearanceStatus requirements={getSelectedStudentRequirements()} />
             </div>
           </div>
         </div>

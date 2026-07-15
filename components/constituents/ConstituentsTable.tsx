@@ -17,6 +17,7 @@ interface ConstituentsTableProps {
   onSelectAllChange: (checked: boolean) => void;
   onToggleStatus: (id: string) => void;
   onBulkStatusChange: (status: "Cleared" | "Pending") => void;
+  onViewDetails?: (student: TableStudent) => void;
   isAllSelected: boolean;
 }
 
@@ -27,6 +28,7 @@ export function ConstituentsTable({
   onSelectAllChange,
   onToggleStatus,
   onBulkStatusChange,
+  onViewDetails,
   isAllSelected,
 }: ConstituentsTableProps) {
   return (
@@ -134,7 +136,10 @@ export function ConstituentsTable({
                     )}
                   </td>
                   <td className="py-4 px-6 text-center">
-                    <button className="text-coral-red hover:text-primary transition-colors font-bold text-xs">
+                    <button
+                      onClick={() => onViewDetails?.(student)}
+                      className="text-coral-red hover:text-primary transition-colors font-bold text-xs"
+                    >
                       View Details
                     </button>
                   </td>
