@@ -203,7 +203,7 @@ export default function HeadOfficeDashboard() {
                     </td>
                     <td className="py-4 px-6 text-center">
                       <Link
-                        href="/head-office/constituents"
+                        href={`/head-office/constituents/${student.id}`}
                         className="inline-flex items-center gap-1 text-primary hover:text-surface-tint font-bold text-xs"
                       >
                         View Progress

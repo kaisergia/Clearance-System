@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { mockOrgs } from "@/mock/mockData";
 import { ExpandableAppliesTo } from "@/components/ui/ExpandableAppliesTo";
 import { AppliesToSelector } from "@/components/ui/AppliesToSelector";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { defaultOrgRequirements } from "@/mock/mockData";
 
 interface Requirement {
   id: string;
@@ -18,37 +18,8 @@ interface Requirement {
   status: "Live" | "Draft";
   appliesTo: string[];
   deadline?: string;
+  requiresUpload?: boolean;
 }
-
-const INITIAL_REQUIREMENTS: Requirement[] = [
-  {
-    id: "org-req-1",
-    orgId: 1, // Computer Science Society (AcademicClub, CCIS, BSCS)
-    name: "CSS Membership Fee Settlement",
-    description: "Submit receipt of CSS membership fee payment to the treasurer.",
-    addedDate: "Oct 24, 2023",
-    status: "Live",
-    appliesTo: ["CCIS", "BS Computer Science"],
-  },
-  {
-    id: "org-req-2",
-    orgId: 1,
-    name: "General Assembly Attendance",
-    description: "Attend the CSS first General Assembly or submit an excuse letter.",
-    addedDate: "Oct 22, 2023",
-    status: "Live",
-    appliesTo: ["CCIS", "BS Computer Science"],
-  },
-  {
-    id: "org-req-3",
-    orgId: 5, // Student Government (Gov)
-    name: "University Clearance Form Submission",
-    description: "Submit a physical copy of the consolidated clearance form.",
-    addedDate: "Oct 20, 2023",
-    status: "Draft",
-    appliesTo: ["All Departments", "All Programs", "All Year Levels"],
-  },
-];
 
 const DEPARTMENTS = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
 
@@ -76,6 +47,7 @@ export default function OrgClearanceRequirementsPage() {
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [requiresUpload, setRequiresUpload] = useState(false);
 
   // Applies To States
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
@@ -87,12 +59,15 @@ export default function OrgClearanceRequirementsPage() {
 
     const orgId = localStorage.getItem("orgId");
     if (orgId) {
-      const currentOrg = mockOrgs.find((o) => o.id === parseInt(orgId));
+      const storedOrgs = localStorage.getItem("orgs");
+      const orgsList = storedOrgs ? JSON.parse(storedOrgs) : [];
+      const currentOrg = orgsList.find((o: any) => o.id === parseInt(orgId));
       if (currentOrg) {
         setOrg(currentOrg);
-        // Filter requirements for this org
-        const list = INITIAL_REQUIREMENTS.filter((r) => r.orgId === currentOrg.id);
-        setRequirements(list);
+        
+        const storedOrgReqs = localStorage.getItem("orgRequirements");
+        const allReqs = storedOrgReqs ? JSON.parse(storedOrgReqs) : defaultOrgRequirements;
+        setRequirements(allReqs[currentOrg.id] || []);
       }
     }
   }, []);
@@ -135,6 +110,7 @@ export default function OrgClearanceRequirementsPage() {
 
     setSelectedYears([]);
     setDeadline("");
+    setRequiresUpload(false);
     setIsModalOpen(true);
   };
 
@@ -149,6 +125,7 @@ export default function OrgClearanceRequirementsPage() {
     setReqDescription(req.description);
     setLinkName(req.linkName || "");
     setLinkUrl(req.linkUrl || "");
+    setRequiresUpload(req.requiresUpload || false);
 
     const depts: string[] = [];
     const progs: string[] = [];
@@ -180,6 +157,15 @@ export default function OrgClearanceRequirementsPage() {
     setShowConfirm(true);
   };
 
+  const saveToLocalStorage = (updatedReqs: Requirement[]) => {
+    if (org) {
+      const storedOrgReqs = localStorage.getItem("orgRequirements");
+      const allReqs = storedOrgReqs ? JSON.parse(storedOrgReqs) : defaultOrgRequirements;
+      allReqs[org.id] = updatedReqs;
+      localStorage.setItem("orgRequirements", JSON.stringify(allReqs));
+    }
+  };
+
   const executeSaveRequirement = () => {
     const appliesTo: string[] = [];
     if (selectedDepts.length > 0) appliesTo.push(...selectedDepts);
@@ -187,8 +173,8 @@ export default function OrgClearanceRequirementsPage() {
     if (selectedYears.length > 0) appliesTo.push(...selectedYears);
 
     if (editingReqId) {
-      setRequirements((prev) =>
-        prev.map((r) =>
+      setRequirements((prev) => {
+        const updated = prev.map((r) =>
           r.id === editingReqId
             ? {
                 ...r,
@@ -198,10 +184,13 @@ export default function OrgClearanceRequirementsPage() {
                 linkUrl: linkUrl ? linkUrl : undefined,
                 appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
                 deadline: deadline ? deadline : undefined,
+                requiresUpload,
               }
             : r
-        )
-      );
+        );
+        saveToLocalStorage(updated);
+        return updated;
+      });
       setEditingReqId(null);
     } else {
       const newReq: Requirement = {
@@ -219,23 +208,34 @@ export default function OrgClearanceRequirementsPage() {
         status: "Draft",
         appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
         deadline: deadline ? deadline : undefined,
+        requiresUpload,
       };
-      setRequirements((prev) => [newReq, ...prev]);
+      setRequirements((prev) => {
+        const updated = [newReq, ...prev];
+        saveToLocalStorage(updated);
+        return updated;
+      });
     }
     setIsModalOpen(false);
     setShowConfirm(false);
   };
 
   const handleDeleteRequirement = (id: string) => {
-    setRequirements((prev) => prev.filter((r) => r.id !== id));
+    setRequirements((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      saveToLocalStorage(updated);
+      return updated;
+    });
   };
 
   const handleToggleStatus = (id: string) => {
-    setRequirements((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: r.status === "Live" ? "Draft" : "Live" } : r
-      )
-    );
+    setRequirements((prev) => {
+      const updated = prev.map((r) =>
+        r.id === id ? { ...r, status: (r.status === "Live" ? "Draft" : "Live") as "Live" | "Draft" } : r
+      );
+      saveToLocalStorage(updated);
+      return updated;
+    });
   };
 
   return (
@@ -440,6 +440,27 @@ export default function OrgClearanceRequirementsPage() {
                   isExclusiveDept={isExclusiveDept}
                   isExclusiveProg={isExclusiveProg}
                 />
+
+                {/* Upload Toggle */}
+                <div className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface">
+                  <div>
+                    <h3 className="font-label-md text-sm font-bold text-on-surface">
+                      Requires Document Upload
+                    </h3>
+                    <p className="font-body-sm text-xs text-secondary mt-1">
+                      Turn this on if students need to upload a file (e.g. ID, Receipt) to complete this task.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={requiresUpload}
+                      onChange={(e) => setRequiresUpload(e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-surface-container-high rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
 
                 {/* Attach Forms/Links */}
                 <div className="space-y-4 pt-2">

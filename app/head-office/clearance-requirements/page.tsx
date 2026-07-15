@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AppliesToSelector } from "@/components/ui/AppliesToSelector";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { defaultOfficeRequirements } from "@/mock/mockData";
 
 interface Requirement {
   id: string;
@@ -15,38 +16,8 @@ interface Requirement {
   status: "Live" | "Draft";
   appliesTo: string[];
   deadline?: string;
+  requiresUpload?: boolean;
 }
-
-const INITIAL_REQUIREMENTS: Requirement[] = [
-  {
-    id: "req-1",
-    name: "Library Book Return",
-    description: "Ensure all borrowed items are returned to the central library.",
-    linkName: "Evaluation Form",
-    linkUrl: "https://forms.google.com/example-library",
-    addedDate: "Oct 24, 2023",
-    status: "Live",
-    appliesTo: ["All Departments", "All Programs", "All Year Levels"],
-  },
-  {
-    id: "req-2",
-    name: "Tuition Fee Settlement",
-    description: "Clear all outstanding balances with the accounting office.",
-    linkName: "Fee Details Link",
-    linkUrl: "https://accounting.uni.edu.ph",
-    addedDate: "Oct 22, 2023",
-    status: "Live",
-    appliesTo: ["CABE", "BS Business Administration"],
-  },
-  {
-    id: "req-3",
-    name: "Exit Interview",
-    description: "Optional feedback session with guidance counselor.",
-    addedDate: "Oct 20, 2023",
-    status: "Draft",
-    appliesTo: ["4th Year"],
-  },
-];
 
 const DEPARTMENTS = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
 
@@ -128,7 +99,8 @@ function ExpandableAppliesTo({ appliesTo }: { appliesTo: string[] }) {
 }
 
 export default function ClearanceRequirementsPage() {
-  const [requirements, setRequirements] = useState<Requirement[]>(INITIAL_REQUIREMENTS);
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [officeId, setOfficeId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReqId, setEditingReqId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -140,6 +112,7 @@ export default function ClearanceRequirementsPage() {
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [requiresUpload, setRequiresUpload] = useState(false);
 
   // New Applies To States
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
@@ -148,6 +121,16 @@ export default function ClearanceRequirementsPage() {
 
   useEffect(() => {
     setMounted(true);
+    
+    const storedOfficeId = localStorage.getItem("officeId");
+    if (storedOfficeId) {
+      const oid = parseInt(storedOfficeId, 10);
+      setOfficeId(oid);
+      
+      const storedOfficeReqs = localStorage.getItem("officeRequirements");
+      const allReqs = storedOfficeReqs ? JSON.parse(storedOfficeReqs) : defaultOfficeRequirements;
+      setRequirements(allReqs[oid] || []);
+    }
   }, []);
 
   useEffect(() => {
@@ -172,6 +155,7 @@ export default function ClearanceRequirementsPage() {
     setSelectedProgs([]);
     setSelectedYears([]);
     setDeadline("");
+    setRequiresUpload(false);
     setIsModalOpen(true);
   };
 
@@ -186,6 +170,7 @@ export default function ClearanceRequirementsPage() {
     setReqDescription(req.description);
     setLinkName(req.linkName || "");
     setLinkUrl(req.linkUrl || "");
+    setRequiresUpload(req.requiresUpload || false);
 
     const depts: string[] = [];
     const progs: string[] = [];
@@ -217,6 +202,15 @@ export default function ClearanceRequirementsPage() {
     setShowConfirm(true);
   };
 
+  const saveToLocalStorage = (updatedReqs: Requirement[]) => {
+    if (officeId) {
+      const storedOfficeReqs = localStorage.getItem("officeRequirements");
+      const allReqs = storedOfficeReqs ? JSON.parse(storedOfficeReqs) : defaultOfficeRequirements;
+      allReqs[officeId] = updatedReqs;
+      localStorage.setItem("officeRequirements", JSON.stringify(allReqs));
+    }
+  };
+
   const executeSaveRequirement = () => {
     // Combine all selected criteria
     const appliesTo: string[] = [];
@@ -225,8 +219,8 @@ export default function ClearanceRequirementsPage() {
     if (selectedYears.length > 0) appliesTo.push(...selectedYears);
 
     if (editingReqId) {
-      setRequirements((prev) =>
-        prev.map((r) =>
+      setRequirements((prev) => {
+        const updated = prev.map((r) =>
           r.id === editingReqId
             ? {
               ...r,
@@ -236,10 +230,13 @@ export default function ClearanceRequirementsPage() {
               linkUrl: linkUrl ? linkUrl : undefined,
               appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
               deadline: deadline ? deadline : undefined,
+              requiresUpload,
             }
             : r
-        )
-      );
+        );
+        saveToLocalStorage(updated);
+        return updated;
+      });
       setEditingReqId(null);
     } else {
       const newReq: Requirement = {
@@ -256,23 +253,34 @@ export default function ClearanceRequirementsPage() {
         status: "Draft",
         appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
         deadline: deadline ? deadline : undefined,
+        requiresUpload,
       };
-      setRequirements((prev) => [newReq, ...prev]);
+      setRequirements((prev) => {
+        const updated = [newReq, ...prev];
+        saveToLocalStorage(updated);
+        return updated;
+      });
     }
     setIsModalOpen(false);
     setShowConfirm(false);
   };
 
   const handleDeleteRequirement = (id: string) => {
-    setRequirements((prev) => prev.filter((r) => r.id !== id));
+    setRequirements((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      saveToLocalStorage(updated);
+      return updated;
+    });
   };
 
   const handleToggleStatus = (id: string) => {
-    setRequirements((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: r.status === "Live" ? "Draft" : "Live" } : r
-      )
-    );
+    setRequirements((prev) => {
+      const updated = prev.map((r) =>
+        r.id === id ? { ...r, status: (r.status === "Live" ? "Draft" : "Live") as "Live" | "Draft" } : r
+      );
+      saveToLocalStorage(updated);
+      return updated;
+    });
   };
 
   return (
@@ -476,6 +484,27 @@ export default function ClearanceRequirementsPage() {
                   selectedYears={selectedYears}
                   setSelectedYears={setSelectedYears}
                 />
+
+                {/* Upload Toggle */}
+                <div className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface">
+                  <div>
+                    <h3 className="font-label-md text-sm font-bold text-on-surface">
+                      Requires Document Upload
+                    </h3>
+                    <p className="font-body-sm text-xs text-secondary mt-1">
+                      Turn this on if students need to upload a file (e.g. ID, Receipt) to complete this task.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={requiresUpload}
+                      onChange={(e) => setRequiresUpload(e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-surface-container-high rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
 
                 {/* Attach Forms/Links */}
                 <div className="space-y-4 pt-2">

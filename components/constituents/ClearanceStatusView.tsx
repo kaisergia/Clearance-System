@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { mockStudents } from "@/mock/mockStudents";
-import { mockRequirements, mockStudentClearanceRecords } from "@/mock/mockData";
+import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements } from "@/mock/mockData";
 import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X } from "lucide-react";
 
 interface ClearanceItem {
@@ -13,6 +13,8 @@ interface ClearanceItem {
   status: "Cleared" | "Pending" | "Rejected" | "Submitted";
   dateCleared?: string | null;
   remarks?: string;
+  uploadedFiles?: Record<number, string>;
+  completedTasks?: number[];
 }
 
 const itemStatusStyles = {
@@ -42,57 +44,15 @@ const itemStatusStyles = {
   },
 };
 
-const requirementTasks: Record<string, { label: string; requiresUpload?: boolean }[]> = {
-  "library": [
-    { label: "Return all borrowed books" },
-    { label: "Settle outstanding overdue fines" },
-    { label: "Submit research thesis copy", requiresUpload: true }
-  ],
-  "accounting": [
-    { label: "Settle outstanding tuition fees" },
-    { label: "Clear laboratory breakage fees" },
-    { label: "Submit financial clearance form", requiresUpload: true }
-  ],
-  "registrar": [
-    { label: "Submit official transcript copy", requiresUpload: true },
-    { label: "Verify high school card / F137" },
-    { label: "Clear academic deficiency holds" }
-  ],
-  "guidance office": [
-    { label: "Accomplish exit counseling interview" },
-    { label: "Submit personality evaluation test", requiresUpload: true },
-    { label: "Clear guidance behavior record" }
-  ],
-  "discipline office": [
-    { label: "Verify zero behavioral violations" },
-    { label: "Clear community service hours" },
-    { label: "Submit good moral character form", requiresUpload: true }
-  ],
-  "computer science society": [
-    { label: "Pay CSS membership dues", requiresUpload: true },
-    { label: "Settle project contributions" },
-    { label: "Verify seminar attendance" }
-  ],
-  "student government": [
-    { label: "Pay SSG membership dues", requiresUpload: true },
-    { label: "Attend general assembly" },
-    { label: "Verify community service attendance" }
-  ],
-};
 
-function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange }: { item: ClearanceItem; isLast: boolean; isSysAdminView: boolean; onStatusChange: (status: ClearanceItem["status"]) => void }) {
+
+function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange, tasks = [] }: { item: ClearanceItem; isLast: boolean; isSysAdminView: boolean; onStatusChange: (status: ClearanceItem["status"], data?: { remarks?: string, uploadedFiles?: Record<number, string>, completedTasks?: number[] }) => void, tasks?: { label: string; requiresUpload?: boolean }[] }) {
   const [expanded, setExpanded] = useState(false);
   const styles = itemStatusStyles[item.status] || itemStatusStyles.Pending;
-  
-  const tasks = requirementTasks[item.responsible.toLowerCase()] || [
-    { label: "Verify record deficiencies" },
-    { label: "Submit required office documentation", requiresUpload: true },
-    { label: "Obtain officer signature approval" }
-  ];
 
   // Track completed tasks locally for this mock
-  const [completedTasks, setCompletedTasks] = useState<number[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<Record<number, string>>({});
+  const [completedTasks, setCompletedTasks] = useState<number[]>(item.completedTasks || []);
+  const [uploadedFiles, setUploadedFiles] = useState<Record<number, string>>(item.uploadedFiles || {});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadIndex, setActiveUploadIndex] = useState<number | null>(null);
 
@@ -139,7 +99,7 @@ function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange }: { it
         if (!prev.includes(activeUploadIndex)) {
           const newCompleted = [...prev, activeUploadIndex];
           if (newCompleted.length === tasks.length && item.status !== "Cleared") {
-            onStatusChange("Submitted");
+            onStatusChange("Submitted", { uploadedFiles: { ...uploadedFiles, [activeUploadIndex]: fileName }, completedTasks: newCompleted });
           }
           return newCompleted;
         }
@@ -247,11 +207,41 @@ function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange }: { it
               {!isSysAdminView && !isFullyComplete && completedTasks.length === tasks.length && (
                 <div className="pt-2">
                   <button 
-                    onClick={(e) => { e.stopPropagation(); onStatusChange("Submitted"); }}
+                    onClick={(e) => { e.stopPropagation(); onStatusChange("Submitted", { uploadedFiles, completedTasks }); }}
                     className="w-full py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 hover:bg-primary-dark transition-all active:scale-95"
                   >
                     Submit Requirements for Review
                   </button>
+                </div>
+              )}
+
+              {/* SysAdmin Evaluation Buttons */}
+              {isSysAdminView && item.status === "Submitted" && (
+                <div className="pt-3 mt-3 border-t border-surface-container-low flex flex-col gap-2">
+                  <span className="text-[11px] font-bold text-secondary uppercase tracking-wider">Evaluate Submission</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        onStatusChange("Cleared", { remarks: "", dateCleared: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) } as any); 
+                      }}
+                      className="flex-1 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded shadow-sm transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        const remark = prompt("Please provide a remark for rejection:");
+                        if (remark) {
+                          onStatusChange("Rejected", { remarks: remark });
+                        }
+                      }}
+                      className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded shadow-sm transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -296,8 +286,17 @@ function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange }: { it
 export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }: { targetStudentId?: string, isSysAdminView?: boolean }) {
   const [student, setStudent] = useState<any>(null);
   const [requirements, setRequirements] = useState<ClearanceItem[]>([]);
+  const [officeReqs, setOfficeReqs] = useState<Record<number, any[]>>({});
+  const [orgReqs, setOrgReqs] = useState<Record<number, any[]>>({});
 
   useEffect(() => {
+    // Load dynamic requirements configurations
+    const storedOfficeReqs = localStorage.getItem("officeRequirements");
+    setOfficeReqs(storedOfficeReqs ? JSON.parse(storedOfficeReqs) : defaultOfficeRequirements);
+
+    const storedOrgReqs = localStorage.getItem("orgRequirements");
+    setOrgReqs(storedOrgReqs ? JSON.parse(storedOrgReqs) : defaultOrgRequirements);
+
     // Load student profile
     const storedStudents = localStorage.getItem("students");
     const studentsList = storedStudents ? JSON.parse(storedStudents) : mockStudents;
@@ -316,6 +315,27 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
     const storedReqs = localStorage.getItem("requirements");
     const reqsList = storedReqs ? JSON.parse(storedReqs) : mockRequirements;
     
+    // Filter base offices (orgs are dynamic per student)
+    const baseOffices = reqsList.filter((r: any) => r.type === "office");
+
+    // Dynamically build org requirements for this student
+    const studentOrgs = mockOrgMembers
+      .filter((m) => m.studentId === currentStudent.id)
+      .map((m) => mockOrgs.find((o) => o.id === m.orgId))
+      .filter(Boolean);
+
+    const dynamicOrgs = studentOrgs.map((org: any) => ({
+      id: org.id, // Using orgId directly so mapping works
+      name: "Org Membership Clearance",
+      responsible: org.name,
+      type: "org",
+      status: "Pending",
+      dateCleared: null,
+      remarks: "",
+    }));
+
+    const combinedReqs = [...baseOffices, ...dynamicOrgs];
+
     // Load student clearance records (dynamic from Head Office)
     let storedRecords = localStorage.getItem("studentClearanceRecords");
     if (!storedRecords) {
@@ -326,7 +346,7 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
     const studentRecords = records[currentStudent.id] || [];
 
     // Merge base requirements with actual student clearance status
-    const mergedReqs = reqsList.map((req: any) => {
+    const mergedReqs = combinedReqs.map((req: any) => {
       const isOffice = req.type === "office";
       const matchingRecord = studentRecords.find((r: any) => 
         isOffice ? r.officeId === req.id : r.orgId === req.id
@@ -337,7 +357,9 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
           ...req,
           status: matchingRecord.status || "Pending",
           dateCleared: matchingRecord.dateCleared,
-          remarks: matchingRecord.remarks
+          remarks: matchingRecord.remarks,
+          uploadedFiles: matchingRecord.uploadedFiles,
+          completedTasks: matchingRecord.completedTasks
         };
       }
       
@@ -350,9 +372,9 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
     setRequirements(mergedReqs);
   }, [targetStudentId]);
 
-  const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"]) => {
+  const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
     setRequirements(prev => {
-      const updatedReqs = prev.map(req => req.id === reqId ? { ...req, status: newStatus } : req);
+      const updatedReqs = prev.map(req => req.id === reqId ? { ...req, status: newStatus, ...data } : req);
       
       // Persist to localStorage
       if (student) {
@@ -370,12 +392,18 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
             
             if (existingIdx >= 0) {
               studentRecords[existingIdx].status = newStatus;
+              if (data?.remarks !== undefined) studentRecords[existingIdx].remarks = data.remarks;
+              if (data?.dateCleared !== undefined) studentRecords[existingIdx].dateCleared = data.dateCleared;
+              if (data?.uploadedFiles !== undefined) studentRecords[existingIdx].uploadedFiles = data.uploadedFiles;
+              if (data?.completedTasks !== undefined) studentRecords[existingIdx].completedTasks = data.completedTasks;
             } else {
               studentRecords.push({
                 [isOffice ? "officeId" : "orgId"]: reqId,
                 status: newStatus,
-                dateCleared: null,
-                remarks: ""
+                dateCleared: data?.dateCleared || null,
+                remarks: data?.remarks || "",
+                uploadedFiles: data?.uploadedFiles,
+                completedTasks: data?.completedTasks
               });
             }
             
@@ -458,15 +486,19 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
           </div>
           <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
             <div className="space-y-1">
-              {headOffices.map((item, i) => (
-                <ClearanceItemRow
-                  key={item.id}
-                  item={item}
-                  isLast={i === headOffices.length - 1}
-                  isSysAdminView={isSysAdminView}
-                  onStatusChange={(status) => handleStatusChange(item.id, status)}
-                />
-              ))}
+              {headOffices.map((item, i) => {
+                const tasks = (officeReqs[item.id] || []).filter(r => r.status === "Live").map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
+                return (
+                  <ClearanceItemRow
+                    key={item.id}
+                    item={item}
+                    isLast={i === headOffices.length - 1}
+                    isSysAdminView={isSysAdminView}
+                    onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                    tasks={tasks}
+                  />
+                );
+              })}
             </div>
           </div>
         </div>
@@ -481,15 +513,19 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
           </div>
           <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
             <div className="space-y-1">
-              {orgsClubs.map((item, i) => (
-                <ClearanceItemRow
-                  key={item.id}
-                  item={item}
-                  isLast={i === orgsClubs.length - 1}
-                  isSysAdminView={isSysAdminView}
-                  onStatusChange={(status) => handleStatusChange(item.id, status)}
-                />
-              ))}
+              {orgsClubs.map((item, i) => {
+                const tasks = (orgReqs[item.id] || []).filter(r => r.status === "Live").map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
+                return (
+                  <ClearanceItemRow
+                    key={item.id}
+                    item={item}
+                    isLast={i === orgsClubs.length - 1}
+                    isSysAdminView={isSysAdminView}
+                    onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                    tasks={tasks}
+                  />
+                );
+              })}
             </div>
           </div>
         </div>

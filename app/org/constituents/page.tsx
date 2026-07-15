@@ -280,6 +280,7 @@ export default function OrgConstituentsPage() {
         onToggleStatus={handleToggleStatus}
         onBulkStatusChange={triggerBulkStatusChange}
         isAllSelected={isAllSelected}
+        basePath="/org/constituents"
       />
 
       {showConfirmModal && (

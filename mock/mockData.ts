@@ -137,7 +137,7 @@ export const mockOffices = [
 export const mockRequirements = [
   // Offices
   {
-    id: 1,
+    id: 2,
     name: "Library Clearance",
     responsible: "Library",
     type: "office",
@@ -146,7 +146,7 @@ export const mockRequirements = [
     remarks: "No outstanding books or fines.",
   },
   {
-    id: 2,
+    id: 4,
     name: "Accounting Clearance",
     responsible: "Accounting",
     type: "office",
@@ -155,7 +155,7 @@ export const mockRequirements = [
     remarks: "",
   },
   {
-    id: 3,
+    id: 1,
     name: "Registrar Clearance",
     responsible: "Registrar",
     type: "office",
@@ -164,7 +164,7 @@ export const mockRequirements = [
     remarks: "",
   },
   {
-    id: 4,
+    id: 3,
     name: "Guidance Clearance",
     responsible: "Guidance Office",
     type: "office",
@@ -204,23 +204,23 @@ export const mockRequirements = [
 
 // Dynamic explicit mock clearance status per student for offices and orgs
 export const mockStudentClearanceRecords: Record<string, any[]> = {
-  // Eleanor Shellstrop - Fully Cleared
+  // Eleanor Shellstrop
   "2021-0492": [
-    { officeId: 1, status: "Cleared", dateCleared: "Jan 10, 2025", remarks: "No outstanding books." },
-    { officeId: 2, status: "Cleared", dateCleared: "Jan 11, 2025", remarks: "All fees settled." },
-    { officeId: 3, status: "Cleared", dateCleared: "Jan 11, 2025", remarks: "" },
-    { officeId: 4, status: "Cleared", dateCleared: "Jan 9, 2025", remarks: "No records found." },
-    { officeId: 5, status: "Cleared", dateCleared: "Jan 12, 2025", remarks: "Good standing." },
-    { orgId: 1, status: "Cleared", dateCleared: "Jan 12, 2025", remarks: "Dues paid." },
-    { orgId: 5, status: "Cleared", dateCleared: "Jan 12, 2025", remarks: "Clearance signed." }
-  ],
-  // Chidi Anagonye - Pending
-  "2022-1103": [
-    { officeId: 1, status: "Cleared", dateCleared: "Jan 10, 2025", remarks: "No outstanding books." },
+    { officeId: 1, status: "Pending", dateCleared: null, remarks: "" },
     { officeId: 2, status: "Pending", dateCleared: null, remarks: "" },
-    { officeId: 3, status: "Cleared", dateCleared: "Jan 11, 2025", remarks: "" },
-    { officeId: 4, status: "Rejected", dateCleared: null, remarks: "Needs to settle library fees first." },
-    { officeId: 5, status: "Pending", dateCleared: null, remarks: "Pending interview." },
+    { officeId: 3, status: "Pending", dateCleared: null, remarks: "" },
+    { officeId: 4, status: "Pending", dateCleared: null, remarks: "" },
+    { officeId: 5, status: "Pending", dateCleared: null, remarks: "" },
+    { orgId: 1, status: "Pending", dateCleared: null, remarks: "" },
+    { orgId: 5, status: "Pending", dateCleared: null, remarks: "" }
+  ],
+  // Chidi Anagonye
+  "2022-1103": [
+    { officeId: 1, status: "Pending", dateCleared: null, remarks: "" },
+    { officeId: 2, status: "Pending", dateCleared: null, remarks: "" },
+    { officeId: 3, status: "Pending", dateCleared: null, remarks: "" },
+    { officeId: 4, status: "Pending", dateCleared: null, remarks: "" },
+    { officeId: 5, status: "Pending", dateCleared: null, remarks: "" },
     { orgId: 4, status: "Pending", dateCleared: null, remarks: "" }
   ]
 };
@@ -296,4 +296,45 @@ export const mockRequirementsByOrgType: Record<string, string[]> = {
   "LGU": ["Submit LGU liquidation", "Attend general assembly", "Turnover of equipment"],
   "AcademicClub": ["Submit membership forms", "Pay organization fees", "Attend department seminar"],
   "NonAcademicClub": ["Submit membership forms", "Pay organization fees", "Attend cultural/sports event"],
+};
+
+export const defaultOfficeRequirements: Record<number, any[]> = {
+  1: [ // Registrar
+    { id: "req-1", name: "Submit official transcript copy", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: true },
+    { id: "req-2", name: "Verify high school card / F137", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "req-3", name: "Clear academic deficiency holds", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+  ],
+  2: [ // Library
+    { id: "req-4", name: "Return all borrowed books", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "req-5", name: "Settle outstanding overdue fines", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "req-6", name: "Submit research thesis copy", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: true },
+  ],
+  3: [ // Guidance
+    { id: "req-7", name: "Accomplish exit counseling interview", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "req-8", name: "Submit personality evaluation test", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: true },
+    { id: "req-9", name: "Clear guidance behavior record", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+  ],
+  4: [ // Accounting
+    { id: "req-10", name: "Settle outstanding tuition fees", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "req-11", name: "Clear laboratory breakage fees", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "req-12", name: "Submit financial clearance form", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: true },
+  ],
+  5: [ // Discipline
+    { id: "req-13", name: "Verify zero behavioral violations", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "req-14", name: "Clear community service hours", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "req-15", name: "Submit good moral character form", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: true },
+  ],
+};
+
+export const defaultOrgRequirements: Record<number, any[]> = {
+  1: [ // Computer Science Society
+    { id: "org-req-1", orgId: 1, name: "Pay CSS membership dues", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: true },
+    { id: "org-req-2", orgId: 1, name: "Settle project contributions", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "org-req-3", orgId: 1, name: "Verify seminar attendance", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+  ],
+  5: [ // Student Government
+    { id: "org-req-4", orgId: 5, name: "Pay SSG membership dues", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: true },
+    { id: "org-req-5", orgId: 5, name: "Attend general assembly", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+    { id: "org-req-6", orgId: 5, name: "Verify community service attendance", description: "", status: "Live", appliesTo: ["All Students"], requiresUpload: false },
+  ],
 };

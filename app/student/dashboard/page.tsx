@@ -35,13 +35,33 @@ export default function StudentDashboard() {
       const currentStudent = studentsList.find((s: any) => s.id === activeStudentId) || studentsList[0];
       setStudent(currentStudent);
 
-      // Load base requirements
       let storedReqs = localStorage.getItem("requirements");
       if (!storedReqs || storedReqs.includes("Tuition & Fees Settlement")) {
         localStorage.setItem("requirements", JSON.stringify(fallbackReqs));
         storedReqs = JSON.stringify(fallbackReqs);
       }
       const reqsList = JSON.parse(storedReqs);
+
+      // Filter base offices (orgs are dynamic per student)
+      const baseOffices = reqsList.filter((r: any) => r.type === "office");
+
+      // Dynamically build org requirements for this student
+      const studentOrgs = mockOrgMembers
+        .filter((m) => m.studentId === currentStudent.id)
+        .map((m) => mockOrgs.find((o) => o.id === m.orgId))
+        .filter(Boolean);
+
+      const dynamicOrgs = studentOrgs.map((org: any) => ({
+        id: org.id, // Using orgId directly so mapping works
+        name: "Org Membership Clearance",
+        responsible: org.name,
+        type: "org",
+        status: "Pending",
+        dateCleared: null,
+        remarks: "",
+      }));
+
+      const combinedReqs = [...baseOffices, ...dynamicOrgs];
 
       let storedRecords = localStorage.getItem("studentClearanceRecords");
       if (!storedRecords) {
@@ -51,7 +71,7 @@ export default function StudentDashboard() {
       const records = JSON.parse(storedRecords);
       const studentRecords = records[currentStudent.id] || [];
       
-      const mergedReqs = reqsList.map((req: any) => {
+      const mergedReqs = combinedReqs.map((req: any) => {
         const isOffice = req.type === "office";
         const matchingRecord = studentRecords.find((r: any) => 
           isOffice ? r.officeId === req.id : r.orgId === req.id

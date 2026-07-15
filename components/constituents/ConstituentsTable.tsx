@@ -19,6 +19,7 @@ interface ConstituentsTableProps {
   onBulkStatusChange: (status: "Cleared" | "Pending") => void;
   isAllSelected: boolean;
   isSysAdmin?: boolean;
+  basePath?: string;
 }
 
 export function ConstituentsTable({
@@ -30,6 +31,7 @@ export function ConstituentsTable({
   onBulkStatusChange,
   isAllSelected,
   isSysAdmin = false,
+  basePath = "/head-office/constituents",
 }: ConstituentsTableProps) {
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm overflow-hidden">
@@ -150,9 +152,12 @@ export function ConstituentsTable({
                         View Details
                       </a>
                     ) : (
-                      <button className="text-coral-red hover:text-primary transition-colors font-bold text-xs">
+                      <a 
+                        href={`${basePath}/${student.id}`}
+                        className="text-coral-red hover:text-primary transition-colors font-bold text-xs"
+                      >
                         View Details
-                      </button>
+                      </a>
                     )}
                   </td>
                 </tr>

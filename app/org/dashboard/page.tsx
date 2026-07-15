@@ -223,7 +223,7 @@ export default function OrgDashboard() {
                     </td>
                     <td className="py-4 px-6 text-center">
                       <Link
-                        href="/org/constituents"
+                        href={`/org/constituents/${student.id}`}
                         className="inline-flex items-center gap-1 text-primary hover:text-surface-tint font-bold text-xs"
                       >
                         View Progress

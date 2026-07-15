@@ -280,6 +280,19 @@ export default function LoginPage() {
               Contact IT Support
             </a>
           </p>
+          <div className="mt-4 pt-4 border-t border-surface-container-high">
+            <button
+              onClick={() => {
+                localStorage.removeItem("studentClearanceRecords");
+                alert("Clearance records have been reset to default state.");
+              }}
+              className="text-xs text-coral-red font-medium hover:underline flex items-center justify-center gap-1 mx-auto"
+              title="Reset data for debugging purposes"
+            >
+              <span className="material-symbols-outlined text-sm">restart_alt</span>
+              [Debug] Reset Clearance Data
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 
-export default async function AdminStudentClearanceView({ params }: { params: Promise<{ studentId: string }> }) {
+export default async function HeadOfficeStudentClearanceView({ params }: { params: Promise<{ studentId: string }> }) {
   const resolvedParams = await params;
   const studentId = decodeURIComponent(resolvedParams.studentId);
   return (
