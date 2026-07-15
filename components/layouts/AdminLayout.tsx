@@ -98,6 +98,7 @@ const USER_MGMT_ITEMS = [
 const BOTTOM_NAV = [
   { label: "Clearance Requirements", href: "/admin/clearance-requirements", icon: "fact_check" },
   { label: "Reports", href: "/admin/reports", icon: "assessment" },
+  { label: "Activity Logs", href: "/admin/activity-logs", icon: "history" },
   { label: "Settings", href: "/admin/settings", icon: "settings" },
 ];
 

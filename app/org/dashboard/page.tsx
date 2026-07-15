@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSettings } from "@/components/contexts/SettingsContext";
-import { mockOrgs, mockOrgMembers } from "@/mock/mockData";
+import { mockOrgs, mockOrgMembers, mockStudentClearanceRecords } from "@/mock/mockData";
 import { mockStudents } from "@/mock/mockStudents";
 
 export default function OrgDashboard() {
@@ -25,6 +25,13 @@ export default function OrgDashboard() {
       if (currentOrg) {
         setOrg(currentOrg);
 
+        let storedRecords = localStorage.getItem("studentClearanceRecords");
+        if (!storedRecords) {
+          localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
+          storedRecords = JSON.stringify(mockStudentClearanceRecords);
+        }
+        const records = JSON.parse(storedRecords);
+
         // Fetch students based on org type/scope logic
         let list: any[] = [];
         if (currentOrg.type === "Gov") {
@@ -39,7 +46,17 @@ export default function OrgDashboard() {
             .map((m) => m.studentId);
           list = mockStudents.filter((s) => memberIds.includes(s.id));
         }
-        setConstituents(list);
+
+        const mappedList = list.map(student => {
+          const studentRecs = records[student.id] || [];
+          const orgRec = studentRecs.find((r: any) => r.orgId === currentOrg.id);
+          return {
+            ...student,
+            status: orgRec?.status || "Pending",
+          };
+        });
+
+        setConstituents(mappedList);
       }
     }
   }, []);

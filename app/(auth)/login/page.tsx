@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { mockOrgs, mockOffices } from "@/mock/mockData";
+import { mockStudents as mockStudentsList } from "@/mock/mockStudents";
 
 // Role options for mock login
 const ROLES = [
@@ -25,6 +26,7 @@ export default function LoginPage() {
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedOrgId, setSelectedOrgId] = useState("");
   const [selectedOfficeId, setSelectedOfficeId] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState("");
   const [error, setError] = useState("");
 
   const handleLogin = () => {
@@ -38,26 +40,41 @@ export default function LoginPage() {
         setError("Please select an organization to continue.");
         return;
       }
-      // Save selected organization ID to localStorage and cookies
       localStorage.setItem("orgId", selectedOrgId);
       document.cookie = `orgId=${selectedOrgId}; path=/; max-age=86400`;
       localStorage.removeItem("officeId");
+      localStorage.removeItem("activeStudentId");
       document.cookie = "officeId=; path=/; max-age=0";
+      document.cookie = "activeStudentId=; path=/; max-age=0";
     } else if (selectedRole === "head-office") {
       if (!selectedOfficeId) {
         setError("Please select a Head Office to continue.");
         return;
       }
-      // Save selected office ID to localStorage and cookies
       localStorage.setItem("officeId", selectedOfficeId);
       document.cookie = `officeId=${selectedOfficeId}; path=/; max-age=86400`;
       localStorage.removeItem("orgId");
+      localStorage.removeItem("activeStudentId");
       document.cookie = "orgId=; path=/; max-age=0";
-    } else {
+      document.cookie = "activeStudentId=; path=/; max-age=0";
+    } else if (selectedRole === "student") {
+      if (!selectedStudentId) {
+        setError("Please select a Student to continue.");
+        return;
+      }
+      localStorage.setItem("activeStudentId", selectedStudentId);
+      document.cookie = `activeStudentId=${selectedStudentId}; path=/; max-age=86400`;
       localStorage.removeItem("orgId");
       localStorage.removeItem("officeId");
       document.cookie = "orgId=; path=/; max-age=0";
       document.cookie = "officeId=; path=/; max-age=0";
+    } else {
+      localStorage.removeItem("orgId");
+      localStorage.removeItem("officeId");
+      localStorage.removeItem("activeStudentId");
+      document.cookie = "orgId=; path=/; max-age=0";
+      document.cookie = "officeId=; path=/; max-age=0";
+      document.cookie = "activeStudentId=; path=/; max-age=0";
     }
 
     // Save role to localStorage AND cookie (cookie is read by middleware RoleGuard)
@@ -105,6 +122,7 @@ export default function LoginPage() {
                 setSelectedRole(e.target.value);
                 setSelectedOrgId("");
                 setSelectedOfficeId("");
+                setSelectedStudentId("");
                 setError("");
               }}
               className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
@@ -174,6 +192,36 @@ export default function LoginPage() {
                 {mockOffices.map((office) => (
                   <option key={office.id} value={office.id}>
                     {office.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Student Selector — Shown only if role is Student */}
+          {selectedRole === "student" && (
+            <div className="space-y-2">
+              <label
+                htmlFor="studentId"
+                className="block font-body-sm text-body-sm text-on-surface font-medium"
+              >
+                Select Student
+              </label>
+              <select
+                id="studentId"
+                value={selectedStudentId}
+                onChange={(e) => {
+                  setSelectedStudentId(e.target.value);
+                  setError("");
+                }}
+                className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
+              >
+                <option value="" disabled>
+                  Choose a student...
+                </option>
+                {mockStudentsList.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.name} ({student.id})
                   </option>
                 ))}
               </select>

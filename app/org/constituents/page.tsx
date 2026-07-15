@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSettings } from "@/components/contexts/SettingsContext";
-import { mockOrgs, mockOrgMembers } from "@/mock/mockData";
+import { mockOrgs, mockOrgMembers, mockStudentClearanceRecords } from "@/mock/mockData";
 import { mockStudents } from "@/mock/mockStudents";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
@@ -32,6 +32,13 @@ export default function OrgConstituentsPage() {
       if (currentOrg) {
         setOrg(currentOrg);
 
+        let storedRecords = localStorage.getItem("studentClearanceRecords");
+        if (!storedRecords) {
+          localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
+          storedRecords = JSON.stringify(mockStudentClearanceRecords);
+        }
+        const records = JSON.parse(storedRecords);
+
         // Fetch students based on org type/scope logic
         let list: any[] = [];
         if (currentOrg.type === "Gov") {
@@ -49,7 +56,17 @@ export default function OrgConstituentsPage() {
             .map((m) => m.studentId);
           list = mockStudents.filter((s) => memberIds.includes(s.id));
         }
-        setConstituents(list);
+
+        const mappedList = list.map(student => {
+          const studentRecs = records[student.id] || [];
+          const orgRec = studentRecs.find((r: any) => r.orgId === currentOrg.id);
+          return {
+            ...student,
+            status: orgRec?.status || "Pending",
+          };
+        });
+
+        setConstituents(mappedList);
       }
     }
   }, []);
@@ -73,14 +90,41 @@ export default function OrgConstituentsPage() {
     setConstituents((prev) =>
       prev.map((student) => {
         if (student.id === id) {
+          const newStatus = student.status === "Cleared" ? "Pending" : "Cleared";
+          updateClearanceRecord(id, newStatus);
           return {
             ...student,
-            status: student.status === "Cleared" ? "Pending" : "Cleared",
+            status: newStatus,
           };
         }
         return student;
       })
     );
+  };
+
+  const updateClearanceRecord = (studentId: string, newStatus: string) => {
+    const orgId = localStorage.getItem("orgId");
+    if (!orgId) return;
+
+    let storedRecords = localStorage.getItem("studentClearanceRecords");
+    let records = storedRecords ? JSON.parse(storedRecords) : { ...mockStudentClearanceRecords };
+
+    if (!records[studentId]) records[studentId] = [];
+    
+    const existingRecIndex = records[studentId].findIndex((r: any) => r.orgId === Number(orgId));
+    if (existingRecIndex >= 0) {
+      records[studentId][existingRecIndex].status = newStatus;
+      records[studentId][existingRecIndex].dateCleared = newStatus === "Cleared" ? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+    } else {
+      records[studentId].push({
+        orgId: Number(orgId),
+        status: newStatus,
+        dateCleared: newStatus === "Cleared" ? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null,
+        remarks: ""
+      });
+    }
+
+    localStorage.setItem("studentClearanceRecords", JSON.stringify(records));
   };
 
   // Filter students based on state
@@ -129,9 +173,13 @@ export default function OrgConstituentsPage() {
   const confirmBulkStatusChange = () => {
     if (pendingBulkStatus) {
       setConstituents((prev) =>
-        prev.map((student) =>
-          selectedIds.includes(student.id) ? { ...student, status: pendingBulkStatus } : student
-        )
+        prev.map((student) => {
+          if (selectedIds.includes(student.id)) {
+            updateClearanceRecord(student.id, pendingBulkStatus);
+            return { ...student, status: pendingBulkStatus };
+          }
+          return student;
+        })
       );
       setSelectedIds([]);
     }

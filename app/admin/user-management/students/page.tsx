@@ -5,6 +5,8 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import { mockStudents } from "@/mock/mockStudents";
+import { mockRequirements } from "@/mock/mockData";
+import Link from "next/link";
 
 export default function ManageStudentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -22,6 +24,46 @@ export default function ManageStudentsPage() {
   const [program, setProgram] = useState("All Programs");
 
   const [constituents, setConstituents] = useState(mockStudents);
+
+  useEffect(() => {
+    const updateConstituentsStatus = () => {
+      const storedStudents = localStorage.getItem("students");
+      const studentsList = storedStudents ? JSON.parse(storedStudents) : mockStudents;
+      
+      const storedRecords = localStorage.getItem("studentClearanceRecords");
+      const storedReqs = localStorage.getItem("requirements");
+      const reqsList = storedReqs ? JSON.parse(storedReqs) : mockRequirements;
+      
+      if (storedRecords) {
+        const records = JSON.parse(storedRecords);
+        
+        setConstituents(studentsList.map((student: any) => {
+          const studentRecs = records[student.id] || [];
+          
+          let pendingFound = false;
+          reqsList.forEach((req: any) => {
+            const isOffice = req.type === "office";
+            const match = studentRecs.find((r: any) => isOffice ? r.officeId === req.id : r.orgId === req.id);
+            if (!match || match.status !== "Cleared") {
+              pendingFound = true;
+            }
+          });
+          
+          return {
+            ...student,
+            status: pendingFound ? "Pending" : "Cleared"
+          };
+        }));
+      } else {
+        setConstituents(studentsList);
+      }
+    };
+    
+    updateConstituentsStatus();
+    
+    window.addEventListener("clearanceRecordsUpdated", updateConstituentsStatus);
+    return () => window.removeEventListener("clearanceRecordsUpdated", updateConstituentsStatus);
+  }, []);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Extract unique departments dynamically from state
@@ -139,6 +181,10 @@ export default function ManageStudentsPage() {
               <span className="material-symbols-outlined text-sm">upload_file</span>
               Export CSV
             </button>
+            <Link href="/admin/user-management/students/batch-import" className="h-10 px-4 inline-flex items-center gap-2 rounded-lg bg-surface-container-lowest border border-surface-container-high text-secondary hover:text-primary hover:bg-surface-container-low transition-all font-label-md text-label-md shadow-sm">
+              <span className="material-symbols-outlined text-sm">group_add</span>
+              Import Students
+            </Link>
             <button className="h-10 px-5 inline-flex items-center gap-2 rounded-lg bg-brand-red text-white hover:bg-primary transition-all font-label-md text-label-md shadow-sm btn-hover">
               <span className="material-symbols-outlined text-sm">person_add</span>
               Add Student

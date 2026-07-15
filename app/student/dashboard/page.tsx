@@ -21,74 +21,63 @@ export default function StudentDashboard() {
   const [requirements, setRequirements] = useState<ClearanceItem[]>([]);
 
   useEffect(() => {
-    // Load students from localStorage or initialize/reset with mockStudents
-    let storedStudents = localStorage.getItem("students");
-    if (!storedStudents || storedStudents.includes("Liam Carter")) {
-      localStorage.setItem("students", JSON.stringify(mockStudents));
-      storedStudents = JSON.stringify(mockStudents);
-    }
-    const studentsList = JSON.parse(storedStudents);
+    const loadDashboardData = () => {
+      // Load students from localStorage or initialize/reset with mockStudents
+      let storedStudents = localStorage.getItem("students");
+      if (!storedStudents || storedStudents.includes("Liam Carter")) {
+        localStorage.setItem("students", JSON.stringify(mockStudents));
+        storedStudents = JSON.stringify(mockStudents);
+      }
+      const studentsList = JSON.parse(storedStudents);
 
-    // Find active student (defaulting to "2021-0492" Eleanor Shellstrop)
-    const currentStudent = studentsList.find((s: any) => s.id === "2021-0492") || studentsList[0];
-    setStudent(currentStudent);
+      // Find active student (defaulting to "2021-0492" Eleanor Shellstrop)
+      const activeStudentId = localStorage.getItem("activeStudentId") || "2021-0492";
+      const currentStudent = studentsList.find((s: any) => s.id === activeStudentId) || studentsList[0];
+      setStudent(currentStudent);
 
-    let storedRecords = localStorage.getItem("studentClearanceRecords");
-    if (!storedRecords) {
-      localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
-      storedRecords = JSON.stringify(mockStudentClearanceRecords);
-    }
-    const records = JSON.parse(storedRecords);
-    const studentRecords = records[currentStudent.id];
-    
-    if (studentRecords) {
-      let idCounter = 1;
-      const dynamicReqs: ClearanceItem[] = [];
-
-      // Add all active offices as requirements
-      mockOffices.forEach((office) => {
-        const record = studentRecords.find((r: any) => r.officeId === office.id);
-        dynamicReqs.push({
-          id: idCounter++,
-          name: `${office.name} Clearance`,
-          responsible: office.name,
-          type: "office",
-          status: record?.status || "Pending",
-          dateCleared: record?.dateCleared || null,
-          remarks: record?.remarks || "",
-        });
-      });
-
-      // Add org requirements for the student
-      const joinedOrgs = mockOrgMembers
-        .filter((m) => m.studentId === currentStudent.id)
-        .map((m) => mockOrgs.find((o) => o.id === m.orgId))
-        .filter(Boolean);
-
-      joinedOrgs.forEach((org: any) => {
-        const record = studentRecords.find((r: any) => r.orgId === org.id);
-        dynamicReqs.push({
-          id: idCounter++,
-          name: "Org Membership Clearance",
-          responsible: org.name,
-          type: "org",
-          status: record?.status || "Pending",
-          dateCleared: record?.dateCleared || null,
-          remarks: record?.remarks || "",
-        });
-      });
-
-      setRequirements(dynamicReqs);
-    } else {
-      // Load requirements from localStorage or initialize/reset with mockRequirements (fallback)
+      // Load base requirements
       let storedReqs = localStorage.getItem("requirements");
       if (!storedReqs || storedReqs.includes("Tuition & Fees Settlement")) {
         localStorage.setItem("requirements", JSON.stringify(fallbackReqs));
         storedReqs = JSON.stringify(fallbackReqs);
       }
       const reqsList = JSON.parse(storedReqs);
-      setRequirements(reqsList);
-    }
+
+      let storedRecords = localStorage.getItem("studentClearanceRecords");
+      if (!storedRecords) {
+        localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
+        storedRecords = JSON.stringify(mockStudentClearanceRecords);
+      }
+      const records = JSON.parse(storedRecords);
+      const studentRecords = records[currentStudent.id] || [];
+      
+      const mergedReqs = reqsList.map((req: any) => {
+        const isOffice = req.type === "office";
+        const matchingRecord = studentRecords.find((r: any) => 
+          isOffice ? r.officeId === req.id : r.orgId === req.id
+        );
+        
+        if (matchingRecord) {
+          return {
+            ...req,
+            status: matchingRecord.status || "Pending",
+            dateCleared: matchingRecord.dateCleared,
+            remarks: matchingRecord.remarks
+          };
+        }
+        
+        return {
+          ...req,
+          status: req.status || "Pending",
+        };
+      });
+
+      setRequirements(mergedReqs);
+    };
+
+    loadDashboardData();
+    window.addEventListener("clearanceRecordsUpdated", loadDashboardData);
+    return () => window.removeEventListener("clearanceRecordsUpdated", loadDashboardData);
   }, []);
 
   if (!student) {

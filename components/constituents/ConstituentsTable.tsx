@@ -144,7 +144,7 @@ export function ConstituentsTable({
                   <td className="py-4 px-6 text-center">
                     {isSysAdmin ? (
                       <a 
-                        href={`/student/clearance?studentId=${student.id}`}
+                        href={`/admin/user-management/students/${student.id}`}
                         className="text-primary hover:text-primary-dark transition-colors font-bold text-xs"
                       >
                         View Details

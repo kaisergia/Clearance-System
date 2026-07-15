@@ -10,7 +10,8 @@ export default function StudentProfile() {
     // Load student profile dynamically
     const storedStudents = localStorage.getItem("students");
     const studentsList = storedStudents ? JSON.parse(storedStudents) : mockStudents;
-    const currentStudent = studentsList.find((s: any) => s.id === "2021-0492") || studentsList[0];
+    const activeStudentId = localStorage.getItem("activeStudentId") || "2021-0492";
+    const currentStudent = studentsList.find((s: any) => s.id === activeStudentId) || studentsList[0];
     setStudent(currentStudent);
   }, []);
 
