@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { mockStudents } from "@/mock/mockStudents";
-import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements } from "@/mock/mockData";
+import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements, mockDepartments, defaultDepartmentRequirements } from "@/mock/mockData";
 import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X } from "lucide-react";
 
 interface ClearanceItem {
   id: number;
   name: string;
   responsible: string;
-  type: "office" | "org";
+  type: "office" | "org" | "department";
   status: "Cleared" | "Pending" | "Rejected" | "Submitted";
   dateCleared?: string | null;
   remarks?: string;
@@ -285,17 +285,34 @@ function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange, tasks 
 
 export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }: { targetStudentId?: string, isSysAdminView?: boolean }) {
   const [student, setStudent] = useState<any>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [currentEntityId, setCurrentEntityId] = useState<number | null>(null);
   const [requirements, setRequirements] = useState<ClearanceItem[]>([]);
   const [officeReqs, setOfficeReqs] = useState<Record<number, any[]>>({});
   const [orgReqs, setOrgReqs] = useState<Record<number, any[]>>({});
+  const [deptReqs, setDeptReqs] = useState<Record<number, any[]>>({});
 
   useEffect(() => {
+    // Load current user role context
+    const role = localStorage.getItem("role");
+    setCurrentUserRole(role);
+    if (role === "head-office") {
+      setCurrentEntityId(Number(localStorage.getItem("officeId")));
+    } else if (role === "org") {
+      setCurrentEntityId(Number(localStorage.getItem("orgId")));
+    } else if (role === "department") {
+      setCurrentEntityId(Number(localStorage.getItem("departmentId")));
+    }
+
     // Load dynamic requirements configurations
     const storedOfficeReqs = localStorage.getItem("officeRequirements");
     setOfficeReqs(storedOfficeReqs ? JSON.parse(storedOfficeReqs) : defaultOfficeRequirements);
 
     const storedOrgReqs = localStorage.getItem("orgRequirements");
     setOrgReqs(storedOrgReqs ? JSON.parse(storedOrgReqs) : defaultOrgRequirements);
+
+    const storedDeptReqs = localStorage.getItem("departmentRequirements");
+    setDeptReqs(storedDeptReqs ? JSON.parse(storedDeptReqs) : defaultDepartmentRequirements);
 
     // Load student profile
     const storedStudents = localStorage.getItem("students");
@@ -334,7 +351,19 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
       remarks: "",
     }));
 
-    const combinedReqs = [...baseOffices, ...dynamicOrgs];
+    // Dynamically build department requirement for this student
+    const studentDept = mockDepartments.find((d: any) => d.abbreviation === currentStudent.department);
+    const dynamicDepts = studentDept ? [{
+      id: studentDept.id,
+      name: "Department Clearance",
+      responsible: studentDept.name,
+      type: "department",
+      status: "Pending",
+      dateCleared: null,
+      remarks: "",
+    }] : [];
+
+    const combinedReqs = [...baseOffices, ...dynamicOrgs, ...dynamicDepts];
 
     // Load student clearance records (dynamic from Head Office)
     let storedRecords = localStorage.getItem("studentClearanceRecords");
@@ -347,9 +376,10 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
 
     // Merge base requirements with actual student clearance status
     const mergedReqs = combinedReqs.map((req: any) => {
-      const isOffice = req.type === "office";
       const matchingRecord = studentRecords.find((r: any) => 
-        isOffice ? r.officeId === req.id : r.orgId === req.id
+        (req.type === "office" && r.officeId === req.id) || 
+        (req.type === "org" && r.orgId === req.id) ||
+        (req.type === "department" && r.departmentId === req.id)
       );
       
       if (matchingRecord) {
@@ -429,8 +459,34 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
   }
 
   // Filter requirements by type
-  const headOffices = requirements.filter((req) => req.type === "office");
-  const orgsClubs = requirements.filter((req) => req.type === "org");
+  let headOffices = requirements.filter((req) => req.type === "office");
+  let orgsClubs = requirements.filter((req) => req.type === "org");
+  let departments = requirements.filter((req) => req.type === "department");
+
+  // Only show the requirements for the logged in entity's portal
+  if (currentUserRole === "head-office" && currentEntityId) {
+    headOffices = headOffices.filter(req => req.id === currentEntityId);
+    orgsClubs = [];
+    departments = [];
+  } else if (currentUserRole === "org" && currentEntityId) {
+    orgsClubs = orgsClubs.filter(req => req.id === currentEntityId);
+    headOffices = [];
+    departments = [];
+  } else if (currentUserRole === "department" && currentEntityId) {
+    departments = departments.filter(req => req.id === currentEntityId);
+    headOffices = [];
+    orgsClubs = [];
+  }
+
+  // Helper function to check if a requirement applies to the current student
+  const isApplicable = (r: any) => {
+    if (!r.appliesTo || r.appliesTo.length === 0 || r.appliesTo.includes("All Students")) return true;
+    return (
+      r.appliesTo.includes(student.program) ||
+      r.appliesTo.includes(student.department) ||
+      r.appliesTo.includes(student.year)
+    );
+  };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
@@ -477,58 +533,91 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
       {/* Lists of Requirements */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Head Offices Section */}
-        <div className="space-y-3">
-          <div className="flex justify-between items-center px-1">
-            <h2 className="font-title-md text-base font-bold text-on-surface">Head Offices</h2>
-            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
-              {headOffices.length} Total
-            </span>
-          </div>
-          <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
-            <div className="space-y-1">
-              {headOffices.map((item, i) => {
-                const tasks = (officeReqs[item.id] || []).filter(r => r.status === "Live").map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
-                return (
-                  <ClearanceItemRow
-                    key={item.id}
-                    item={item}
-                    isLast={i === headOffices.length - 1}
-                    isSysAdminView={isSysAdminView}
-                    onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
-                    tasks={tasks}
-                  />
-                );
-              })}
+        {headOffices.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <h2 className="font-title-md text-base font-bold text-on-surface">Head Offices</h2>
+              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                {headOffices.length} Total
+              </span>
+            </div>
+            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+              <div className="space-y-1">
+                {headOffices.map((item, i) => {
+                  const tasks = (officeReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
+                  return (
+                    <ClearanceItemRow
+                      key={item.id}
+                      item={item}
+                      isLast={i === headOffices.length - 1}
+                      isSysAdminView={isSysAdminView}
+                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                      tasks={tasks}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Departments Section */}
+        {departments.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <h2 className="font-title-md text-base font-bold text-on-surface">Departments</h2>
+              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                {departments.length} Total
+              </span>
+            </div>
+            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+              <div className="space-y-1">
+                {departments.map((item, i) => {
+                  const tasks = (deptReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
+                  return (
+                    <ClearanceItemRow
+                      key={item.id}
+                      item={item}
+                      isLast={i === departments.length - 1}
+                      isSysAdminView={isSysAdminView}
+                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                      tasks={tasks}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Orgs & Clubs Section */}
-        <div className="space-y-3">
-          <div className="flex justify-between items-center px-1">
-            <h2 className="font-title-md text-base font-bold text-on-surface">Orgs & Clubs</h2>
-            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
-              {orgsClubs.length} Total
-            </span>
-          </div>
-          <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
-            <div className="space-y-1">
-              {orgsClubs.map((item, i) => {
-                const tasks = (orgReqs[item.id] || []).filter(r => r.status === "Live").map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
-                return (
-                  <ClearanceItemRow
-                    key={item.id}
-                    item={item}
-                    isLast={i === orgsClubs.length - 1}
-                    isSysAdminView={isSysAdminView}
-                    onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
-                    tasks={tasks}
-                  />
-                );
-              })}
+        {orgsClubs.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <h2 className="font-title-md text-base font-bold text-on-surface">Orgs & Clubs</h2>
+              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                {orgsClubs.length} Total
+              </span>
+            </div>
+            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+              <div className="space-y-1">
+                {orgsClubs.map((item, i) => {
+                  const tasks = (orgReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
+                  return (
+                    <ClearanceItemRow
+                      key={item.id}
+                      item={item}
+                      isLast={i === orgsClubs.length - 1}
+                      isSysAdminView={isSysAdminView}
+                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                      tasks={tasks}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

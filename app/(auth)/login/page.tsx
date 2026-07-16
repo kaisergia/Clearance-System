@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { mockOrgs, mockOffices } from "@/mock/mockData";
+import { mockOrgs, mockOffices, mockDepartments } from "@/mock/mockData";
 import { mockStudents as mockStudentsList } from "@/mock/mockStudents";
 
 // Role options for mock login
 const ROLES = [
   { value: "admin", label: "System Admin" },
+  { value: "department", label: "Department Head" },
   { value: "head-office", label: "Head Office" },
   { value: "org", label: "Org / Club Officer" },
   { value: "student", label: "Student" },
@@ -16,6 +17,7 @@ const ROLES = [
 // Role → dashboard route mapping
 const ROLE_ROUTES: Record<string, string> = {
   admin: "/admin/dashboard",
+  department: "/department/dashboard",
   "head-office": "/head-office/dashboard",
   org: "/org/dashboard",
   student: "/student/dashboard",
@@ -26,6 +28,7 @@ export default function LoginPage() {
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedOrgId, setSelectedOrgId] = useState("");
   const [selectedOfficeId, setSelectedOfficeId] = useState("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [error, setError] = useState("");
 
@@ -43,8 +46,10 @@ export default function LoginPage() {
       localStorage.setItem("orgId", selectedOrgId);
       document.cookie = `orgId=${selectedOrgId}; path=/; max-age=86400`;
       localStorage.removeItem("officeId");
+      localStorage.removeItem("departmentId");
       localStorage.removeItem("activeStudentId");
       document.cookie = "officeId=; path=/; max-age=0";
+      document.cookie = "departmentId=; path=/; max-age=0";
       document.cookie = "activeStudentId=; path=/; max-age=0";
     } else if (selectedRole === "head-office") {
       if (!selectedOfficeId) {
@@ -54,8 +59,23 @@ export default function LoginPage() {
       localStorage.setItem("officeId", selectedOfficeId);
       document.cookie = `officeId=${selectedOfficeId}; path=/; max-age=86400`;
       localStorage.removeItem("orgId");
+      localStorage.removeItem("departmentId");
       localStorage.removeItem("activeStudentId");
       document.cookie = "orgId=; path=/; max-age=0";
+      document.cookie = "departmentId=; path=/; max-age=0";
+      document.cookie = "activeStudentId=; path=/; max-age=0";
+    } else if (selectedRole === "department") {
+      if (!selectedDepartmentId) {
+        setError("Please select a Department to continue.");
+        return;
+      }
+      localStorage.setItem("departmentId", selectedDepartmentId);
+      document.cookie = `departmentId=${selectedDepartmentId}; path=/; max-age=86400`;
+      localStorage.removeItem("orgId");
+      localStorage.removeItem("officeId");
+      localStorage.removeItem("activeStudentId");
+      document.cookie = "orgId=; path=/; max-age=0";
+      document.cookie = "officeId=; path=/; max-age=0";
       document.cookie = "activeStudentId=; path=/; max-age=0";
     } else if (selectedRole === "student") {
       if (!selectedStudentId) {
@@ -66,14 +86,18 @@ export default function LoginPage() {
       document.cookie = `activeStudentId=${selectedStudentId}; path=/; max-age=86400`;
       localStorage.removeItem("orgId");
       localStorage.removeItem("officeId");
+      localStorage.removeItem("departmentId");
       document.cookie = "orgId=; path=/; max-age=0";
       document.cookie = "officeId=; path=/; max-age=0";
+      document.cookie = "departmentId=; path=/; max-age=0";
     } else {
       localStorage.removeItem("orgId");
       localStorage.removeItem("officeId");
+      localStorage.removeItem("departmentId");
       localStorage.removeItem("activeStudentId");
       document.cookie = "orgId=; path=/; max-age=0";
       document.cookie = "officeId=; path=/; max-age=0";
+      document.cookie = "departmentId=; path=/; max-age=0";
       document.cookie = "activeStudentId=; path=/; max-age=0";
     }
 
@@ -122,6 +146,7 @@ export default function LoginPage() {
                 setSelectedRole(e.target.value);
                 setSelectedOrgId("");
                 setSelectedOfficeId("");
+                setSelectedDepartmentId("");
                 setSelectedStudentId("");
                 setError("");
               }}
@@ -192,6 +217,36 @@ export default function LoginPage() {
                 {mockOffices.map((office) => (
                   <option key={office.id} value={office.id}>
                     {office.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Department Selector — Shown only if role is Department Head */}
+          {selectedRole === "department" && (
+            <div className="space-y-2">
+              <label
+                htmlFor="department"
+                className="block font-body-sm text-body-sm text-on-surface font-medium"
+              >
+                Select Department
+              </label>
+              <select
+                id="department"
+                value={selectedDepartmentId}
+                onChange={(e) => {
+                  setSelectedDepartmentId(e.target.value);
+                  setError("");
+                }}
+                className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
+              >
+                <option value="" disabled>
+                  Choose a department...
+                </option>
+                {mockDepartments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name} ({dept.abbreviation})
                   </option>
                 ))}
               </select>

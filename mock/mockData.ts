@@ -84,6 +84,30 @@ export const mockOrgMembers = [
 ];
 
 
+// Departments
+export const mockDepartments = [
+  {
+    id: 1,
+    name: "College of Computer and Information Sciences",
+    abbreviation: "CCIS",
+    head: "Dr. Alan Turing",
+    email: "ccis@uni.edu.ph",
+    pending: 5,
+    approved: 120,
+    rejected: 1,
+  },
+  {
+    id: 2,
+    name: "College of Engineering",
+    abbreviation: "COE",
+    head: "Engr. Nikola Tesla",
+    email: "coe@uni.edu.ph",
+    pending: 10,
+    approved: 90,
+    rejected: 0,
+  },
+];
+
 // Head Offices
 export const mockOffices = [
   {
@@ -296,6 +320,15 @@ export const mockRequirementsByOrgType: Record<string, string[]> = {
   "LGU": ["Submit LGU liquidation", "Attend general assembly", "Turnover of equipment"],
   "AcademicClub": ["Submit membership forms", "Pay organization fees", "Attend department seminar"],
   "NonAcademicClub": ["Submit membership forms", "Pay organization fees", "Attend cultural/sports event"],
+};
+
+export const defaultDepartmentRequirements: Record<number, any[]> = {
+  1: [ // CCIS
+    { id: "req-dept-1", name: "Submit thesis manuscript", description: "", status: "Live", appliesTo: ["BS Computer Science"], requiresUpload: true },
+  ],
+  2: [ // COE
+    { id: "req-dept-2", name: "Submit engineering project", description: "", status: "Live", appliesTo: ["BS Civil Engineering"], requiresUpload: true },
+  ],
 };
 
 export const defaultOfficeRequirements: Record<number, any[]> = {

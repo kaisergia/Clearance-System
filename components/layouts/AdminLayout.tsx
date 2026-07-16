@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useOffices } from "@/components/contexts/OfficesContext";
+import { useDepartments } from "@/components/contexts/DepartmentsContext";
 import { mockStudents, mockOfficeHeads } from "@/mock/mockStudents";
 
 function AddOfficeForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (data: any) => void }) {
@@ -85,6 +86,85 @@ function AddOfficeForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (data
   );
 }
 
+function AddDepartmentForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (data: any) => void }) {
+  const [name, setName] = useState("");
+  const [headName, setHeadName] = useState("");
+  const [headEmail, setHeadEmail] = useState("");
+  const [description, setDescription] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  
+  const allConstituents = [...mockStudents, ...mockOfficeHeads];
+  const filteredConstituents = headName 
+    ? allConstituents.filter(c => c.name.toLowerCase().includes(headName.toLowerCase()) || c.email.toLowerCase().includes(headName.toLowerCase()))
+    : allConstituents;
+
+  const handleSelectHead = (constituent: any) => {
+    setHeadName(constituent.name);
+    setHeadEmail(constituent.email);
+    setIsSearching(false);
+  };
+
+  const handleSubmit = () => {
+    if (!name.trim() || !headName.trim() || !headEmail.trim()) return;
+    onAdd({ name: name.trim(), description: description.trim(), head: { name: headName.trim(), email: headEmail.trim() } });
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-lg">
+        <h3 className="font-title-md text-title-md text-on-surface">Add Department</h3>
+        <button onClick={onCancel} className="p-1 rounded text-secondary hover:text-on-surface"><span className="material-symbols-outlined">close</span></button>
+      </div>
+      <div className="space-y-md">
+        <div>
+          <label className="block font-body-sm text-body-sm text-on-surface mb-1">Department Name *</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="e.g. CCIS" />
+        </div>
+        <div className="relative">
+          <label className="block font-body-sm text-body-sm text-on-surface mb-1">Department Head Name *</label>
+          <input 
+            value={headName} 
+            onChange={(e) => {
+              setHeadName(e.target.value);
+              setIsSearching(true);
+            }} 
+            onFocus={() => setIsSearching(true)}
+            onBlur={() => setTimeout(() => setIsSearching(false), 200)}
+            className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" 
+            placeholder="Search for a constituent..." 
+          />
+          {isSearching && filteredConstituents.length > 0 && (
+            <ul className="absolute z-10 w-full bg-surface-container-lowest border border-surface-container-high mt-1 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {filteredConstituents.map(c => (
+                <li 
+                  key={c.id} 
+                  className="px-4 py-2 hover:bg-surface-container-low cursor-pointer flex flex-col"
+                  onClick={() => handleSelectHead(c)}
+                >
+                  <span className="font-medium text-on-surface">{c.name}</span>
+                  <span className="text-xs text-secondary">{c.email}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <label className="block font-body-sm text-body-sm text-on-surface mb-1">Department Head Email *</label>
+          <input value={headEmail} onChange={(e) => setHeadEmail(e.target.value)} type="email" className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="e.g. head@uni.edu.ph" />
+        </div>
+        <div>
+          <label className="block font-body-sm text-body-sm text-on-surface mb-1">Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="Optional description" />
+        </div>
+      </div>
+      <div className="flex gap-sm mt-lg">
+        <button onClick={onCancel} className="flex-1 py-2.5 rounded-lg border border-surface-container-high text-secondary hover:bg-surface-container-low transition-colors">Cancel</button>
+        <button onClick={handleSubmit} className="flex-1 py-2.5 rounded-lg bg-brand-red text-white hover:bg-primary transition-colors">Add Department</button>
+      </div>
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────
 // Navigation structure
 // ──────────────────────────────────────────
@@ -108,13 +188,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { offices, setOpenAddOfficeModal, openAddOfficeModal, addOffice, deleteOffice } = useOffices();
+  const { departments, setOpenAddDepartmentModal, openAddDepartmentModal, addDepartment, deleteDepartment } = useDepartments();
 
   // Track which accordion groups are open
   const [userMgmtOpen, setUserMgmtOpen] = useState(
-    pathname.includes("/admin/user-management") || pathname.includes("/admin/offices")
+    pathname.includes("/admin/user-management") || pathname.includes("/admin/offices") || pathname.includes("/admin/departments")
   );
   const [officesOpen, setOfficesOpen] = useState(
     pathname.includes("/admin/offices")
+  );
+  const [departmentsOpen, setDepartmentsOpen] = useState(
+    pathname.includes("/admin/departments")
   );
   const [organizationsOpen, setOrganizationsOpen] = useState(
     pathname.includes("/admin/organizations")
@@ -185,7 +269,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <button
               onClick={() => setUserMgmtOpen(!userMgmtOpen)}
               className={`w-full ${navItemBase} px-3 py-2.5 ${
-                pathname.includes("/admin/user-management") || pathname.includes("/admin/offices")
+                pathname.includes("/admin/user-management") || pathname.includes("/admin/offices") || pathname.includes("/admin/departments")
                   ? activeItem
                   : inactiveItem
               }`}
@@ -390,6 +474,78 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
                 {/* end Offices */}
 
+                {/* ── Departments (Level 2 accordion, nested inside User Management) ── */}
+                <div>
+                  <button
+                    onClick={() => setDepartmentsOpen(!departmentsOpen)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg font-body-sm text-body-sm transition-colors ${
+                      pathname.includes("/admin/departments")
+                        ? "bg-brand-red/5 text-brand-red font-semibold"
+                        : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">account_balance</span>
+                    <span className="flex-1 text-left">Departments</span>
+                    <span
+                      className="material-symbols-outlined text-sm transition-transform duration-200"
+                      style={{ transform: departmentsOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                    >
+                      expand_more
+                    </span>
+                  </button>
+
+                  {/* Level-3: individual departments + Add Department */}
+                  {departmentsOpen && (
+                    <div className="pl-6 mt-0.5 space-y-0.5">
+                      <Link
+                        href="/admin/departments"
+                        className={`block px-3 py-1.5 rounded-lg font-label-md text-label-md transition-colors ${
+                          pathname === "/admin/departments"
+                            ? "bg-brand-red/5 text-brand-red font-semibold"
+                            : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                        }`}
+                      >
+                        All Departments
+                      </Link>
+
+                      {departments.map((dept) => (
+                        <div key={dept.id} className="relative group">
+                          <Link
+                            href={`/admin/departments/${dept.id}`}
+                            className={`block px-3 py-1.5 pr-8 rounded-lg font-label-md text-label-md transition-colors truncate ${
+                              pathname === `/admin/departments/${dept.id}`
+                                ? "bg-brand-red/5 text-brand-red font-semibold"
+                                : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                            }`}
+                          >
+                            {dept.name}
+                          </Link>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              deleteDepartment(dept.id);
+                            }}
+                            className="absolute right-2 top-1.5 text-secondary hover:text-brand-red opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-brand-red/10 flex items-center justify-center"
+                            title="Delete Department"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                          </button>
+                        </div>
+                      ))}
+
+                      <button
+                        onClick={() => setOpenAddDepartmentModal(true)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-label-md text-label-md text-secondary hover:text-brand-red hover:bg-brand-red/5 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">add</span>
+                        Add Department
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {/* end Departments */}
+
               </div>
             )}
             {/* end User Management children */}
@@ -478,6 +634,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setOpenAddOfficeModal(false)}>
             <div className="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-md p-lg" onClick={(e) => e.stopPropagation()}>
               <AddOfficeForm onCancel={() => setOpenAddOfficeModal(false)} onAdd={(data) => addOffice(data)} />
+            </div>
+          </div>
+        )}
+        {/* Add Department Modal (global) */}
+        {openAddDepartmentModal && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setOpenAddDepartmentModal(false)}>
+            <div className="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-md p-lg" onClick={(e) => e.stopPropagation()}>
+              <AddDepartmentForm onCancel={() => setOpenAddDepartmentModal(false)} onAdd={(data) => addDepartment(data)} />
             </div>
           </div>
         )}
