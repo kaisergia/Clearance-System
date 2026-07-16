@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { mockOffices } from "@/mock/mockData";
 
 // Types
 interface Student {
@@ -254,10 +255,20 @@ export default function ReportsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
   const availableTerms = getAvailableTerms();
   const [selectedTerm, setSelectedTerm] = useState(currentTerm);
+  const [activeOffice, setActiveOffice] = useState<any>(null);
 
   useEffect(() => {
     setSelectedTerm(currentTerm);
   }, [currentTerm]);
+
+  useEffect(() => {
+    const storedOfficeId = localStorage.getItem("officeId");
+    if (storedOfficeId) {
+      const oid = parseInt(storedOfficeId, 10);
+      const currentOffice = mockOffices.find((o) => o.id === oid);
+      if (currentOffice) setActiveOffice(currentOffice);
+    }
+  }, []);
 
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -651,8 +662,8 @@ export default function ReportsPage() {
             Office Reports
           </h2>
           <p className="font-body-md text-secondary mt-1 flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-base text-primary">assessment</span>
-            Analytics and downloadable clearance reports for your office
+            <span className="material-symbols-outlined text-base text-primary">domain</span>
+            Office: <span className="font-semibold text-on-surface">{activeOffice ? activeOffice.name : "Loading..."}</span>
           </p>
         </div>
 

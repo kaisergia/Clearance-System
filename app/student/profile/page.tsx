@@ -2,9 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { mockStudents } from "@/mock/mockStudents";
+import { mockOrgs, mockOrgMembers } from "@/mock/mockData";
+
+const PROGRAM_MAP: Record<string, string> = {
+  "BS Computer Science": "BSCS",
+  "BS Information Technology": "BSIT",
+  "BS Business Administration": "BSBA",
+  "BS Accountancy": "BSA",
+  "BS Civil Engineering": "BSCE",
+  "BS Mechanical Engineering": "BSME",
+  "BS Electrical Engineering": "BSEE",
+  "BS Data Science": "BSDS",
+  "BS Applied Mathematics": "BSAM",
+  "BS Nursing": "BSN",
+  "BS Pharmacy": "BSP",
+  "BS Medical Technology": "BSMT",
+};
 
 export default function StudentProfile() {
   const [student, setStudent] = useState<any>(null);
+  const [orgs, setOrgs] = useState<any[]>([]);
 
   useEffect(() => {
     // Load student profile dynamically
@@ -13,6 +30,24 @@ export default function StudentProfile() {
     const activeStudentId = localStorage.getItem("activeStudentId") || "2021-0492";
     const currentStudent = studentsList.find((s: any) => s.id === activeStudentId) || studentsList[0];
     setStudent(currentStudent);
+
+    // Calculate affiliated organizations
+    const affiliated = mockOrgs.filter((org) => {
+      // 1. Student Government (Gov) applies to all students
+      if (org.type === "Gov") return true;
+      // 2. LGU matches department
+      if (org.type === "LGU" && org.department === currentStudent.department) return true;
+      // 3. Academic Club matching the student's specific program code
+      const studentProgramCode = PROGRAM_MAP[currentStudent.program];
+      if (org.type === "AcademicClub" && org.program === studentProgramCode) return true;
+      // 4. Explicit membership (e.g. NonAcademicClubs)
+      const isExplicitMember = mockOrgMembers.some(
+        (m) => m.orgId === org.id && m.studentId === currentStudent.id
+      );
+      if (isExplicitMember) return true;
+      return false;
+    });
+    setOrgs(affiliated);
   }, []);
 
   if (!student) {
@@ -22,6 +57,32 @@ export default function StudentProfile() {
       </div>
     );
   }
+
+  const getOrgTypeLabel = (type: string) => {
+    switch (type) {
+      case "Gov":
+        return "Student Government";
+      case "LGU":
+        return "Local Government Unit (LGU)";
+      case "AcademicClub":
+        return "Academic Club";
+      case "NonAcademicClub":
+        return "Non-Academic / Cultural Club";
+      default:
+        return "Student Organization";
+    }
+  };
+
+  const getOrgIcon = (type: string) => {
+    switch (type) {
+      case "Gov":
+        return "account_balance";
+      case "LGU":
+        return "apartment";
+      default:
+        return "diversity_3";
+    }
+  };
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -76,6 +137,55 @@ export default function StudentProfile() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Affiliated Organizations Section */}
+      <div className="space-y-4">
+        <h3 className="font-title-lg text-title-lg text-on-background font-bold px-1">
+          Affiliated Organizations
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {orgs.map((org) => (
+            <div
+              key={org.id}
+              className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+            >
+              <div className="space-y-3">
+                {/* Org Type Badge & Status */}
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-[10px] font-bold tracking-wider text-secondary uppercase bg-surface-container-high px-2.5 py-1 rounded">
+                    {getOrgTypeLabel(org.type)}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    {org.status}
+                  </span>
+                </div>
+
+                {/* Org Name */}
+                <h4 className="font-title-md text-on-surface font-bold flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-xl shrink-0">
+                    {getOrgIcon(org.type)}
+                  </span>
+                  {org.name}
+                </h4>
+              </div>
+
+              {/* Adviser Info */}
+              {org.adviser && (
+                <div className="mt-4 pt-3 border-t border-surface-container-high flex items-center gap-2 text-xs text-secondary">
+                  <span className="material-symbols-outlined text-base">person</span>
+                  <span>Adviser: <span className="font-semibold text-on-surface">{org.adviser}</span></span>
+                </div>
+              )}
+            </div>
+          ))}
+          {orgs.length === 0 && (
+            <div className="col-span-full bg-surface-container-lowest border border-surface-container-high rounded-xl p-8 text-center text-secondary font-medium">
+              No affiliated organizations found.
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,61 +1,83 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSettings } from "@/components/contexts/SettingsContext";
 
-import { mockOffices, mockStudentClearanceRecords } from "@/mock/mockData";
-import { mockStudents } from "@/mock/mockStudents";
+import * as clearanceService from "@/services/clearanceService";
+import { mockOffices } from "@/mock/mockData";
+import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function HeadOfficeDashboard() {
   const { getAvailableTerms, currentTerm } = useSettings();
   const availableTerms = getAvailableTerms();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [selectedTerm, setSelectedTerm] = useState(currentTerm);
 
   const [activeOffice, setActiveOffice] = useState<any>(null);
   const [clearanceRecords, setClearanceRecords] = useState<any>({});
   const [stats, setStats] = useState({ assigned: 0, cleared: 0, pending: 0, percent: 0 });
+  const [students, setStudents] = useState<any[]>([]);
+
+  const [selectedStudentForStatus, setSelectedStudentForStatus] = useState<any>(null);
+  const [statusRequirements, setStatusRequirements] = useState<any[]>([]);
+
+  const handleOpenStatusModal = async (student: any) => {
+    const mergedReqs = await clearanceService.getStudentRequirements(student.id);
+    setStatusRequirements(mergedReqs);
+    setSelectedStudentForStatus(student);
+  };
 
   useEffect(() => {
     setSelectedTerm(currentTerm);
   }, [currentTerm]);
 
   useEffect(() => {
-    // 1. Get the logged in office
-    const officeId = localStorage.getItem("officeId");
-    if (officeId) {
-      const office = mockOffices.find((o) => o.id === Number(officeId));
-      if (office) setActiveOffice(office);
-    }
+    const loadDashboardData = async () => {
+      const officeId = localStorage.getItem("officeId");
+      if (officeId) {
+        const office = mockOffices.find((o) => o.id === Number(officeId));
+        if (office) setActiveOffice(office);
+      }
 
-    // 2. Load clearance records from localStorage or initialize
-    let storedRecords = localStorage.getItem("studentClearanceRecords");
-    if (!storedRecords) {
-      localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
-      storedRecords = JSON.stringify(mockStudentClearanceRecords);
-    }
-    const records = JSON.parse(storedRecords);
-    setClearanceRecords(records);
+      const allStudents = await clearanceService.getStudents();
+      setStudents(allStudents);
 
-    // 3. Compute stats
-    if (officeId) {
-      const assigned = mockStudents.length;
-      let cleared = 0;
-      
-      mockStudents.forEach(student => {
-        const studentRecs = records[student.id];
-        if (studentRecs) {
-          const officeRec = studentRecs.find((r: any) => r.officeId === Number(officeId));
-          if (officeRec && officeRec.status === "Cleared") {
-            cleared++;
+      const records: Record<string, any[]> = {};
+      for (const student of allStudents) {
+        records[student.id] = await clearanceService.getStudentClearanceRecords(student.id);
+      }
+      setClearanceRecords(records);
+
+      if (officeId) {
+        const assigned = allStudents.length;
+        let cleared = 0;
+        
+        allStudents.forEach(student => {
+          const studentRecs = records[student.id];
+          if (studentRecs) {
+            const officeRec = studentRecs.find((r: any) => r.officeId === Number(officeId));
+            if (officeRec && officeRec.status === "Cleared") {
+              cleared++;
+            }
           }
-        }
-      });
-      
-      const pending = assigned - cleared;
-      const percent = assigned > 0 ? Math.round((cleared / assigned) * 100) : 0;
-      setStats({ assigned, cleared, pending, percent });
-    }
+        });
+        
+        const pending = assigned - cleared;
+        const percent = assigned > 0 ? Math.round((cleared / assigned) * 100) : 0;
+        setStats({ assigned, cleared, pending, percent });
+      }
+    };
+
+    loadDashboardData();
+    window.addEventListener("clearanceRecordsUpdated", loadDashboardData);
+    return () => window.removeEventListener("clearanceRecordsUpdated", loadDashboardData);
   }, []);
 
   return (
@@ -184,7 +206,7 @@ export default function HeadOfficeDashboard() {
               </tr>
             </thead>
             <tbody className="font-body-sm text-sm text-on-surface divide-y divide-outline-variant/30">
-              {mockStudents.slice(0, 5).map((student, index) => {
+              {students.slice(0, 5).map((student, index) => {
                 const studentRecs = clearanceRecords[student.id] || [];
                 const officeRec = studentRecs.find((r: any) => r.officeId === Number(activeOffice?.id));
                 const status = officeRec?.status || "Pending";
@@ -202,12 +224,12 @@ export default function HeadOfficeDashboard() {
                       </span>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <Link
-                        href={`/head-office/constituents/${student.id}`}
-                        className="inline-flex items-center gap-1 text-primary hover:text-surface-tint font-bold text-xs"
+                      <button
+                        onClick={() => handleOpenStatusModal(student)}
+                        className="inline-flex items-center gap-1 text-primary hover:text-surface-tint font-bold text-xs bg-transparent border-none outline-none cursor-pointer"
                       >
                         View Progress
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 );
@@ -216,6 +238,45 @@ export default function HeadOfficeDashboard() {
           </table>
         </div>
       </div>
+
+      {selectedStudentForStatus && mounted && createPortal(
+        <div 
+          onClick={() => setSelectedStudentForStatus(null)}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 backdrop-blur-[2px] animate-fade-in p-4"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
+              <div className="flex flex-col">
+                <h3 className="font-title-md text-base font-bold text-on-surface">
+                  Clearance Status Checklist
+                </h3>
+                <span className="text-xs text-secondary mt-0.5">
+                  Viewing details for <span className="font-bold text-on-surface">{selectedStudentForStatus.name} ({selectedStudentForStatus.id})</span>
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedStudentForStatus(null)}
+                className="p-1.5 rounded-full hover:bg-surface-container-low text-secondary hover:text-on-surface transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto pr-1">
+              <ClearanceStatus 
+                requirements={statusRequirements} 
+                studentId={selectedStudentForStatus.id} 
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

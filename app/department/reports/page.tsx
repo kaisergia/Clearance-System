@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { mockDepartments } from "@/mock/mockData";
 
 // Types
 interface Student {
@@ -254,10 +255,20 @@ export default function ReportsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
   const availableTerms = getAvailableTerms();
   const [selectedTerm, setSelectedTerm] = useState(currentTerm);
+  const [activeDepartment, setActiveDepartment] = useState<any>(null);
 
   useEffect(() => {
     setSelectedTerm(currentTerm);
   }, [currentTerm]);
+
+  useEffect(() => {
+    const storedDepartmentId = localStorage.getItem("departmentId");
+    if (storedDepartmentId) {
+      const oid = parseInt(storedDepartmentId, 10);
+      const currentDept = mockDepartments.find((d) => d.id === oid);
+      if (currentDept) setActiveDepartment(currentDept);
+    }
+  }, []);
 
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -338,6 +349,9 @@ export default function ReportsPage() {
   };
 
   const getAvailableExportProgramsList = () => {
+    if (activeDepartment) {
+      return DEPT_PROGRAMS[activeDepartment.abbreviation] || [];
+    }
     if (exportDepts.includes("All Departments")) {
       return Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()));
     }
@@ -407,8 +421,18 @@ export default function ReportsPage() {
     return "1st Semester 2024-2025";
   }, [selectedTerm]);
 
-  const students = useMemo(() => MOCK_STUDENTS_BY_TERM[mockTermKey] || [], [mockTermKey]);
-  const records = useMemo(() => MOCK_RECORDS_BY_TERM[mockTermKey] || [], [mockTermKey]);
+  const students = useMemo(() => {
+    const allStudents = MOCK_STUDENTS_BY_TERM[mockTermKey] || [];
+    if (!activeDepartment) return [];
+    return allStudents.filter((s) => s.department === activeDepartment.abbreviation);
+  }, [mockTermKey, activeDepartment]);
+
+  const records = useMemo(() => {
+    const allRecords = MOCK_RECORDS_BY_TERM[mockTermKey] || [];
+    if (!activeDepartment) return [];
+    const deptStudentIds = new Set(students.map((s) => s.id));
+    return allRecords.filter((r) => deptStudentIds.has(r.studentId));
+  }, [mockTermKey, students, activeDepartment]);
 
   // Trigger loading effect when term changes (to emulate backend connectivity)
   const handleTermChange = (term: string) => {
@@ -487,15 +511,17 @@ export default function ReportsPage() {
     });
   }, [students]);
 
-  // Department breakdown
-  const departmentData = useMemo(() => {
-    return DEPARTMENTS.map((d) => {
-      const deptStudents = students.filter((s) => s.department === d);
-      const cleared = deptStudents.filter((s) => s.status === "cleared").length;
-      const uncleared = deptStudents.filter((s) => s.status === "uncleared").length;
-      return { label: d, cleared, uncleared };
+  // Program breakdown (exclusively for this department's programs)
+  const programData = useMemo(() => {
+    if (!activeDepartment) return [];
+    const progs = DEPT_PROGRAMS[activeDepartment.abbreviation] || [];
+    return progs.map((p) => {
+      const progStudents = students.filter((s) => s.program === p);
+      const cleared = progStudents.filter((s) => s.status === "cleared").length;
+      const uncleared = progStudents.filter((s) => s.status === "uncleared").length;
+      return { label: p, cleared, uncleared };
     });
-  }, [students]);
+  }, [students, activeDepartment]);
 
   // Requirement Completion Table data
   const reqCompletionData = useMemo(() => {
@@ -510,7 +536,7 @@ export default function ReportsPage() {
 
   // Export CSV Modal Trigger
   const handleExportCSV = () => {
-    setExportDepts([]);
+    setExportDepts(activeDepartment ? [activeDepartment.abbreviation] : []);
     setExportProgs([]);
     setExportYears([]);
     setExportStatuses([]);
@@ -651,8 +677,8 @@ export default function ReportsPage() {
             Department Reports
           </h2>
           <p className="font-body-md text-secondary mt-1 flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-base text-primary">assessment</span>
-            Analytics and downloadable clearance reports for your department
+            <span className="material-symbols-outlined text-base text-primary">domain</span>
+            Department: <span className="font-semibold text-on-surface">{activeDepartment ? activeDepartment.name : "Loading..."}</span>
           </p>
         </div>
 
@@ -979,7 +1005,7 @@ export default function ReportsPage() {
           {/* Charts Row 2: Breakdown by Segment */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <StackedBarChart data={yearLevelData} title="Clearance Status by Year Level" />
-            <StackedBarChart data={departmentData} title="Clearance Status by Department" />
+            <StackedBarChart data={programData} title="Clearance Status by Program" />
           </div>
 
           {/* Row 3: Requirement Completion Table */}
@@ -1063,12 +1089,15 @@ export default function ReportsPage() {
                   </label>
                   <button
                     type="button"
+                    disabled={!!activeDepartment}
                     onClick={() => {
                       setExportDeptPopoverOpen(!exportDeptPopoverOpen);
                       setExportProgPopoverOpen(false);
                       setExportYearPopoverOpen(false);
                     }}
-                    className="w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm cursor-pointer focus:border-primary focus:ring-1 focus:ring-primary"
+                    className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${
+                      activeDepartment ? "bg-surface-container/30 cursor-not-allowed opacity-85" : "cursor-pointer"
+                    }`}
                   >
                     <span className="truncate">
                       {exportDepts.length === 0
@@ -1079,9 +1108,11 @@ export default function ReportsPage() {
                         ? exportDepts[0]
                         : `${exportDepts.length} Selected`}
                     </span>
-                    <span className="material-symbols-outlined text-secondary text-base">
-                      expand_more
-                    </span>
+                    {!activeDepartment && (
+                      <span className="material-symbols-outlined text-secondary text-base">
+                        expand_more
+                      </span>
+                    )}
                   </button>
 
                   {exportDeptPopoverOpen && (

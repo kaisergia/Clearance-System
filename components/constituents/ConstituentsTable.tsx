@@ -20,6 +20,7 @@ interface ConstituentsTableProps {
   isAllSelected: boolean;
   isSysAdmin?: boolean;
   basePath?: string;
+  onViewDetails?: (student: TableStudent) => void;
 }
 
 export function ConstituentsTable({
@@ -32,6 +33,7 @@ export function ConstituentsTable({
   isAllSelected,
   isSysAdmin = false,
   basePath = "/head-office/constituents",
+  onViewDetails,
 }: ConstituentsTableProps) {
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm overflow-hidden">
@@ -144,7 +146,14 @@ export function ConstituentsTable({
                     </td>
                   )}
                   <td className="py-4 px-6 text-center">
-                    {isSysAdmin ? (
+                    {onViewDetails ? (
+                      <button
+                        onClick={() => onViewDetails(student)}
+                        className="text-coral-red hover:text-primary transition-colors font-bold text-xs cursor-pointer bg-transparent border-none outline-none"
+                      >
+                        View Details
+                      </button>
+                    ) : isSysAdmin ? (
                       <a 
                         href={`/admin/user-management/students/${student.id}`}
                         className="text-primary hover:text-primary-dark transition-colors font-bold text-xs"

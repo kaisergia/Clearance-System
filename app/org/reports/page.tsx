@@ -619,8 +619,12 @@ export default function OrgReportsPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-surface-container-high">
         <div>
           <h2 className="font-headline-lg text-headline-lg text-on-surface">Reports & Metrics</h2>
-          <p className="font-body-md text-secondary mt-1">
-            Export lists and view compliance rates for {org?.name || "your organization"}
+          <p className="font-body-md text-secondary mt-1 flex items-center gap-1.5 flex-wrap">
+            <span className="material-symbols-outlined text-base text-primary">groups</span>
+            Organization: <span className="font-semibold text-on-surface">{org?.name || "Loading..."}</span>
+            <span className="text-xs bg-surface-container-high px-2 py-0.5 rounded text-tertiary">
+              {org?.type === "Gov" ? "University-Wide" : org?.type === "LGU" ? `LGU (${org?.department})` : "Club"}
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-3 self-start md:self-auto">

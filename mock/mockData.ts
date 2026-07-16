@@ -88,7 +88,7 @@ export const mockOrgMembers = [
 export const mockDepartments = [
   {
     id: 1,
-    name: "College of Computer and Information Sciences",
+    name: "College of Computing and Information Sciences",
     abbreviation: "CCIS",
     head: "Dr. Alan Turing",
     email: "ccis@uni.edu.ph",

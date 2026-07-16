@@ -1,15 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
-import { mockOrgs, mockOrgMembers, mockStudentClearanceRecords } from "@/mock/mockData";
-import { mockStudents } from "@/mock/mockStudents";
+import * as clearanceService from "@/services/clearanceService";
+import { mockOrgs, mockOrgMembers, mockDepartments } from "@/mock/mockData";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
+import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function OrgConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
   const availableTerms = getAvailableTerms();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [search, setSearch] = useState("");
   const [semester, setSemester] = useState(currentTerm);
@@ -21,54 +28,64 @@ export default function OrgConstituentsPage() {
   const [constituents, setConstituents] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  const [selectedStudentForStatus, setSelectedStudentForStatus] = useState<any>(null);
+  const [statusRequirements, setStatusRequirements] = useState<any[]>([]);
+
+  const handleOpenStatusModal = async (student: any) => {
+    const mergedReqs = await clearanceService.getStudentRequirements(student.id);
+    setStatusRequirements(mergedReqs);
+    setSelectedStudentForStatus(student);
+  };
+
   useEffect(() => {
     setSemester(currentTerm);
   }, [currentTerm]);
 
   useEffect(() => {
-    const orgId = localStorage.getItem("orgId");
-    if (orgId) {
-      const currentOrg = mockOrgs.find((o) => o.id === parseInt(orgId));
-      if (currentOrg) {
-        setOrg(currentOrg);
+    const loadData = async () => {
+      const orgId = localStorage.getItem("orgId");
+      if (orgId) {
+        const currentOrg = mockOrgs.find((o) => o.id === parseInt(orgId));
+        if (currentOrg) {
+          setOrg(currentOrg);
 
-        let storedRecords = localStorage.getItem("studentClearanceRecords");
-        if (!storedRecords) {
-          localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
-          storedRecords = JSON.stringify(mockStudentClearanceRecords);
+          const allStudents = await clearanceService.getStudents();
+          // Fetch students based on org type/scope logic
+          let list: any[] = [];
+          if (currentOrg.type === "Gov") {
+            list = allStudents;
+          } else if (currentOrg.type === "LGU") {
+            list = allStudents.filter((s) => s.department === currentOrg.department);
+            setDepartment(currentOrg.department || "All Departments"); // Lock department
+          } else if (currentOrg.type === "AcademicClub") {
+            list = allStudents.filter((s) => s.program === currentOrg.program);
+            setDepartment(currentOrg.department || "All Departments"); // Lock department
+            setProgram(currentOrg.program || "All Programs"); // Lock program
+          } else if (currentOrg.type === "NonAcademicClub") {
+            const memberIds = mockOrgMembers
+              .filter((m) => m.orgId === currentOrg.id)
+              .map((m) => m.studentId);
+            list = allStudents.filter((s) => memberIds.includes(s.id));
+          }
+
+          const mappedList = [];
+          for (const student of list) {
+            const records = await clearanceService.getStudentClearanceRecords(student.id);
+            const orgRec = records.find((r: any) => r.orgId === currentOrg.id);
+            mappedList.push({
+              ...student,
+              status: orgRec?.status || "Pending",
+            });
+          }
+
+          setConstituents(mappedList);
         }
-        const records = JSON.parse(storedRecords);
-
-        // Fetch students based on org type/scope logic
-        let list: any[] = [];
-        if (currentOrg.type === "Gov") {
-          list = mockStudents;
-        } else if (currentOrg.type === "LGU") {
-          list = mockStudents.filter((s) => s.department === currentOrg.department);
-          setDepartment(currentOrg.department || "All Departments"); // Lock department
-        } else if (currentOrg.type === "AcademicClub") {
-          list = mockStudents.filter((s) => s.program === currentOrg.program);
-          setDepartment(currentOrg.department || "All Departments"); // Lock department
-          setProgram(currentOrg.program || "All Programs"); // Lock program
-        } else if (currentOrg.type === "NonAcademicClub") {
-          const memberIds = mockOrgMembers
-            .filter((m) => m.orgId === currentOrg.id)
-            .map((m) => m.studentId);
-          list = mockStudents.filter((s) => memberIds.includes(s.id));
-        }
-
-        const mappedList = list.map(student => {
-          const studentRecs = records[student.id] || [];
-          const orgRec = studentRecs.find((r: any) => r.orgId === currentOrg.id);
-          return {
-            ...student,
-            status: orgRec?.status || "Pending",
-          };
-        });
-
-        setConstituents(mappedList);
       }
-    }
+    };
+
+    loadData();
+    window.addEventListener("clearanceRecordsUpdated", loadData);
+    return () => window.removeEventListener("clearanceRecordsUpdated", loadData);
   }, []);
 
   // Extract unique departments dynamically from state (only relevant if Gov/NonAcademic)
@@ -86,45 +103,26 @@ export default function OrgConstituentsPage() {
   ).sort();
 
   // Toggle status handler
-  const handleToggleStatus = (id: string) => {
-    setConstituents((prev) =>
-      prev.map((student) => {
-        if (student.id === id) {
-          const newStatus = student.status === "Cleared" ? "Pending" : "Cleared";
-          updateClearanceRecord(id, newStatus);
-          return {
-            ...student,
-            status: newStatus,
-          };
-        }
-        return student;
-      })
-    );
-  };
-
-  const updateClearanceRecord = (studentId: string, newStatus: string) => {
+  const handleToggleStatus = async (id: string) => {
     const orgId = localStorage.getItem("orgId");
     if (!orgId) return;
 
-    let storedRecords = localStorage.getItem("studentClearanceRecords");
-    let records = storedRecords ? JSON.parse(storedRecords) : { ...mockStudentClearanceRecords };
+    const student = constituents.find(s => s.id === id);
+    if (!student) return;
 
-    if (!records[studentId]) records[studentId] = [];
+    const newStatus = student.status === "Cleared" ? "Pending" : "Cleared";
     
-    const existingRecIndex = records[studentId].findIndex((r: any) => r.orgId === Number(orgId));
-    if (existingRecIndex >= 0) {
-      records[studentId][existingRecIndex].status = newStatus;
-      records[studentId][existingRecIndex].dateCleared = newStatus === "Cleared" ? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
-    } else {
-      records[studentId].push({
-        orgId: Number(orgId),
-        status: newStatus,
-        dateCleared: newStatus === "Cleared" ? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null,
-        remarks: ""
-      });
-    }
+    // Optimistic UI update
+    setConstituents((prev) =>
+      prev.map((s) => {
+        if (s.id === id) {
+          return { ...s, status: newStatus };
+        }
+        return s;
+      })
+    );
 
-    localStorage.setItem("studentClearanceRecords", JSON.stringify(records));
+    await clearanceService.updateClearanceRecord(id, Number(orgId), "org", newStatus);
   };
 
   // Filter students based on state
@@ -170,17 +168,24 @@ export default function OrgConstituentsPage() {
     setShowConfirmModal(true);
   };
 
-  const confirmBulkStatusChange = () => {
+  const confirmBulkStatusChange = async () => {
     if (pendingBulkStatus) {
+      const orgId = localStorage.getItem("orgId");
+      if (!orgId) return;
+
       setConstituents((prev) =>
         prev.map((student) => {
           if (selectedIds.includes(student.id)) {
-            updateClearanceRecord(student.id, pendingBulkStatus);
             return { ...student, status: pendingBulkStatus };
           }
           return student;
         })
       );
+
+      for (const id of selectedIds) {
+        await clearanceService.updateClearanceRecord(id, Number(orgId), "org", pendingBulkStatus);
+      }
+
       setSelectedIds([]);
     }
     setShowConfirmModal(false);
@@ -281,6 +286,7 @@ export default function OrgConstituentsPage() {
         onBulkStatusChange={triggerBulkStatusChange}
         isAllSelected={isAllSelected}
         basePath="/org/constituents"
+        onViewDetails={handleOpenStatusModal}
       />
 
       {showConfirmModal && (
@@ -317,6 +323,45 @@ export default function OrgConstituentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedStudentForStatus && mounted && createPortal(
+        <div 
+          onClick={() => setSelectedStudentForStatus(null)}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 backdrop-blur-[2px] animate-fade-in p-4"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
+              <div className="flex flex-col">
+                <h3 className="font-title-md text-base font-bold text-on-surface">
+                  Clearance Status Checklist
+                </h3>
+                <span className="text-xs text-secondary mt-0.5">
+                  Viewing details for <span className="font-bold text-on-surface">{selectedStudentForStatus.name} ({selectedStudentForStatus.id})</span>
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedStudentForStatus(null)}
+                className="p-1.5 rounded-full hover:bg-surface-container-low text-secondary hover:text-on-surface transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto pr-1">
+              <ClearanceStatus 
+                requirements={statusRequirements} 
+                studentId={selectedStudentForStatus.id} 
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

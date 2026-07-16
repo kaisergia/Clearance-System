@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AppliesToSelector } from "@/components/ui/AppliesToSelector";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
-import { defaultOfficeRequirements } from "@/mock/mockData";
+import { defaultOfficeRequirements, mockOffices } from "@/mock/mockData";
 
 interface Requirement {
   id: string;
@@ -101,10 +101,13 @@ function ExpandableAppliesTo({ appliesTo }: { appliesTo: string[] }) {
 export default function ClearanceRequirementsPage() {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [officeId, setOfficeId] = useState<number | null>(null);
+  const [activeOffice, setActiveOffice] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReqId, setEditingReqId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showNameError, setShowNameError] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [reqName, setReqName] = useState("");
@@ -126,6 +129,9 @@ export default function ClearanceRequirementsPage() {
     if (storedOfficeId) {
       const oid = parseInt(storedOfficeId, 10);
       setOfficeId(oid);
+      
+      const currentOffice = mockOffices.find((o) => o.id === oid);
+      if (currentOffice) setActiveOffice(currentOffice);
       
       const storedOfficeReqs = localStorage.getItem("officeRequirements");
       const allReqs = storedOfficeReqs ? JSON.parse(storedOfficeReqs) : defaultOfficeRequirements;
@@ -156,11 +162,13 @@ export default function ClearanceRequirementsPage() {
     setSelectedYears([]);
     setDeadline("");
     setRequiresUpload(false);
+    setShowNameError(false);
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setEditingReqId(null);
+    setShowNameError(false);
     setIsModalOpen(false);
   };
 
@@ -198,7 +206,16 @@ export default function ClearanceRequirementsPage() {
 
   const handleSaveRequirement = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reqName.trim()) return;
+    if (!reqName.trim()) {
+      setShowNameError(true);
+      nameInputRef.current?.focus();
+      const modalBody = document.getElementById("modal-body-scroll");
+      if (modalBody) {
+        modalBody.scrollTop = 0;
+      }
+      return;
+    }
+    setShowNameError(false);
     setShowConfirm(true);
   };
 
@@ -291,8 +308,9 @@ export default function ClearanceRequirementsPage() {
           <h2 className="font-headline-lg text-headline-lg text-on-surface">
             Clearance Requirements
           </h2>
-          <p className="font-body-md text-secondary mt-1">
-            Configure your office's clearance criteria
+          <p className="font-body-md text-secondary mt-1 flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-base text-primary">domain</span>
+            Office: <span className="font-semibold text-on-surface">{activeOffice ? activeOffice.name : "Loading..."}</span>
           </p>
         </div>
         <button
@@ -447,18 +465,31 @@ export default function ClearanceRequirementsPage() {
             <div id="modal-body-scroll" className="max-h-[60vh] overflow-y-auto pr-2 space-y-6">
               <form onSubmit={handleSaveRequirement} className="space-y-6">
                 {/* Requirement Name */}
-                <div>
+                <div className="relative">
                   <label className="block font-body-sm text-body-sm text-on-surface mb-1">
                     Requirement Name <span className="text-error">*</span>
                   </label>
                   <input
+                    ref={nameInputRef}
                     type="text"
                     required
                     value={reqName}
-                    onChange={(e) => setReqName(e.target.value)}
-                    className="custom-ring w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none"
+                    onChange={(e) => {
+                      setReqName(e.target.value);
+                      if (e.target.value.trim()) setShowNameError(false);
+                    }}
+                    className={`custom-ring w-full px-4 py-2.5 rounded-lg border bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none ${
+                      showNameError ? "border-brand-red ring-1 ring-brand-red" : "border-surface-container-high"
+                    }`}
                     placeholder="E.g., Library Book Return"
                   />
+                  {showNameError && (
+                    <div className="absolute left-8 top-[calc(100%+8px)] z-50 bg-white border border-outline-variant/60 rounded shadow-md px-3 py-2 flex items-center gap-2 text-xs font-semibold text-[#1F2937] animate-in fade-in slide-in-from-top-1 duration-150">
+                      <div className="absolute top-[-6px] left-4 w-2.5 h-2.5 bg-white border-t border-l border-outline-variant/60 rotate-45" />
+                      <div className="w-5 h-5 flex items-center justify-center bg-[#EA580C] text-white font-bold text-sm rounded">!</div>
+                      <span>Please fill out this field.</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Description */}

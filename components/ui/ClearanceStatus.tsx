@@ -1,17 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import * as clearanceService from "@/services/clearanceService";
+import { ClearanceItem } from "@/services/clearanceService";
 
-interface ClearanceItem {
-  id: number;
-  name: string;
-  responsible: string;
-  type: "office" | "org";
-  status: "Cleared" | "Pending" | "Rejected";
-  dateCleared?: string | null;
-  remarks?: string;
-}
+const PROGRAM_MAP: Record<string, string> = {
+  "BS Computer Science": "BSCS",
+  "BS Information Technology": "BSIT",
+  "BS Business Administration": "BSBA",
+  "BS Accountancy": "BSA",
+  "BS Civil Engineering": "BSCE",
+  "BS Mechanical Engineering": "BSME",
+  "BS Electrical Engineering": "BSEE",
+  "BS Data Science": "BSDS",
+  "BS Applied Mathematics": "BSAM",
+  "BS Nursing": "BSN",
+  "BS Pharmacy": "BSP",
+  "BS Medical Technology": "BSMT",
+};
 
 const statusStyles = {
   cleared: {
@@ -140,7 +147,18 @@ function ClearanceStepRow({ step, isLast }: { step: any; isLast: boolean }) {
   );
 }
 
-export default function ClearanceStatus({ requirements }: { requirements: ClearanceItem[] }) {
+export default function ClearanceStatus({ requirements, studentId }: { requirements: ClearanceItem[], studentId?: string }) {
+  const [currentStudent, setCurrentStudent] = useState<any>(null);
+
+  useEffect(() => {
+    const loadStudent = async () => {
+      const activeStudentId = studentId || localStorage.getItem("activeStudentId") || "2021-0492";
+      const student = await clearanceService.getStudentById(activeStudentId);
+      setCurrentStudent(student);
+    };
+    loadStudent();
+  }, [studentId]);
+
   // Helper to fetch status from mockRequirements
   const getStatus = (responsibleKey: string) => {
     const req = requirements.find((r) =>
@@ -156,16 +174,27 @@ export default function ClearanceStatus({ requirements }: { requirements: Cleara
     return req && req.status === "Cleared" ? req.dateCleared : null;
   };
 
-  // Check subClearance status for Orgs
-  const cssCleared = requirements.find((r) =>
-    r.responsible.toLowerCase().includes("computer science society")
-  )?.status === "Cleared";
+  // Find all dynamic orgs (which are in the requirements array as type "org")
+  const orgReqs = requirements.filter((r) => r.type === "org");
+  const sgReq = requirements.find((r) => r.responsible.toLowerCase().includes("student government"));
+  const sgCleared = sgReq && sgReq.status === "Cleared";
 
-  const sgCleared = requirements.find((r) =>
-    r.responsible.toLowerCase().includes("student government")
-  )?.status === "Cleared";
+  const subClearances = orgReqs.map((orgReq) => ({
+    id: `org-${orgReq.id}`,
+    name: orgReq.responsible,
+    status: orgReq.status === "Cleared" ? "cleared" : "pending"
+  }));
 
-  const orgsStepStatus = cssCleared && sgCleared ? "cleared" : "pending";
+  const orgsStepStatus = sgCleared && orgReqs.every((r) => r.status === "Cleared") ? "cleared" : "pending";
+
+  // Resolve Department Clearance status
+  const deptReq = requirements.find((r) => r.type === "department");
+  const deptCleared = deptReq && deptReq.status === "Cleared" ? "cleared" : "pending";
+  const deptDateCleared = deptReq && deptReq.status === "Cleared" ? deptReq.dateCleared : null;
+
+  if (!currentStudent) {
+    return <div className="text-center p-4 text-secondary">Loading student details...</div>;
+  }
 
   const steps = [
     {
@@ -188,13 +217,9 @@ export default function ClearanceStatus({ requirements }: { requirements: Cleara
     },
     {
       id: 4,
-      office: "Student Government",
-      status: getStatus("Student Government"),
-      subClearances: [
-        { id: "s1", name: "Computer Science Society (CSS)", status: cssCleared ? "cleared" : "pending" },
-        { id: "s2", name: "CCIS LGU", status: sgCleared ? "cleared" : "pending" },
-        { id: "s3", name: "Clubs and Organizations", status: sgCleared ? "cleared" : "pending" },
-      ],
+      office: "Student Government & Orgs",
+      status: orgsStepStatus,
+      subClearances: subClearances,
     },
     {
       id: 5,
@@ -210,6 +235,12 @@ export default function ClearanceStatus({ requirements }: { requirements: Cleara
     },
     {
       id: 7,
+      office: `${currentStudent.department} Department Clearance`,
+      status: deptCleared,
+      dateCleared: deptDateCleared,
+    },
+    {
+      id: 8,
       office: "Dean's Office Approval",
       status: requirements.every((r) => r.status === "Cleared") ? "cleared" : "pending",
     },

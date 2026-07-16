@@ -1,15 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
-import { mockStudents } from "@/mock/mockStudents";
-import { mockDepartments, mockStudentClearanceRecords } from "@/mock/mockData";
+import * as clearanceService from "@/services/clearanceService";
+import { mockDepartments } from "@/mock/mockData";
+import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function ConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
   const availableTerms = getAvailableTerms();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [search, setSearch] = useState("");
   const [semester, setSemester] = useState(currentTerm);
@@ -26,33 +33,42 @@ export default function ConstituentsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeDepartment, setActiveDepartment] = useState<any>(null);
 
+  const [selectedStudentForStatus, setSelectedStudentForStatus] = useState<any>(null);
+  const [statusRequirements, setStatusRequirements] = useState<any[]>([]);
+
+  const handleOpenStatusModal = async (student: any) => {
+    const mergedReqs = await clearanceService.getStudentRequirements(student.id);
+    setStatusRequirements(mergedReqs);
+    setSelectedStudentForStatus(student);
+  };
+
   useEffect(() => {
-    const departmentId = localStorage.getItem("departmentId");
-    let currentDepartment = null;
-    if (departmentId) {
-      currentDepartment = mockDepartments.find((o) => o.id === Number(departmentId));
-      if (currentDepartment) setActiveDepartment(currentDepartment);
-    }
+    const loadData = async () => {
+      const departmentId = localStorage.getItem("departmentId");
+      let currentDepartment = null;
+      if (departmentId) {
+        currentDepartment = mockDepartments.find((o) => o.id === Number(departmentId));
+        if (currentDepartment) setActiveDepartment(currentDepartment);
+      }
 
-    let storedRecords = localStorage.getItem("studentClearanceRecords");
-    if (!storedRecords) {
-      localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
-      storedRecords = JSON.stringify(mockStudentClearanceRecords);
-    }
-    const records = JSON.parse(storedRecords);
+      const allStudents = await clearanceService.getStudents();
+      const mappedStudents = [];
+      for (const student of allStudents) {
+        if (!currentDepartment || student.department === currentDepartment.abbreviation) {
+          const records = await clearanceService.getStudentClearanceRecords(student.id);
+          const departmentRec = records.find((r: any) => r.departmentId === Number(departmentId));
+          mappedStudents.push({
+            ...student,
+            status: departmentRec?.status || "Pending",
+          });
+        }
+      }
+      setConstituents(mappedStudents);
+    };
 
-    // Map mockStudents to their department-specific status
-    const mappedStudents = mockStudents
-      .filter((student) => currentDepartment ? student.department === currentDepartment.abbreviation : true)
-      .map(student => {
-      const studentRecs = records[student.id] || [];
-      const departmentRec = studentRecs.find((r: any) => r.departmentId === Number(departmentId));
-      return {
-        ...student,
-        status: departmentRec?.status || "Pending",
-      };
-    });
-    setConstituents(mappedStudents);
+    loadData();
+    window.addEventListener("clearanceRecordsUpdated", loadData);
+    return () => window.removeEventListener("clearanceRecordsUpdated", loadData);
   }, []);
 
   // Extract unique departments dynamically from state
@@ -70,45 +86,26 @@ export default function ConstituentsPage() {
   ).sort();
 
   // Toggle status handler
-  const handleToggleStatus = (id: string) => {
-    setConstituents((prev) =>
-      prev.map((student) => {
-        if (student.id === id) {
-          const newStatus = student.status === "Cleared" ? "Pending" : "Cleared";
-          updateClearanceRecord(id, newStatus);
-          return {
-            ...student,
-            status: newStatus,
-          };
-        }
-        return student;
-      })
-    );
-  };
-
-  const updateClearanceRecord = (studentId: string, newStatus: string) => {
+  const handleToggleStatus = async (id: string) => {
     const departmentId = localStorage.getItem("departmentId");
     if (!departmentId) return;
 
-    let storedRecords = localStorage.getItem("studentClearanceRecords");
-    let records = storedRecords ? JSON.parse(storedRecords) : { ...mockStudentClearanceRecords };
+    const student = constituents.find(s => s.id === id);
+    if (!student) return;
 
-    if (!records[studentId]) records[studentId] = [];
+    const newStatus = student.status === "Cleared" ? "Pending" : "Cleared";
     
-    const existingRecIndex = records[studentId].findIndex((r: any) => r.departmentId === Number(departmentId));
-    if (existingRecIndex >= 0) {
-      records[studentId][existingRecIndex].status = newStatus;
-      records[studentId][existingRecIndex].dateCleared = newStatus === "Cleared" ? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
-    } else {
-      records[studentId].push({
-        departmentId: Number(departmentId),
-        status: newStatus,
-        dateCleared: newStatus === "Cleared" ? new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null,
-        remarks: ""
-      });
-    }
+    // Optimistic UI update
+    setConstituents((prev) =>
+      prev.map((s) => {
+        if (s.id === id) {
+          return { ...s, status: newStatus };
+        }
+        return s;
+      })
+    );
 
-    localStorage.setItem("studentClearanceRecords", JSON.stringify(records));
+    await clearanceService.updateClearanceRecord(id, Number(departmentId), "department", newStatus);
   };
 
   // Filter students based on state
@@ -154,17 +151,24 @@ export default function ConstituentsPage() {
     setShowConfirmModal(true);
   };
 
-  const confirmBulkStatusChange = () => {
+  const confirmBulkStatusChange = async () => {
     if (pendingBulkStatus) {
+      const departmentId = localStorage.getItem("departmentId");
+      if (!departmentId) return;
+
       setConstituents((prev) =>
         prev.map((student) => {
           if (selectedIds.includes(student.id)) {
-            updateClearanceRecord(student.id, pendingBulkStatus);
             return { ...student, status: pendingBulkStatus };
           }
           return student;
         })
       );
+
+      for (const id of selectedIds) {
+        await clearanceService.updateClearanceRecord(id, Number(departmentId), "department", pendingBulkStatus);
+      }
+
       setSelectedIds([]);
     }
     setShowConfirmModal(false);
@@ -276,6 +280,7 @@ export default function ConstituentsPage() {
         onBulkStatusChange={triggerBulkStatusChange}
         isAllSelected={isAllSelected}
         basePath="/department/constituents"
+        onViewDetails={handleOpenStatusModal}
       />
 
       {showConfirmModal && (
@@ -312,6 +317,45 @@ export default function ConstituentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedStudentForStatus && mounted && createPortal(
+        <div 
+          onClick={() => setSelectedStudentForStatus(null)}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 backdrop-blur-[2px] animate-fade-in p-4"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
+              <div className="flex flex-col">
+                <h3 className="font-title-md text-base font-bold text-on-surface">
+                  Clearance Status Checklist
+                </h3>
+                <span className="text-xs text-secondary mt-0.5">
+                  Viewing details for <span className="font-bold text-on-surface">{selectedStudentForStatus.name} ({selectedStudentForStatus.id})</span>
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedStudentForStatus(null)}
+                className="p-1.5 rounded-full hover:bg-surface-container-low text-secondary hover:text-on-surface transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto pr-1">
+              <ClearanceStatus 
+                requirements={statusRequirements} 
+                studentId={selectedStudentForStatus.id} 
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

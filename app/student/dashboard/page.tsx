@@ -1,98 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { mockStudents } from "@/mock/mockStudents";
-import { mockOffices, mockOrgs, mockOrgMembers, mockStudentClearanceRecords, mockRequirements as fallbackReqs } from "@/mock/mockData";
+import * as clearanceService from "@/services/clearanceService";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 import { Check } from "lucide-react";
 
-interface ClearanceItem {
-  id: number;
-  name: string;
-  responsible: string;
-  type: "office" | "org";
-  status: "Cleared" | "Pending" | "Rejected";
-  dateCleared?: string | null;
-  remarks?: string;
-}
+import { ClearanceItem } from "@/services/clearanceService";
 
 export default function StudentDashboard() {
   const [student, setStudent] = useState<any>(null);
   const [requirements, setRequirements] = useState<ClearanceItem[]>([]);
 
   useEffect(() => {
-    const loadDashboardData = () => {
-      // Load students from localStorage or initialize/reset with mockStudents
-      let storedStudents = localStorage.getItem("students");
-      if (!storedStudents || storedStudents.includes("Liam Carter")) {
-        localStorage.setItem("students", JSON.stringify(mockStudents));
-        storedStudents = JSON.stringify(mockStudents);
-      }
-      const studentsList = JSON.parse(storedStudents);
-
-      // Find active student (defaulting to "2021-0492" Eleanor Shellstrop)
+    const loadDashboardData = async () => {
       const activeStudentId = localStorage.getItem("activeStudentId") || "2021-0492";
-      const currentStudent = studentsList.find((s: any) => s.id === activeStudentId) || studentsList[0];
-      setStudent(currentStudent);
-
-      let storedReqs = localStorage.getItem("requirements");
-      if (!storedReqs || storedReqs.includes("Tuition & Fees Settlement")) {
-        localStorage.setItem("requirements", JSON.stringify(fallbackReqs));
-        storedReqs = JSON.stringify(fallbackReqs);
+      const currentStudent = await clearanceService.getStudentById(activeStudentId);
+      if (currentStudent) {
+        setStudent(currentStudent);
+        const mergedReqs = await clearanceService.getStudentRequirements(currentStudent.id);
+        setRequirements(mergedReqs);
       }
-      const reqsList = JSON.parse(storedReqs);
-
-      // Filter base offices (orgs are dynamic per student)
-      const baseOffices = reqsList.filter((r: any) => r.type === "office");
-
-      // Dynamically build org requirements for this student
-      const studentOrgs = mockOrgMembers
-        .filter((m) => m.studentId === currentStudent.id)
-        .map((m) => mockOrgs.find((o) => o.id === m.orgId))
-        .filter(Boolean);
-
-      const dynamicOrgs = studentOrgs.map((org: any) => ({
-        id: org.id, // Using orgId directly so mapping works
-        name: "Org Membership Clearance",
-        responsible: org.name,
-        type: "org",
-        status: "Pending",
-        dateCleared: null,
-        remarks: "",
-      }));
-
-      const combinedReqs = [...baseOffices, ...dynamicOrgs];
-
-      let storedRecords = localStorage.getItem("studentClearanceRecords");
-      if (!storedRecords) {
-        localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
-        storedRecords = JSON.stringify(mockStudentClearanceRecords);
-      }
-      const records = JSON.parse(storedRecords);
-      const studentRecords = records[currentStudent.id] || [];
-      
-      const mergedReqs = combinedReqs.map((req: any) => {
-        const isOffice = req.type === "office";
-        const matchingRecord = studentRecords.find((r: any) => 
-          isOffice ? r.officeId === req.id : r.orgId === req.id
-        );
-        
-        if (matchingRecord) {
-          return {
-            ...req,
-            status: matchingRecord.status || "Pending",
-            dateCleared: matchingRecord.dateCleared,
-            remarks: matchingRecord.remarks
-          };
-        }
-        
-        return {
-          ...req,
-          status: req.status || "Pending",
-        };
-      });
-
-      setRequirements(mergedReqs);
     };
 
     loadDashboardData();
