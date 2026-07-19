@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
-import { mockOrgs, mockOrgMembers, mockDepartments } from "@/mock/mockData";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function OrgDashboard() {
@@ -40,7 +39,7 @@ export default function OrgDashboard() {
     const loadDashboardData = async () => {
       const orgId = localStorage.getItem("orgId");
       if (orgId) {
-        const currentOrg = mockOrgs.find((o) => o.id === parseInt(orgId));
+        const currentOrg = await clearanceService.getOrgById(parseInt(orgId));
         if (currentOrg) {
           setOrg(currentOrg);
 
@@ -56,9 +55,7 @@ export default function OrgDashboard() {
           } else if (currentOrg.type === "AcademicClub") {
             list = allStudents.filter((s) => s.program === currentOrg.program);
           } else if (currentOrg.type === "NonAcademicClub") {
-            const memberIds = mockOrgMembers
-              .filter((m) => m.orgId === currentOrg.id)
-              .map((m) => m.studentId);
+            const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
             list = allStudents.filter((s) => memberIds.includes(s.id));
           }
 
@@ -290,6 +287,7 @@ export default function OrgDashboard() {
               <ClearanceStatus 
                 requirements={statusRequirements} 
                 studentId={selectedStudentForStatus.id} 
+                viewingOrgId={org?.id}
               />
             </div>
           </div>

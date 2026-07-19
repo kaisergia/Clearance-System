@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
-import { mockStudents } from "@/mock/mockStudents";
-import { mockRequirements } from "@/mock/mockData";
+import * as clearanceService from "@/services/clearanceService";
 import Link from "next/link";
 
 export default function ManageStudentsPage() {
@@ -23,44 +22,40 @@ export default function ManageStudentsPage() {
   const [department, setDepartment] = useState("All Departments");
   const [program, setProgram] = useState("All Programs");
 
-  const [constituents, setConstituents] = useState(mockStudents);
+  const [constituents, setConstituents] = useState<any[]>([]);
 
   useEffect(() => {
-    const updateConstituentsStatus = () => {
-      const storedStudents = localStorage.getItem("students");
-      const studentsList = storedStudents ? JSON.parse(storedStudents) : mockStudents;
-      
-      const storedRecords = localStorage.getItem("studentClearanceRecords");
-      const storedReqs = localStorage.getItem("requirements");
-      const reqsList = storedReqs ? JSON.parse(storedReqs) : mockRequirements;
-      
-      if (storedRecords) {
-        const records = JSON.parse(storedRecords);
-        
-        setConstituents(studentsList.map((student: any) => {
-          const studentRecs = records[student.id] || [];
-          
-          let pendingFound = false;
-          reqsList.forEach((req: any) => {
-            const isOffice = req.type === "office";
-            const match = studentRecs.find((r: any) => isOffice ? r.officeId === req.id : r.orgId === req.id);
-            if (!match || match.status !== "Cleared") {
-              pendingFound = true;
-            }
-          });
-          
-          return {
-            ...student,
-            status: pendingFound ? "Pending" : "Cleared"
-          };
-        }));
-      } else {
-        setConstituents(studentsList);
-      }
+    const updateConstituentsStatus = async () => {
+      // DATABASE SWAP POINT: clearanceService.getStudents() replaces localStorage["students"]
+      const studentsList = await clearanceService.getStudents();
+
+      const allMapped = await Promise.all(
+        studentsList.map(async (student: any) => {
+          // DATABASE SWAP POINT: clearanceService.getStudentClearanceRecords() replaces
+          // localStorage["studentClearanceRecords"] direct read
+          const records = await clearanceService.getStudentClearanceRecords(student.id);
+          const reqs = await clearanceService.getStudentRequirements(student.id);
+
+          const allCleared = reqs.every(
+            (req: any) =>
+              records.some(
+                (r: any) =>
+                  ((req.type === "office" && r.officeId === req.id) ||
+                    (req.type === "org" && r.orgId === req.id) ||
+                    (req.type === "department" && r.departmentId === req.id)) &&
+                  r.status === "Cleared"
+              )
+          );
+
+          return { ...student, status: reqs.length === 0 || !allCleared ? "Pending" : "Cleared" };
+        })
+      );
+
+      setConstituents(allMapped);
     };
-    
+
     updateConstituentsStatus();
-    
+
     window.addEventListener("clearanceRecordsUpdated", updateConstituentsStatus);
     return () => window.removeEventListener("clearanceRecordsUpdated", updateConstituentsStatus);
   }, []);

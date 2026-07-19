@@ -6,8 +6,7 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import * as clearanceService from "@/services/clearanceService";
-import { mockOffices } from "@/mock/mockData";
-import ClearanceStatus from "@/components/ui/ClearanceStatus";
+import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 
 export default function ConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -35,6 +34,7 @@ export default function ConstituentsPage() {
 
   const [selectedStudentForStatus, setSelectedStudentForStatus] = useState<any>(null);
   const [statusRequirements, setStatusRequirements] = useState<any[]>([]);
+  const [currentOfficeId, setCurrentOfficeId] = useState<number | null>(null);
 
   const handleOpenStatusModal = async (student: any) => {
     const mergedReqs = await clearanceService.getStudentRequirements(student.id);
@@ -47,8 +47,9 @@ export default function ConstituentsPage() {
       const officeId = localStorage.getItem("officeId");
       let currentOffice = null;
       if (officeId) {
-        currentOffice = mockOffices.find((o) => o.id === Number(officeId));
+        currentOffice = await clearanceService.getOfficeById(Number(officeId));
         if (currentOffice) setActiveOffice(currentOffice);
+        setCurrentOfficeId(Number(officeId));
       }
 
       const allStudents = await clearanceService.getStudents();
@@ -171,18 +172,9 @@ export default function ConstituentsPage() {
     }
     setShowConfirmModal(false);
     setPendingBulkStatus(null);
-  };  // Stats computation: prepared for database integration.
-  // When a real database is connected (e.g. list has many items), it uses direct counts.
-  // For the current mock/design demonstration, it maps to the visual baseline stats (1,284 / 1,207 / 42).
-  const isMock = constituents.length <= 5;
-
-  const totalCount = isMock ? 1284 : constituents.length;
-  const clearedCount = isMock
-    ? 1207 + (constituents.filter((s) => s.status === "Cleared").length - 4)
-    : constituents.filter((s) => s.status === "Cleared").length;
-  const pendingCount = isMock
-    ? 42 + (constituents.filter((s) => s.status === "Pending").length - 1)
-    : constituents.filter((s) => s.status === "Pending").length;
+  };  const totalCount = constituents.length;
+  const clearedCount = constituents.filter((s) => s.status === "Cleared").length;
+  const pendingCount = constituents.filter((s) => s.status === "Pending").length;
 
   const clearedPercent = totalCount === 0 ? 0 : Math.round((clearedCount / totalCount) * 100);
   const pendingPercent = totalCount === 0 ? 0 : Math.round((pendingCount / totalCount) * 100);
@@ -215,8 +207,6 @@ export default function ConstituentsPage() {
                 {totalCount.toLocaleString()}
               </h3>
               <p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">trending_up</span> +12% from
-                last sem
               </p>
             </div>
           </div>
@@ -323,13 +313,13 @@ export default function ConstituentsPage() {
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
               <div className="flex flex-col">
                 <h3 className="font-title-md text-base font-bold text-on-surface">
-                  Clearance Status Checklist
+                  Student Clearance Details
                 </h3>
                 <span className="text-xs text-secondary mt-0.5">
                   Viewing details for <span className="font-bold text-on-surface">{selectedStudentForStatus.name} ({selectedStudentForStatus.id})</span>
@@ -343,11 +333,12 @@ export default function ConstituentsPage() {
               </button>
             </div>
 
-            {/* Modal Content */}
+            {/* Modal Content — full task checklist with submissions & review actions */}
             <div className="flex-1 overflow-y-auto pr-1">
-              <ClearanceStatus 
-                requirements={statusRequirements} 
-                studentId={selectedStudentForStatus.id} 
+              <ClearanceStatusView
+                targetStudentId={selectedStudentForStatus.id}
+                isSysAdminView={true}
+                viewingOfficeId={currentOfficeId ?? undefined}
               />
             </div>
           </div>

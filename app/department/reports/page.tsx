@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
-import { mockDepartments } from "@/mock/mockData";
+import * as clearanceService from "@/services/clearanceService";
 
 // Types
 interface Student {
@@ -262,16 +262,33 @@ export default function ReportsPage() {
   }, [currentTerm]);
 
   useEffect(() => {
-    const storedDepartmentId = localStorage.getItem("departmentId");
-    if (storedDepartmentId) {
-      const oid = parseInt(storedDepartmentId, 10);
-      const currentDept = mockDepartments.find((d) => d.id === oid);
-      if (currentDept) setActiveDepartment(currentDept);
-    }
+    const fetchDept = async () => {
+      const storedDepartmentId = localStorage.getItem("departmentId");
+      if (storedDepartmentId) {
+        const oid = parseInt(storedDepartmentId, 10);
+        const currentDept = await clearanceService.getDepartmentById(oid);
+        if (currentDept) setActiveDepartment(currentDept);
+      }
+    };
+    fetchDept();
   }, []);
 
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  // Real students from DB — filtered by this department
+  const [dbStudents, setDbStudents] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchStudents = async () => {
+      const all = await clearanceService.getStudents();
+      // Filter to only students in this department (abbreviation match)
+      if (activeDepartment) {
+        setDbStudents(all.filter((s: any) => s.department === activeDepartment.abbreviation));
+      } else {
+        setDbStudents(all);
+      }
+    };
+    fetchStudents();
+  }, [activeDepartment]);
 
   // Mounted state for SSR safety (portal)
   const [mounted, setMounted] = useState(false);
@@ -421,11 +438,20 @@ export default function ReportsPage() {
     return "1st Semester 2024-2025";
   }, [selectedTerm]);
 
+  // Use real DB students (mapped to the Student interface expected by charts/stats)
+  // TODO: Once a term-based clearance history API is available, replace MOCK_RECORDS_BY_TERM
   const students = useMemo(() => {
-    const allStudents = MOCK_STUDENTS_BY_TERM[mockTermKey] || [];
     if (!activeDepartment) return [];
-    return allStudents.filter((s) => s.department === activeDepartment.abbreviation);
-  }, [mockTermKey, activeDepartment]);
+    return dbStudents.map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      program: s.program,
+      department: s.department,
+      yearLevel: s.year,
+      status: (s.status === "Cleared" ? "cleared" : "uncleared") as "cleared" | "uncleared",
+      lastUpdated: new Date().toISOString().split("T")[0],
+    }));
+  }, [dbStudents, activeDepartment]);
 
   const records = useMemo(() => {
     const allRecords = MOCK_RECORDS_BY_TERM[mockTermKey] || [];

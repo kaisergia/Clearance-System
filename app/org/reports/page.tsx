@@ -3,9 +3,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
-import { mockOrgs, mockOrgMembers } from "@/mock/mockData";
-import { mockStudents } from "@/mock/mockStudents";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import * as clearanceService from "@/services/clearanceService";
 
 // Types
 interface Student {
@@ -200,13 +199,16 @@ export default function OrgReportsPage() {
   useEffect(() => {
     setMounted(true);
 
-    const orgId = localStorage.getItem("orgId");
-    if (orgId) {
-      const currentOrg = mockOrgs.find((o) => o.id === parseInt(orgId));
-      if (currentOrg) {
-        setOrg(currentOrg);
+    const fetchOrg = async () => {
+      const orgId = localStorage.getItem("orgId");
+      if (orgId) {
+        const currentOrg = await clearanceService.getOrgById(parseInt(orgId));
+        if (currentOrg) {
+          setOrg(currentOrg);
+        }
       }
-    }
+    };
+    fetchOrg();
 
     function handleClickOutside(event: MouseEvent) {
       if (exportDeptRef.current && !exportDeptRef.current.contains(event.target as Node)) {
@@ -316,38 +318,44 @@ export default function OrgReportsPage() {
     });
   };
 
-  // Get active constituents list based on Org type & scope
-  const constituents = useMemo(() => {
-    if (!org) return [];
-    let list: Student[] = [];
+  const [constituents, setConstituents] = useState<Student[]>([]);
 
-    // Map mockStudents to reports-compatible interface
-    const mappedStudents: Student[] = mockStudents.map((s) => ({
-      id: s.id,
-      name: s.name,
-      program: s.program,
-      department: s.department,
-      year: s.year,
-      status: s.status,
-      email: s.email,
-      semester: s.semester,
-      lastUpdated: "2024-11-20", // Mock date
-    }));
+  useEffect(() => {
+    const fetchConstituents = async () => {
+      if (!org) {
+        setConstituents([]);
+        return;
+      }
+      let list: Student[] = [];
 
-    if (org.type === "Gov") {
-      list = mappedStudents;
-    } else if (org.type === "LGU") {
-      list = mappedStudents.filter((s) => s.department === org.department);
-    } else if (org.type === "AcademicClub") {
-      list = mappedStudents.filter((s) => s.program === org.program);
-    } else if (org.type === "NonAcademicClub") {
-      const memberIds = mockOrgMembers
-        .filter((m) => m.orgId === org.id)
-        .map((m) => m.studentId);
-      list = mappedStudents.filter((s) => memberIds.includes(s.id));
-    }
+      // Map students to reports-compatible interface
+      const fetchedStudents = await clearanceService.getStudents();
+      const mappedStudents: Student[] = fetchedStudents.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        program: s.program,
+        department: s.department,
+        year: s.year,
+        status: s.status || "Pending",
+        email: s.email,
+        semester: s.semester,
+        lastUpdated: "2024-11-20", // Mock date
+      }));
 
-    return list;
+      if (org.type === "Gov") {
+        list = mappedStudents;
+      } else if (org.type === "LGU") {
+        list = mappedStudents.filter((s) => s.department === org.department);
+      } else if (org.type === "AcademicClub") {
+        list = mappedStudents.filter((s) => s.program === org.program);
+      } else if (org.type === "NonAcademicClub") {
+        const memberIds = await clearanceService.getOrgMemberIds(org.id);
+        list = mappedStudents.filter((s) => memberIds.includes(s.id));
+      }
+
+      setConstituents(list);
+    };
+    fetchConstituents();
   }, [org]);
 
   const handleTermChange = (term: string) => {

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { mockStudents } from "@/mock/mockStudents";
 import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements, mockDepartments, defaultDepartmentRequirements } from "@/mock/mockData";
 import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X } from "lucide-react";
+import * as clearanceService from "@/services/clearanceService";
 
 interface ClearanceItem {
   id: number;
@@ -15,6 +15,7 @@ interface ClearanceItem {
   remarks?: string;
   uploadedFiles?: Record<number, string>;
   completedTasks?: number[];
+  tasks?: any[];
 }
 
 const itemStatusStyles = {
@@ -44,72 +45,243 @@ const itemStatusStyles = {
   },
 };
 
+/** Safely parse uploadedFileUrls — Prisma Json can return either an array or a JSON string from MySQL */
+function parseFileUrls(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw); } catch { return []; }
+  }
+  return [];
+}
 
-
-function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange, tasks = [] }: { item: ClearanceItem; isLast: boolean; isSysAdminView: boolean; onStatusChange: (status: ClearanceItem["status"], data?: { remarks?: string, uploadedFiles?: Record<number, string>, completedTasks?: number[] }) => void, tasks?: { label: string; requiresUpload?: boolean }[] }) {
+function ClearanceItemRow({
+  item,
+  isLast,
+  isSysAdminView,
+  studentId,
+  onStatusChange,
+  tasks = []
+}: {
+  item: ClearanceItem;
+  isLast: boolean;
+  isSysAdminView: boolean;
+  studentId: string;
+  onStatusChange: (status: ClearanceItem["status"], data?: any) => void;
+  tasks?: any[];
+}) {
   const [expanded, setExpanded] = useState(false);
   const styles = itemStatusStyles[item.status] || itemStatusStyles.Pending;
 
-  // Track completed tasks locally for this mock
+  // Track completed tasks locally for MANUAL tasks
   const [completedTasks, setCompletedTasks] = useState<number[]>(item.completedTasks || []);
-  const [uploadedFiles, setUploadedFiles] = useState<Record<number, string>>(item.uploadedFiles || {});
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeUploadIndex, setActiveUploadIndex] = useState<number | null>(null);
+  
+  // Local submission states
+  const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, File>>({});
+  const [paymentRefs, setPaymentRefs] = useState<Record<string, string>>({});
+  const [surveyForms, setSurveyForms] = useState<Record<string, Record<string, string>>>({});
+  const [acknowledgedFlags, setAcknowledgedFlags] = useState<Record<string, boolean>>({});
+  // Track which task IDs the student has just submitted — used for optimistic UI before re-fetch
+  const [locallySubmittedIds, setLocallySubmittedIds] = useState<Set<string>>(new Set());
 
-  // If the status is Cleared or Submitted, all tasks should appear completed
   const isFullyComplete = item.status === "Cleared" || item.status === "Submitted";
 
   useEffect(() => {
-    if (isFullyComplete && completedTasks.length !== tasks.length) {
+    // Auto-fill all checkboxes only when the OFFICE has fully cleared this item.
+    // Do NOT auto-fill for "Submitted" (Under Review) — the student is still waiting
+    // for the office to confirm, so MANUAL tasks should stay in their actual state.
+    if (item.status === "Cleared" && completedTasks.length !== tasks.length) {
       setCompletedTasks(tasks.map((_, idx) => idx));
     }
-  }, [isFullyComplete, tasks.length, completedTasks.length]);
+  }, [item.status, tasks.length]);
 
-  const handleToggleTask = (idx: number, requiresUpload?: boolean) => {
-    if (isSysAdminView || isFullyComplete) return; // Prevent edits if sysadmin or already submitted/cleared
-
-    if (requiresUpload && !completedTasks.includes(idx) && !uploadedFiles[idx]) {
-      // Prompt for upload
-      setActiveUploadIndex(idx);
-      fileInputRef.current?.click();
-      return;
-    }
+  const handleToggleTask = (idx: number, task: any) => {
+    // Only block if item is already fully processed — not by admin/office view
+    if (isFullyComplete) return;
+    if (task.type && task.type !== "MANUAL") return;
 
     setCompletedTasks((prev) => {
       const isCurrentlyCompleted = prev.includes(idx);
       const newCompleted = isCurrentlyCompleted ? prev.filter((i) => i !== idx) : [...prev, idx];
-      
-      // If all tasks are completed, change status to Submitted automatically
       if (newCompleted.length === tasks.length && item.status !== "Cleared") {
-        onStatusChange("Submitted");
+        onStatusChange("Submitted", { completedTasks: newCompleted });
       } else if (newCompleted.length < tasks.length && item.status === "Submitted") {
-        onStatusChange("Pending");
+        onStatusChange("Pending", { completedTasks: newCompleted });
+      } else {
+        onStatusChange(item.status, { completedTasks: newCompleted });
       }
-      
       return newCompleted;
     });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0 && activeUploadIndex !== null) {
-      const fileName = e.target.files[0].name;
-      setUploadedFiles(prev => ({ ...prev, [activeUploadIndex]: fileName }));
-      
-      setCompletedTasks((prev) => {
-        if (!prev.includes(activeUploadIndex)) {
-          const newCompleted = [...prev, activeUploadIndex];
-          if (newCompleted.length === tasks.length && item.status !== "Cleared") {
-            onStatusChange("Submitted", { uploadedFiles: { ...uploadedFiles, [activeUploadIndex]: fileName }, completedTasks: newCompleted });
-          }
-          return newCompleted;
-        }
-        return prev;
+  // Office/evaluator-side MANUAL task toggle — persists to DB
+  const handleOfficeManualToggle = async (idx: number) => {
+    const willBeCompleted = !completedTasks.includes(idx);
+    const newCompleted = willBeCompleted
+      ? [...completedTasks, idx]
+      : completedTasks.filter((i) => i !== idx);
+
+    // Optimistic UI
+    setCompletedTasks(newCompleted);
+
+    const entityType = item.type === "office" ? "office" : item.type === "department" ? "department" : "org";
+
+    try {
+      const res = await fetch("/api/clearance-records/manual-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          entityType,
+          entityId: item.id,
+          taskIndex: idx,
+          completed: willBeCompleted,
+        }),
       });
-      
-      setActiveUploadIndex(null);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      if (data.allCleared) {
+        onStatusChange("Cleared", { completedTasks: newCompleted });
+      } else {
+        onStatusChange(item.status === "Cleared" ? "Submitted" : item.status, { completedTasks: newCompleted });
+      }
+      window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+    } catch (err) {
+      console.error(err);
+      setCompletedTasks(completedTasks); // revert
+      alert("Failed to save. Please try again.");
     }
-    // Reset file input
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+
+  const handleSubmitTask = async (taskId: string, type: string) => {
+    setSubmittingTaskId(taskId);
+    try {
+      const formData = new FormData();
+      formData.append("studentId", studentId);
+      formData.append("requirementId", taskId);
+      formData.append("type", type);
+
+      if (type === "DOCUMENT_UPLOAD" || type === "PAYMENT_PROOF") {
+        const file = selectedFiles[taskId];
+        if (file) {
+          formData.append("files", file);
+        } else {
+          alert("Please select a file to upload.");
+          setSubmittingTaskId(null);
+          return;
+        }
+      }
+
+      if (type === "PAYMENT_PROOF") {
+        const ref = paymentRefs[taskId];
+        if (!ref) {
+          alert("Please enter a payment reference / OR number.");
+          setSubmittingTaskId(null);
+          return;
+        }
+        formData.append("paymentReference", ref);
+      }
+
+      if (type === "SURVEY") {
+        const answers = surveyForms[taskId] || {};
+        const formatted = Object.entries(answers).map(([questionId, answer]) => ({
+          questionId,
+          answer,
+        }));
+        formData.append("surveyAnswers", JSON.stringify(formatted));
+      }
+
+      if (type === "ACKNOWLEDGMENT") {
+        if (!acknowledgedFlags[taskId]) {
+          alert("Please confirm the acknowledgment checklist.");
+          setSubmittingTaskId(null);
+          return;
+        }
+        formData.append("acknowledged", "true");
+      }
+
+      const res = await fetch("/api/student-requirements/submit", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error("Submission failed");
+      }
+
+      // Immediately flip the parent clearance card to "Under Review" without waiting for re-fetch
+      onStatusChange("Submitted");
+
+      // Mark this task as locally-submitted so the UI shows "Pending Review" right away
+      setLocallySubmittedIds(prev => new Set(prev).add(taskId));
+
+      // Clear local file/form state for this task so the input resets
+      setSelectedFiles((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+      setPaymentRefs((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+      setSurveyForms((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+
+      // Trigger background re-sync to pull updated submission data
+      window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+    } catch (err) {
+      console.error(err);
+      alert("Submission failed. Please try again.");
+    } finally {
+      setSubmittingTaskId(null);
+    }
+  };
+
+  const handleCancelSubmission = async (submissionId: string, taskId: string) => {
+    if (!confirm("Cancel this submission? The file will be deleted and you can re-submit.")) return;
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/cancel`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Failed to cancel submission.");
+        return;
+      }
+      // Optimistically revert UI — remove from locally submitted
+      setLocallySubmittedIds(prev => { const n = new Set(prev); n.delete(taskId); return n; });
+      // Trigger background re-sync
+      window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to cancel. Please try again.");
+    }
+  };
+
+  const handleEvaluateSubmission = async (submissionId: string, status: "approved" | "rejected") => {
+    let notes = "";
+    if (status === "rejected") {
+      notes = prompt("Please provide a remark/notes for rejection:") || "";
+      if (!notes.trim()) {
+        alert("Rejection reason is required.");
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status,
+          reviewedBy: localStorage.getItem("displayName") || "Office Evaluator",
+          reviewNotes: notes,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Evaluation failed");
+      }
+
+      // Trigger re-sync
+      window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+    } catch (err) {
+      console.error(err);
+      alert("Evaluation failed. Please try again.");
+    }
   };
 
   return (
@@ -119,8 +291,9 @@ function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange, tasks 
         <div
           className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${styles.dot}`}
         >
-          {item.status === "Cleared" && <Check size={12} strokeWidth={4} />}
-          {item.status === "Submitted" && <Check size={12} strokeWidth={4} />}
+          {isFullyComplete && <Check size={12} strokeWidth={4} />}
+          {!isFullyComplete && item.status === "Rejected" && <X size={12} strokeWidth={4} />}
+          {!isFullyComplete && item.status !== "Rejected" && <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />}
         </div>
         {!isLast && <div className={`w-0.5 flex-1 min-h-[28px] my-1 ${styles.line}`} />}
       </div>
@@ -153,102 +326,374 @@ function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange, tasks 
           {/* Expanded Drawer content */}
           {expanded && (
             <div className="mt-3 pt-3 border-t border-surface-container-high space-y-4 animate-fadeIn">
-              {/* Tasks List */}
-              <div className="space-y-2.5">
-                <span className="text-[11px] font-bold text-secondary uppercase tracking-wider">Required Checklist</span>
+              <div className="space-y-3">
+                <span className="text-[11px] font-bold text-secondary uppercase tracking-wider block">Requirements Checklist</span>
                 
-                <div className="space-y-2">
-                  {tasks.map((task, idx) => {
-                    const isTaskCompleted = completedTasks.includes(idx);
-                    
-                    return (
-                      <div key={idx} className="flex flex-col gap-1">
-                        <div 
-                          className={`flex items-start gap-3 p-2 rounded-lg transition-colors ${!isSysAdminView && !isFullyComplete ? 'cursor-pointer hover:bg-surface-container-high/50' : ''}`}
-                          onClick={() => handleToggleTask(idx, task.requiresUpload)}
-                        >
-                          <div className={`mt-0.5 w-4 h-4 rounded-[4px] flex items-center justify-center border transition-colors shrink-0 ${
-                            isTaskCompleted 
-                              ? "bg-primary border-primary text-white" 
-                              : "border-outline-variant bg-surface-container-lowest text-transparent"
-                          }`}>
-                            <Check size={12} strokeWidth={4} />
+                {tasks.length === 0 ? (
+                  <p className="text-xs text-secondary italic">No requirements configured for this office.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {tasks.map((task, idx) => {
+                      const sub = task.submission;
+                      const subStatus = sub?.status;
+                      // Use local optimistic state first — shows "Pending Review" immediately after submit
+                      const isLocallySubmitted = locallySubmittedIds.has(task.id);
+                      const isTaskApproved = subStatus === "approved";
+                      const isManualCompleted = (task.type === "MANUAL" || !task.type) && completedTasks.includes(idx);
+                      const isCleared = isTaskApproved || isManualCompleted;
+
+                      return (
+                        <div key={task.id || idx} className="border border-surface-container-high rounded-xl p-4 bg-surface-container-low/30 space-y-3">
+                          {/* Title and Type Badge */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <span className={`text-sm font-bold block leading-tight ${isCleared ? "text-secondary line-through" : "text-on-surface"}`}>
+                                {task.name}
+                              </span>
+                              {task.description && (
+                                <span className="text-[12px] text-secondary mt-1 block leading-snug">{task.description}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-surface-container-highest text-secondary">
+                                {task.type === "DOCUMENT_UPLOAD" && "Document"}
+                                {task.type === "PAYMENT_PROOF" && "Payment"}
+                                {task.type === "SURVEY" && "Survey"}
+                                {task.type === "ACKNOWLEDGMENT" && "Confirm"}
+                                {(task.type === "MANUAL" || !task.type) && "Manual"}
+                              </span>
+                            </div>
                           </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <span className={`text-sm block ${isTaskCompleted ? "text-secondary line-through" : "text-on-surface font-medium"}`}>
-                              {task.label}
-                            </span>
-                            
-                            {/* Upload area if needed and not completed */}
-                            {task.requiresUpload && !isTaskCompleted && !isSysAdminView && !isFullyComplete && (
-                              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary rounded border border-primary/20 hover:bg-primary/20 transition-colors">
-                                <UploadCloud size={14} />
-                                Click to Upload Document
-                              </div>
-                            )}
-                            
-                            {/* Show uploaded file name */}
-                            {(uploadedFiles[idx] || (isTaskCompleted && task.requiresUpload)) && (
-                              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-secondary bg-surface-container px-2 py-1 rounded inline-flex max-w-full">
-                                <FileText size={12} className="shrink-0" />
-                                <span className="truncate">{uploadedFiles[idx] || "document_submitted.pdf"}</span>
-                              </div>
-                            )}
-                          </div>
+
+                          {/* Submission & Interaction Panel */}
+                          {!isSysAdminView ? (
+                            // STUDENT VIEW
+                            <div className="space-y-2 pt-1 border-t border-dashed border-surface-container-high">
+                              {isCleared ? (
+                                <div className="flex items-center gap-2 text-xs text-green-600 font-bold bg-green-50 px-2.5 py-1.5 rounded-lg border border-green-100 w-fit">
+                                  <Check size={14} strokeWidth={3} /> Requirement Cleared
+                                </div>
+                              ) : (subStatus === "pending" || isLocallySubmitted) ? (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 text-xs text-blue-600 font-bold bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-100">
+                                      <div className="w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                                      Pending Review
+                                    </div>
+                                    {sub?.id && subStatus === "pending" && (
+                                      <button
+                                        onClick={() => handleCancelSubmission(sub.id, task.id)}
+                                        className="flex items-center gap-1 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                                      >
+                                        <X size={11} strokeWidth={3} /> Cancel
+                                      </button>
+                                    )}
+                                  </div>
+                                  {(() => { const urls = parseFileUrls(sub?.uploadedFileUrls); return urls.length > 0 && (
+                                    <a
+                                      href={urls[0]}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 border border-primary/20 px-3 py-1.5 rounded-lg inline-flex max-w-full hover:bg-primary/10"
+                                    >
+                                      <FileText size={12} /> View submitted document
+                                    </a>
+                                  ); })()}
+                                </div>
+                              ) : (
+                                // No submission OR rejected
+                                <div className="space-y-3">
+                                  {subStatus === "rejected" && (
+                                    <div className="text-xs text-red-700 bg-red-50 p-2.5 rounded-lg border border-red-100">
+                                      <span className="font-bold">❌ Rejected:</span> {sub?.reviewNotes || "Please re-submit your files."}
+                                    </div>
+                                  )}
+
+                                  {/* Interaction Input depending on requirement type */}
+                                  {task.type === "DOCUMENT_UPLOAD" && (
+                                    <div className="space-y-2">
+                                      <label className="block text-[11px] font-bold text-secondary">Upload Document (PDF, PNG, JPG)</label>
+                                      <input
+                                        type="file"
+                                        required
+                                        onChange={(e) => {
+                                          if (e.target.files && e.target.files[0]) {
+                                            setSelectedFiles(prev => ({ ...prev, [task.id]: e.target.files![0] }));
+                                          }
+                                        }}
+                                        className="block w-full text-xs text-secondary file:mr-3 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                                      />
+                                      <button
+                                        onClick={() => handleSubmitTask(task.id, task.type)}
+                                        disabled={submittingTaskId === task.id}
+                                        className="px-3.5 py-1.5 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded shadow transition-all disabled:opacity-50 flex items-center gap-1"
+                                      >
+                                        <UploadCloud size={13} /> {submittingTaskId === task.id ? "Uploading..." : "Submit File"}
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {task.type === "PAYMENT_PROOF" && (
+                                    <div className="space-y-3">
+                                      <div className="space-y-1">
+                                        <label className="block text-[11px] font-bold text-secondary">Upload Receipt Image/PDF</label>
+                                        <input
+                                          type="file"
+                                          required
+                                          onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                              setSelectedFiles(prev => ({ ...prev, [task.id]: e.target.files![0] }));
+                                            }
+                                          }}
+                                          className="block w-full text-xs text-secondary file:mr-3 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="block text-[11px] font-bold text-secondary">Official Receipt (OR) / Reference No. *</label>
+                                        <input
+                                          type="text"
+                                          required
+                                          placeholder="Enter reference number"
+                                          value={paymentRefs[task.id] || ""}
+                                          onChange={(e) => setPaymentRefs(prev => ({ ...prev, [task.id]: e.target.value }))}
+                                          className="custom-ring w-full px-3 py-1.5 rounded border border-surface-container-high bg-surface-container-lowest font-body-sm text-xs text-on-surface outline-none"
+                                        />
+                                      </div>
+                                      <button
+                                        onClick={() => handleSubmitTask(task.id, task.type)}
+                                        disabled={submittingTaskId === task.id}
+                                        className="px-3.5 py-1.5 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded shadow transition-all disabled:opacity-50 flex items-center gap-1"
+                                      >
+                                        <UploadCloud size={13} /> {submittingTaskId === task.id ? "Submitting..." : "Submit Receipt"}
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {task.type === "SURVEY" && (
+                                    <div className="space-y-3 bg-surface-container-lowest/60 p-3 rounded-lg border border-surface-container-high">
+                                      {(() => {
+                                        const questions = task.surveyQuestions 
+                                          ? (typeof task.surveyQuestions === 'string' ? JSON.parse(task.surveyQuestions) : task.surveyQuestions)
+                                          : [];
+                                        return questions.map((q: any) => (
+                                          <div key={q.id} className="space-y-1">
+                                            <label className="block text-xs font-bold text-on-surface">{q.label}</label>
+                                            {q.questionType === "multiple_choice" ? (
+                                              <div className="flex flex-wrap gap-3 mt-1.5">
+                                                {(q.options || []).map((opt: string) => (
+                                                  <label key={opt} className="inline-flex items-center gap-1.5 text-xs text-on-surface cursor-pointer">
+                                                    <input
+                                                      type="radio"
+                                                      name={`${task.id}-${q.id}`}
+                                                      value={opt}
+                                                      checked={surveyForms[task.id]?.[q.id] === opt}
+                                                      onChange={() => setSurveyForms(prev => ({
+                                                        ...prev,
+                                                        [task.id]: { ...(prev[task.id] || {}), [q.id]: opt }
+                                                      }))}
+                                                      className="text-primary focus:ring-primary"
+                                                    />
+                                                    {opt}
+                                                  </label>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <input
+                                                type="text"
+                                                required
+                                                placeholder="Enter answer"
+                                                value={surveyForms[task.id]?.[q.id] || ""}
+                                                onChange={(e) => setSurveyForms(prev => ({
+                                                  ...prev,
+                                                  [task.id]: { ...(prev[task.id] || {}), [q.id]: e.target.value }
+                                                }))}
+                                                className="custom-ring w-full px-3 py-1.5 rounded border border-surface-container-high bg-surface-container-lowest font-body-sm text-xs text-on-surface outline-none"
+                                              />
+                                            )}
+                                          </div>
+                                        ));
+                                      })()}
+                                      <button
+                                        onClick={() => handleSubmitTask(task.id, task.type)}
+                                        disabled={submittingTaskId === task.id}
+                                        className="px-3.5 py-1.5 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded shadow transition-all disabled:opacity-50 flex items-center gap-1"
+                                      >
+                                        <Check size={13} /> {submittingTaskId === task.id ? "Submitting..." : "Submit Survey"}
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {task.type === "ACKNOWLEDGMENT" && (
+                                    <div className="space-y-3 bg-surface-container-lowest/60 p-3 rounded-lg border border-surface-container-high">
+                                      <p className="text-xs text-secondary leading-relaxed bg-surface-container-high/20 p-2.5 rounded border border-surface-container-high">
+                                        {task.acknowledgmentText || 'I confirm that I have fulfilled this requirement.'}
+                                      </p>
+                                      <label className="flex items-center gap-2 text-xs font-bold text-on-surface cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={!!acknowledgedFlags[task.id]}
+                                          onChange={(e) => setAcknowledgedFlags(prev => ({ ...prev, [task.id]: e.target.checked }))}
+                                          className="rounded text-primary focus:ring-primary h-4 w-4"
+                                        />
+                                        I confirm and agree to this statement.
+                                      </label>
+                                      <button
+                                        onClick={() => handleSubmitTask(task.id, task.type)}
+                                        disabled={submittingTaskId === task.id}
+                                        className="px-3.5 py-1.5 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded shadow transition-all disabled:opacity-50 flex items-center gap-1"
+                                      >
+                                        <Check size={13} /> {submittingTaskId === task.id ? "Submitting..." : "Confirm & Submit"}
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {(task.type === "MANUAL" || !task.type) && (
+                                    <div className="flex items-center gap-2 p-2 bg-surface-container-low rounded-lg border border-surface-container-high">
+                                      <div className="w-4 h-4 rounded-[4px] border border-outline-variant bg-surface-container-lowest shrink-0" />
+                                      <span className="text-xs text-secondary font-medium">Waiting for office to clear manually.</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            // EVALUATOR VIEW
+                            <div className="space-y-2 pt-2 border-t border-dashed border-surface-container-high text-xs">
+                              {task.type === "MANUAL" || !task.type ? (
+                                <div 
+                                  className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-surface-container-high/50 select-none"
+                                  onClick={() => handleOfficeManualToggle(idx)}
+                                >
+                                  <div className={`w-4 h-4 rounded-[4px] flex items-center justify-center border transition-colors shrink-0 ${
+                                    completedTasks.includes(idx) 
+                                      ? "bg-primary border-primary text-white" 
+                                      : "border-outline-variant bg-surface-container-lowest text-transparent"
+                                  }`}>
+                                    <Check size={12} strokeWidth={4} />
+                                  </div>
+                                  <span className={`text-xs block ${completedTasks.includes(idx) ? "text-secondary line-through font-medium" : "text-on-surface font-semibold"}`}>
+                                    Mark as completed (Manual)
+                                  </span>
+                                </div>
+                              ) : sub ? (
+                                <div className="space-y-3 bg-surface p-3 rounded-lg border border-surface-container-high">
+                                  <div className="flex justify-between items-center text-[10px] text-secondary border-b border-surface-container-high pb-1.5">
+                                    <span>Submitted {new Date(sub.submittedAt).toLocaleDateString()}</span>
+                                    <span className={`font-bold uppercase tracking-wider ${
+                                      subStatus === "approved" ? "text-green-600" :
+                                      subStatus === "rejected" ? "text-red-600" : "text-blue-600"
+                                    }`}>
+                                      {subStatus}
+                                    </span>
+                                  </div>
+
+                                  {/* Display submissions info */}
+                                  {task.type === "DOCUMENT_UPLOAD" && (() => { const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
+                                    <div>
+                                      {urls.map((url, fIdx) => (
+                                        <a
+                                          key={fIdx}
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 text-primary hover:underline font-bold"
+                                        >
+                                          <FileText size={14} /> Download Student Document
+                                        </a>
+                                      ))}
+                                    </div>
+                                  ); })()}
+
+                                  {task.type === "PAYMENT_PROOF" && (
+                                    <div className="space-y-2">
+                                      <div className="flex justify-between">
+                                        <span className="font-semibold text-secondary">OR/Reference No:</span>
+                                        <span className="font-bold text-on-surface">{sub.paymentReference}</span>
+                                      </div>
+                                       {(() => { const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
+                                        <div>
+                                           {urls.map((url, fIdx) => (
+                                             <a
+                                               key={fIdx}
+                                               href={url}
+                                               target="_blank"
+                                               rel="noopener noreferrer"
+                                               className="flex items-center gap-1.5 text-primary hover:underline font-bold"
+                                             >
+                                               <FileText size={14} /> Download Receipt File
+                                             </a>
+                                           ))}
+                                         </div>
+                                       ); })()}
+                                    </div>
+                                  )}
+
+                                  {task.type === "SURVEY" && (
+                                    <div className="space-y-2">
+                                      <span className="font-semibold text-secondary block">Survey Answers:</span>
+                                      <div className="space-y-2 pl-2 border-l-2 border-outline-variant bg-surface-container-low/30 p-2 rounded">
+                                        {(sub.surveyAnswers as any[] || []).map((ans: any, aIdx: number) => {
+                                          const q = (task.surveyQuestions as any[] || []).find(x => x.id === ans.questionId);
+                                          return (
+                                            <div key={aIdx} className="space-y-0.5 border-b border-surface-container-high last:border-b-0 pb-1 last:pb-0">
+                                              <span className="font-bold text-on-surface block">{q?.label || 'Question'}:</span>
+                                              <span className="text-secondary block leading-snug">{ans.answer}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {task.type === "ACKNOWLEDGMENT" && (
+                                    <div className="flex items-center gap-2 text-green-600 bg-green-50 px-2 py-1 rounded border border-green-100 font-bold">
+                                      <Check size={14} strokeWidth={3} /> Confirmed acknowledgment box checked.
+                                    </div>
+                                  )}
+
+                                  {/* Approve / Reject Evaluation Buttons */}
+                                  {subStatus === "pending" && (
+                                    <div className="flex gap-2 pt-1.5 border-t border-surface-container-high">
+                                      <button
+                                        onClick={() => handleEvaluateSubmission(sub.id, "approved")}
+                                        className="flex-1 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded font-bold transition-all shadow flex items-center justify-center gap-1"
+                                      >
+                                        <Check size={12} strokeWidth={3} /> Approve
+                                      </button>
+                                      <button
+                                        onClick={() => handleEvaluateSubmission(sub.id, "rejected")}
+                                        className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded font-bold transition-all shadow flex items-center justify-center gap-1"
+                                      >
+                                        <X size={12} strokeWidth={3} /> Reject
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {subStatus === "rejected" && (
+                                    <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
+                                      <span className="font-bold">Rejected Note:</span> {sub.reviewNotes}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-secondary italic p-2 bg-surface-container rounded border border-dashed border-outline-variant">
+                                  No submission received yet.
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Submit All Button for Student (if all checked but status is still Pending/Rejected) */}
-              {!isSysAdminView && !isFullyComplete && completedTasks.length === tasks.length && (
-                <div className="pt-2">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onStatusChange("Submitted", { uploadedFiles, completedTasks }); }}
-                    className="w-full py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 hover:bg-primary-dark transition-all active:scale-95"
-                  >
-                    Submit Requirements for Review
-                  </button>
-                </div>
-              )}
-
-              {/* SysAdmin Evaluation Buttons */}
-              {isSysAdminView && item.status === "Submitted" && (
-                <div className="pt-3 mt-3 border-t border-surface-container-low flex flex-col gap-2">
-                  <span className="text-[11px] font-bold text-secondary uppercase tracking-wider">Evaluate Submission</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        onStatusChange("Cleared", { remarks: "", dateCleared: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) } as any); 
-                      }}
-                      className="flex-1 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded shadow-sm transition-colors"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        const remark = prompt("Please provide a remark for rejection:");
-                        if (remark) {
-                          onStatusChange("Rejected", { remarks: remark });
-                        }
-                      }}
-                      className="flex-1 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded shadow-sm transition-colors"
-                    >
-                      Reject
-                    </button>
+                      );
+                    })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Remarks & Clearance Date */}
               {(item.remarks || (item.status === "Cleared" && item.dateCleared)) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mt-2 border-t border-surface-container-low">
-                  {item.remarks && (
+                  {/* Only show remarks when not cleared — cleared remarks are stale progress messages */}
+                  {item.remarks && item.status !== "Cleared" && (
                     <div>
                       <span className="text-[10px] font-bold text-secondary uppercase tracking-wider block mb-1">Remarks</span>
                       <p className="text-[12px] text-red-700 font-medium bg-red-50 px-3 py-1.5 rounded border border-red-100 inline-block leading-snug">
@@ -270,20 +715,23 @@ function ClearanceItemRow({ item, isLast, isSysAdminView, onStatusChange, tasks 
           )}
         </div>
       </div>
-      
-      {/* Hidden File Input */}
-      <input 
-        type="file" 
-        className="hidden" 
-        ref={fileInputRef} 
-        onChange={handleFileUpload} 
-        accept=".pdf,.doc,.docx,.jpg,.png"
-      />
     </div>
   );
 }
 
-export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }: { targetStudentId?: string, isSysAdminView?: boolean }) {
+export function ClearanceStatusView({
+  targetStudentId,
+  isSysAdminView = false,
+  viewingOfficeId,
+  viewingOrgId,
+  viewingDeptId,
+}: {
+  targetStudentId?: string;
+  isSysAdminView?: boolean;
+  viewingOfficeId?: number;
+  viewingOrgId?: number;
+  viewingDeptId?: number;
+}) {
   const [student, setStudent] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentEntityId, setCurrentEntityId] = useState<number | null>(null);
@@ -291,6 +739,17 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
   const [officeReqs, setOfficeReqs] = useState<Record<number, any[]>>({});
   const [orgReqs, setOrgReqs] = useState<Record<number, any[]>>({});
   const [deptReqs, setDeptReqs] = useState<Record<number, any[]>>({});
+  const [triggerSync, setTriggerSync] = useState(0);
+
+  useEffect(() => {
+    const handleSync = () => {
+      setTriggerSync(prev => prev + 1);
+    };
+    window.addEventListener("clearanceRecordsUpdated", handleSync);
+    return () => {
+      window.removeEventListener("clearanceRecordsUpdated", handleSync);
+    };
+  }, []);
 
   useEffect(() => {
     // Load current user role context
@@ -304,7 +763,7 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
       setCurrentEntityId(Number(localStorage.getItem("departmentId")));
     }
 
-    // Load dynamic requirements configurations
+    // Load dynamic requirements configurations fallback
     const storedOfficeReqs = localStorage.getItem("officeRequirements");
     setOfficeReqs(storedOfficeReqs ? JSON.parse(storedOfficeReqs) : defaultOfficeRequirements);
 
@@ -314,93 +773,65 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
     const storedDeptReqs = localStorage.getItem("departmentRequirements");
     setDeptReqs(storedDeptReqs ? JSON.parse(storedDeptReqs) : defaultDepartmentRequirements);
 
-    // Load student profile
-    const storedStudents = localStorage.getItem("students");
-    const studentsList = storedStudents ? JSON.parse(storedStudents) : mockStudents;
-    
-    // Check if studentId is passed in URL or props
+    // Load student profile from DB (not localStorage)
     let resolvedId = targetStudentId;
     if (!resolvedId) {
       const params = new URLSearchParams(window.location.search);
-      resolvedId = params.get("studentId") || localStorage.getItem("activeStudentId") || "2021-0492";
+      const cookieStudentId = document.cookie
+        .split("; ")
+        .find(c => c.startsWith("activeStudentId="))
+        ?.split("=")[1];
+      resolvedId = params.get("studentId") || localStorage.getItem("activeStudentId") || cookieStudentId || "";
     }
     
-    const currentStudent = studentsList.find((s: any) => s.id === resolvedId) || studentsList[0];
-    setStudent(currentStudent);
+    if (!resolvedId) return;
 
-    // Load base requirements
-    const storedReqs = localStorage.getItem("requirements");
-    const reqsList = storedReqs ? JSON.parse(storedReqs) : mockRequirements;
-    
-    // Filter base offices (orgs are dynamic per student)
-    const baseOffices = reqsList.filter((r: any) => r.type === "office");
-
-    // Dynamically build org requirements for this student
-    const studentOrgs = mockOrgMembers
-      .filter((m) => m.studentId === currentStudent.id)
-      .map((m) => mockOrgs.find((o) => o.id === m.orgId))
-      .filter(Boolean);
-
-    const dynamicOrgs = studentOrgs.map((org: any) => ({
-      id: org.id, // Using orgId directly so mapping works
-      name: "Org Membership Clearance",
-      responsible: org.name,
-      type: "org",
-      status: "Pending",
-      dateCleared: null,
-      remarks: "",
-    }));
-
-    // Dynamically build department requirement for this student
-    const studentDept = mockDepartments.find((d: any) => d.abbreviation === currentStudent.department);
-    const dynamicDepts = studentDept ? [{
-      id: studentDept.id,
-      name: "Department Clearance",
-      responsible: studentDept.name,
-      type: "department",
-      status: "Pending",
-      dateCleared: null,
-      remarks: "",
-    }] : [];
-
-    const combinedReqs = [...baseOffices, ...dynamicOrgs, ...dynamicDepts];
-
-    // Load student clearance records (dynamic from Head Office)
-    let storedRecords = localStorage.getItem("studentClearanceRecords");
-    if (!storedRecords) {
-      localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
-      storedRecords = JSON.stringify(mockStudentClearanceRecords);
-    }
-    const records = JSON.parse(storedRecords);
-    const studentRecords = records[currentStudent.id] || [];
-
-    // Merge base requirements with actual student clearance status
-    const mergedReqs = combinedReqs.map((req: any) => {
-      const matchingRecord = studentRecords.find((r: any) => 
-        (req.type === "office" && r.officeId === req.id) || 
-        (req.type === "org" && r.orgId === req.id) ||
-        (req.type === "department" && r.departmentId === req.id)
-      );
-      
-      if (matchingRecord) {
-        return {
-          ...req,
-          status: matchingRecord.status || "Pending",
-          dateCleared: matchingRecord.dateCleared,
-          remarks: matchingRecord.remarks,
-          uploadedFiles: matchingRecord.uploadedFiles,
-          completedTasks: matchingRecord.completedTasks
-        };
-      }
-      
-      return {
-        ...req,
-        status: req.status || "Pending",
-      };
+    // Fetch student profile from the DB API
+    clearanceService.getStudentById(resolvedId).then(currentStudent => {
+      if (currentStudent) setStudent(currentStudent);
     });
 
-    setRequirements(mergedReqs);
-  }, [targetStudentId]);
+    const loadData = async () => {
+      try {
+        const mergedReqs = await clearanceService.getStudentRequirements(resolvedId);
+        setRequirements(mergedReqs);
+      } catch (err) {
+        console.error("Failed to load student requirements from DB, falling back to mock", err);
+        // Fallback mock logic
+        const baseOffices = mockRequirements.filter((r: any) => r.type === "office");
+        const studentOrgs = mockOrgMembers
+          .filter((m) => m.studentId === currentStudent.id)
+          .map((m) => mockOrgs.find((o) => o.id === m.orgId))
+          .filter(Boolean);
+
+        const dynamicOrgs = studentOrgs.map((org: any) => ({
+          id: org.id,
+          name: "Org Membership Clearance",
+          responsible: org.name,
+          type: "org",
+          status: "Pending",
+          dateCleared: null,
+          remarks: "",
+        }));
+
+        const studentDept = mockDepartments.find((d: any) => d.abbreviation === currentStudent.department);
+        const dynamicDepts = studentDept ? [{
+          id: studentDept.id,
+          name: "Department Clearance",
+          responsible: studentDept.name,
+          type: "department",
+          status: "Pending",
+          dateCleared: null,
+          remarks: "",
+        }] : [];
+
+        const combinedReqs = [...baseOffices, ...dynamicOrgs, ...dynamicDepts];
+        setRequirements(combinedReqs as any);
+      }
+    };
+
+    loadData();
+  }, [targetStudentId, triggerSync]);
 
   const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
     setRequirements(prev => {
@@ -463,8 +894,21 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
   let orgsClubs = requirements.filter((req) => req.type === "org");
   let departments = requirements.filter((req) => req.type === "department");
 
-  // Only show the requirements for the logged in entity's portal
-  if (currentUserRole === "head-office" && currentEntityId) {
+  // Explicit props take highest precedence (used when an office/dept/org views a student's detail).
+  // Falls back to the localStorage role for dev-bypass sessions.
+  if (viewingOfficeId) {
+    headOffices = headOffices.filter(req => req.id === viewingOfficeId);
+    orgsClubs = [];
+    departments = [];
+  } else if (viewingOrgId) {
+    orgsClubs = orgsClubs.filter(req => req.id === viewingOrgId);
+    headOffices = [];
+    departments = [];
+  } else if (viewingDeptId) {
+    departments = departments.filter(req => req.id === viewingDeptId);
+    headOffices = [];
+    orgsClubs = [];
+  } else if (currentUserRole === "head-office" && currentEntityId) {
     headOffices = headOffices.filter(req => req.id === currentEntityId);
     orgsClubs = [];
     departments = [];
@@ -488,6 +932,8 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
     );
   };
 
+  const isOfficeView = !!(viewingOfficeId || viewingOrgId || viewingDeptId);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
       {/* Header Section */}
@@ -497,15 +943,15 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
             Clearance Requirements
           </h2>
           <p className="text-secondary text-body-sm flex items-center gap-2">
-            Track and complete requirements for {student.semester}
-            {isSysAdminView && (
+            {isOfficeView ? `Viewing requirements for ${student.name}` : `Track and complete requirements for ${student.semester}`}
+            {isSysAdminView && !isOfficeView && (
               <span className="px-2 py-0.5 bg-primary/10 text-primary rounded font-bold text-[10px] uppercase tracking-wider">
                 Viewing: {student.name} ({student.id})
               </span>
             )}
           </p>
         </div>
-        {isSysAdminView && (
+        {isSysAdminView && !isOfficeView && (
           <a
             href="/admin/user-management/students"
             className="flex items-center justify-center gap-2 text-sm font-bold text-secondary hover:text-primary transition-colors bg-surface-container-lowest border border-surface-container-high hover:border-primary/30 px-4 py-2 rounded-lg shadow-sm whitespace-nowrap"
@@ -516,7 +962,34 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
         )}
       </section>
 
-      {!isSysAdminView && (
+      {/* Student info card — shown to office/dept/org viewers */}
+      {isOfficeView && (
+        <div className="flex items-center gap-4 bg-surface-container-lowest border border-surface-container-high rounded-xl p-4 shadow-sm">
+          {student.avatarUrl ? (
+            <img
+              src={student.avatarUrl}
+              alt={student.name}
+              className="w-12 h-12 rounded-full object-cover border border-surface-container-highest shrink-0 shadow-sm"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold text-xl shrink-0 shadow-sm">
+              {student.name?.charAt(0) ?? "?"}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-on-surface text-base leading-tight">{student.name}</p>
+            <p className="text-xs text-secondary mt-0.5">{student.id} · {student.email}</p>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+              <span className="text-[11px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{student.program}</span>
+              <span className="text-[11px] bg-surface-container text-secondary px-2 py-0.5 rounded-full font-medium">{student.year}</span>
+              <span className="text-[11px] bg-surface-container text-secondary px-2 py-0.5 rounded-full font-medium">{student.department}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document upload instructions — student-only */}
+      {!isSysAdminView && !isOfficeView && (
         <div className="bg-primary-container/10 border border-primary-container/20 rounded-xl p-4 flex gap-3 text-on-surface">
           <div className="text-primary mt-0.5">
             <UploadCloud size={20} />
@@ -544,13 +1017,14 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
             <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
               <div className="space-y-1">
                 {headOffices.map((item, i) => {
-                  const tasks = (officeReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
+                  const tasks = item.tasks || (officeReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
                   return (
                     <ClearanceItemRow
                       key={item.id}
                       item={item}
                       isLast={i === headOffices.length - 1}
                       isSysAdminView={isSysAdminView}
+                      studentId={student?.id || ""}
                       onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                       tasks={tasks}
                     />
@@ -573,13 +1047,14 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
             <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
               <div className="space-y-1">
                 {departments.map((item, i) => {
-                  const tasks = (deptReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
+                  const tasks = item.tasks || (deptReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
                   return (
                     <ClearanceItemRow
                       key={item.id}
                       item={item}
                       isLast={i === departments.length - 1}
                       isSysAdminView={isSysAdminView}
+                      studentId={student?.id || ""}
                       onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                       tasks={tasks}
                     />
@@ -602,13 +1077,14 @@ export function ClearanceStatusView({ targetStudentId, isSysAdminView = false }:
             <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
               <div className="space-y-1">
                 {orgsClubs.map((item, i) => {
-                  const tasks = (orgReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ label: r.name, requiresUpload: r.requiresUpload }));
+                  const tasks = item.tasks || (orgReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
                   return (
                     <ClearanceItemRow
                       key={item.id}
                       item={item}
                       isLast={i === orgsClubs.length - 1}
                       isSysAdminView={isSysAdminView}
+                      studentId={student?.id || ""}
                       onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                       tasks={tasks}
                     />

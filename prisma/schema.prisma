@@ -1,0 +1,254 @@
+// generator client
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Users  (all roles — admin / head_office / department / org / student)
+// DATABASE SWAP POINT: This is the authoritative user table.
+// Replace MOCK_USERS in login/page.tsx with queries against this model.
+// ─────────────────────────────────────────────────────────────────────────────
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  googleId    String?  @unique
+  avatarUrl   String?  @db.Text
+  role        Role
+  displayName String
+  createdAt   DateTime @default(now())
+
+  // Role-specific entity links — at most one will be non-null per user
+  officeId     Int?
+  departmentId Int?
+  orgId        Int?
+  studentId    String?
+
+  office     Office?     @relation(fields: [officeId],     references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+  org        Org?        @relation(fields: [orgId],        references: [id])
+  student    Student?    @relation(fields: [studentId],    references: [id])
+}
+
+enum Role {
+  admin
+  head_office
+  department
+  org
+  student
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Students
+// ─────────────────────────────────────────────────────────────────────────────
+model Student {
+  id         String @id   // e.g. "2021-0492"
+  name       String
+  email      String @unique
+  department String
+  program    String
+  year       String
+  status     String @default("Pending")
+  semester   String
+
+  users            User[]
+  clearanceRecords ClearanceRecord[]
+  orgMemberships   OrgMember[]
+  submissions      RequirementSubmission[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Offices  (Head Offices — Registrar, Library, Guidance, etc.)
+// ─────────────────────────────────────────────────────────────────────────────
+model Office {
+  id       Int    @id @default(autoincrement())
+  name     String
+  head     String
+  email    String @unique
+  pending  Int    @default(0)
+  approved Int    @default(0)
+  rejected Int    @default(0)
+
+  users        User[]
+  requirements OfficeRequirement[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Departments  (CCIS, COE, CEDAS, …)
+// ─────────────────────────────────────────────────────────────────────────────
+model Department {
+  id           Int    @id @default(autoincrement())
+  name         String
+  abbreviation String @unique
+  head         String
+  email        String @unique
+  pending      Int    @default(0)
+  approved     Int    @default(0)
+  rejected     Int    @default(0)
+
+  users        User[]
+  requirements DepartmentRequirement[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Organisations  (Gov / LGU / AcademicClub / NonAcademicClub)
+// ─────────────────────────────────────────────────────────────────────────────
+model Org {
+  id          Int     @id @default(autoincrement())
+  name        String
+  type        String  // Gov | LGU | AcademicClub | NonAcademicClub
+  category    String
+  department  String?
+  program     String?
+  adviser     String?
+  status      String  @default("Active")
+  dateAdded   String?
+  memberCount Int     @default(0)
+
+  users        User[]
+  members      OrgMember[]
+  requirements OrgRequirement[]
+}
+
+model OrgMember {
+  id        Int    @id @default(autoincrement())
+  orgId     Int
+  studentId String
+
+  org     Org     @relation(fields: [orgId],     references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([orgId, studentId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clearance Records  — one record per (student × entity)
+// ─────────────────────────────────────────────────────────────────────────────
+model ClearanceRecord {
+  id           Int     @id @default(autoincrement())
+  studentId    String
+  officeId     Int?
+  orgId        Int?
+  departmentId Int?
+  status       String  @default("Pending") // Cleared | Pending | Rejected | Submitted
+  dateCleared  String?
+  remarks      String? @db.Text
+  uploadedFiles Json?   // { requirementId: fileUrl }
+  completedTasks Json? // number[]
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  // Each (student, entity) pair is unique
+  @@unique([studentId, officeId])
+  @@unique([studentId, orgId])
+  @@unique([studentId, departmentId])
+  @@index([studentId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Requirements  (per office / department / org)
+// ─────────────────────────────────────────────────────────────────────────────
+model OfficeRequirement {
+  id                 String          @id @default(uuid())
+  officeId           Int
+  name               String
+  description        String?         @db.Text
+  linkName           String?
+  linkUrl            String?
+  addedDate          String
+  status             String          @default("Draft") // Live | Draft
+  appliesTo          Json            // string[]
+  deadline           String?
+  requiresUpload     Boolean         @default(false)
+  type               RequirementType @default(MANUAL)
+  surveyQuestions    Json?           // JSON array of survey questions
+  acknowledgmentText String?         @db.Text
+
+  office Office @relation(fields: [officeId], references: [id])
+
+  @@index([officeId])
+}
+
+model DepartmentRequirement {
+  id                 String          @id @default(uuid())
+  departmentId       Int
+  name               String
+  description        String?         @db.Text
+  linkName           String?
+  linkUrl            String?
+  addedDate          String
+  status             String          @default("Draft")
+  appliesTo          Json
+  deadline           String?
+  requiresUpload     Boolean         @default(false)
+  type               RequirementType @default(MANUAL)
+  surveyQuestions    Json?
+  acknowledgmentText String?         @db.Text
+
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@index([departmentId])
+}
+
+model OrgRequirement {
+  id                 String          @id @default(uuid())
+  orgId              Int
+  name               String
+  description        String?         @db.Text
+  linkName           String?
+  linkUrl            String?
+  addedDate          String
+  status             String          @default("Draft")
+  appliesTo          Json
+  deadline           String?
+  requiresUpload     Boolean         @default(false)
+  type               RequirementType @default(MANUAL)
+  surveyQuestions    Json?
+  acknowledgmentText String?         @db.Text
+
+  org Org @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Submissions
+// ─────────────────────────────────────────────────────────────────────────────
+model RequirementSubmission {
+  id               String           @id @default(uuid())
+  requirementId    String
+  studentId        String
+  type             RequirementType
+  uploadedFileUrls Json             // string[]
+  paymentReference String?          // For PAYMENT_PROOF
+  surveyAnswers    Json             // Array of { questionId: string, answer: string }
+  acknowledged     Boolean          @default(false)
+  submittedAt      DateTime         @default(now())
+  status           SubmissionStatus @default(pending)
+  reviewedBy       String?
+  reviewNotes      String?          @db.Text
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, requirementId])
+  @@index([requirementId])
+  @@index([studentId])
+}
+
+enum RequirementType {
+  DOCUMENT_UPLOAD
+  PAYMENT_PROOF
+  SURVEY
+  ACKNOWLEDGMENT
+  MANUAL
+}
+
+enum SubmissionStatus {
+  pending
+  approved
+  rejected
+}

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SettingsProvider } from "@/components/contexts/SettingsContext";
+import { AuthProvider } from "@/components/contexts/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -31,10 +32,12 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={`${inter.className} h-full`}>
-        <SettingsProvider>
-          {children}
-        </SettingsProvider>
+      <body className={`${inter.className} h-full`} suppressHydrationWarning>
+        <AuthProvider>
+          <SettingsProvider>
+            {children}
+          </SettingsProvider>
+        </AuthProvider>
       </body>
     </html>
   );

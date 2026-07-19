@@ -1,353 +1,340 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { mockOrgs, mockOffices, mockDepartments } from "@/mock/mockData";
-import { mockStudents as mockStudentsList } from "@/mock/mockStudents";
-
-// Role options for mock login
-const ROLES = [
-  { value: "admin", label: "System Admin" },
-  { value: "department", label: "Department Head" },
-  { value: "head-office", label: "Head Office" },
-  { value: "org", label: "Org / Club Officer" },
-  { value: "student", label: "Student" },
-];
-
-// Role → dashboard route mapping
-const ROLE_ROUTES: Record<string, string> = {
-  admin: "/admin/dashboard",
-  department: "/department/dashboard",
-  "head-office": "/head-office/dashboard",
-  org: "/org/dashboard",
-  student: "/student/dashboard",
-};
+import { useState, useEffect } from "react";
+import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState("");
-  const [selectedOrgId, setSelectedOrgId] = useState("");
-  const [selectedOfficeId, setSelectedOfficeId] = useState("");
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
-  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const searchParams = useSearchParams();
+  const errorParam = searchParams.get("error");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (!selectedRole) {
-      setError("Please select a role to continue.");
-      return;
+  // Developer Bypass States
+  const [devRole, setDevRole] = useState("student");
+  const [selectedOfficeId, setSelectedOfficeId] = useState("1");
+  const [selectedDeptId, setSelectedDeptId] = useState("1");
+  const [selectedOrgId, setSelectedOrgId] = useState("1");
+  const [devOpen, setDevOpen] = useState(false);
+
+  // Debug Reset States
+  const [resetStudentId, setResetStudentId] = useState("__all__");
+  const [resetStatus, setResetStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
+
+  useEffect(() => {
+    const keys = ["dev-role-override", "dev-entityId-override", "role", "officeId", "departmentId", "orgId", "activeStudentId", "displayName"];
+    keys.forEach(key => {
+      localStorage.removeItem(key);
+      document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`;
+    });
+    if (errorParam) {
+      if (errorParam === "AccessDenied") {
+        const domain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN || "g.cjc.edu.ph";
+        setError(`Access denied. Only @${domain} Google accounts are allowed to sign in.`);
+      } else if (errorParam === "Configuration") {
+        setError("Database or authentication server configuration error. Please contact IT support.");
+      } else {
+        setError("An error occurred during authentication. Please try again.");
+      }
     }
+  }, [errorParam]);
 
-    if (selectedRole === "org") {
-      if (!selectedOrgId) {
-        setError("Please select an organization to continue.");
-        return;
-      }
-      localStorage.setItem("orgId", selectedOrgId);
-      document.cookie = `orgId=${selectedOrgId}; path=/; max-age=86400`;
-      localStorage.removeItem("officeId");
-      localStorage.removeItem("departmentId");
-      localStorage.removeItem("activeStudentId");
-      document.cookie = "officeId=; path=/; max-age=0";
-      document.cookie = "departmentId=; path=/; max-age=0";
-      document.cookie = "activeStudentId=; path=/; max-age=0";
-    } else if (selectedRole === "head-office") {
-      if (!selectedOfficeId) {
-        setError("Please select a Head Office to continue.");
-        return;
-      }
-      localStorage.setItem("officeId", selectedOfficeId);
-      document.cookie = `officeId=${selectedOfficeId}; path=/; max-age=86400`;
-      localStorage.removeItem("orgId");
-      localStorage.removeItem("departmentId");
-      localStorage.removeItem("activeStudentId");
-      document.cookie = "orgId=; path=/; max-age=0";
-      document.cookie = "departmentId=; path=/; max-age=0";
-      document.cookie = "activeStudentId=; path=/; max-age=0";
-    } else if (selectedRole === "department") {
-      if (!selectedDepartmentId) {
-        setError("Please select a Department to continue.");
-        return;
-      }
-      localStorage.setItem("departmentId", selectedDepartmentId);
-      document.cookie = `departmentId=${selectedDepartmentId}; path=/; max-age=86400`;
-      localStorage.removeItem("orgId");
-      localStorage.removeItem("officeId");
-      localStorage.removeItem("activeStudentId");
-      document.cookie = "orgId=; path=/; max-age=0";
-      document.cookie = "officeId=; path=/; max-age=0";
-      document.cookie = "activeStudentId=; path=/; max-age=0";
-    } else if (selectedRole === "student") {
-      if (!selectedStudentId) {
-        setError("Please select a Student to continue.");
-        return;
-      }
-      localStorage.setItem("activeStudentId", selectedStudentId);
-      document.cookie = `activeStudentId=${selectedStudentId}; path=/; max-age=86400`;
-      localStorage.removeItem("orgId");
-      localStorage.removeItem("officeId");
-      localStorage.removeItem("departmentId");
-      document.cookie = "orgId=; path=/; max-age=0";
-      document.cookie = "officeId=; path=/; max-age=0";
-      document.cookie = "departmentId=; path=/; max-age=0";
-    } else {
-      localStorage.removeItem("orgId");
-      localStorage.removeItem("officeId");
-      localStorage.removeItem("departmentId");
-      localStorage.removeItem("activeStudentId");
-      document.cookie = "orgId=; path=/; max-age=0";
-      document.cookie = "officeId=; path=/; max-age=0";
-      document.cookie = "departmentId=; path=/; max-age=0";
-      document.cookie = "activeStudentId=; path=/; max-age=0";
+  const handleGoogleLogin = async () => {
+    setError("");
+    setIsLoading(true);
+    try {
+      await signIn("google", { callbackUrl: "/" });
+    } catch (err) {
+      console.error("Google sign in trigger failed:", err);
+      setError("Failed to initialize Google sign in. Please refresh and try again.");
+      setIsLoading(false);
     }
+  };
 
-    // Save role to localStorage AND cookie (cookie is read by middleware RoleGuard)
-    localStorage.setItem("role", selectedRole);
-    document.cookie = `role=${selectedRole}; path=/; max-age=86400`;
+  const handleDevBypass = () => {
+    let entityId = "";
+    if (devRole === "student") entityId = "2021-0492";
+    else if (devRole === "head-office") entityId = selectedOfficeId;
+    else if (devRole === "department") entityId = selectedDeptId;
+    else if (devRole === "org") entityId = selectedOrgId;
 
-    // Redirect to role's dashboard
-    router.push(ROLE_ROUTES[selectedRole]);
+    document.cookie = `dev-role-override=${devRole}; path=/; max-age=86400`;
+    document.cookie = `dev-entityId-override=${entityId}; path=/; max-age=86400`;
+    document.cookie = `role=${devRole}; path=/; max-age=86400`;
+
+    if (devRole === "head-office") {
+      document.cookie = `officeId=${entityId}; path=/; max-age=86400`;
+      localStorage.setItem("officeId", entityId);
+    } else if (devRole === "department") {
+      document.cookie = `departmentId=${entityId}; path=/; max-age=86400`;
+      localStorage.setItem("departmentId", entityId);
+    } else if (devRole === "org") {
+      document.cookie = `orgId=${entityId}; path=/; max-age=86400`;
+      localStorage.setItem("orgId", entityId);
+    } else if (devRole === "student") {
+      document.cookie = `activeStudentId=${entityId}; path=/; max-age=86400`;
+      localStorage.setItem("activeStudentId", entityId);
+    }
+    localStorage.setItem("role", devRole);
+
+    const redirectUrls: Record<string, string> = {
+      admin: "/admin/dashboard",
+      "head-office": "/head-office/dashboard",
+      department: "/department/dashboard",
+      org: "/org/dashboard",
+      student: "/student/dashboard",
+    };
+    window.location.href = redirectUrls[devRole] || "/login";
+  };
+
+  const handleDebugReset = async () => {
+    const label = resetStudentId === "__all__" ? "ALL students" : `student ${resetStudentId}`;
+    if (!confirm(`⚠️ Reset clearance data for ${label}?\n\nThis will:\n• Delete all file submissions\n• Remove uploaded files from disk\n• Reset all clearance statuses to Pending\n\nThis cannot be undone.`)) return;
+
+    setIsResetting(true);
+    setResetStatus(null);
+    try {
+      const body = resetStudentId === "__all__" ? {} : { studentId: resetStudentId };
+      const res = await fetch("/api/debug/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Reset failed");
+      setResetStatus({ type: "success", message: data.message });
+    } catch (err: any) {
+      setResetStatus({ type: "error", message: err.message || "Reset failed. Check server logs." });
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
     <div className="h-full flex items-center justify-center p-4 sm:p-0">
-      <div className="w-full max-w-md bg-surface-container-lowest rounded-xl shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1)] border border-surface-container-high overflow-hidden">
+      <div className="w-full max-w-md space-y-4">
 
-        {/* Header */}
-        <div className="px-8 pt-10 pb-6 text-center border-b border-surface-container-high bg-surface-bright">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-surface-container-low mb-4 text-primary">
-            <span className="material-symbols-outlined" style={{ fontSize: "28px" }}>
-              school
-            </span>
-          </div>
-          <h1 className="font-headline-lg text-headline-lg text-on-surface mb-2">
-            Clearance System
-          </h1>
-          <p className="font-body-md text-body-md text-secondary">
-            Sign in to access the clearance system
-          </p>
-        </div>
-
-        {/* Form */}
-        <div className="px-8 py-8 space-y-6">
-
-          {/* Role Selector — Mock auth only, replace with real login later */}
-          <div className="space-y-2">
-            <label
-              htmlFor="role"
-              className="block font-body-sm text-body-sm text-on-surface font-medium"
-            >
-              Select your role
-            </label>
-            <select
-              id="role"
-              value={selectedRole}
-              onChange={(e) => {
-                setSelectedRole(e.target.value);
-                setSelectedOrgId("");
-                setSelectedOfficeId("");
-                setSelectedDepartmentId("");
-                setSelectedStudentId("");
-                setError("");
-              }}
-              className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
-            >
-              <option value="" disabled>
-                Choose a role...
-              </option>
-              {ROLES.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </select>
+        {/* ── Main Login Card ── */}
+        <div className="bg-surface-container-lowest rounded-xl shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1)] border border-surface-container-high overflow-hidden">
+          <div className="px-8 pt-10 pb-6 text-center border-b border-surface-container-high bg-surface-bright">
+            <img
+              src="/images/logos/cjc-logo.webp"
+              alt="Cor Jesu College Logo"
+              className="h-16 w-16 object-contain rounded-full shadow-sm mx-auto mb-4"
+            />
+            <h1 className="font-headline-lg text-headline-lg text-on-surface mb-2">Clearance System</h1>
+            <p className="font-body-md text-body-md text-secondary">Cor Jesu College Portal</p>
           </div>
 
-          {/* Org Selector — Shown only if role is Org Officer */}
-          {selectedRole === "org" && (
-            <div className="space-y-2">
-              <label
-                htmlFor="org"
-                className="block font-body-sm text-body-sm text-on-surface font-medium"
-              >
-                Select your organization
-              </label>
-              <select
-                id="org"
-                value={selectedOrgId}
-                onChange={(e) => {
-                  setSelectedOrgId(e.target.value);
-                  setError("");
-                }}
-                className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
-              >
-                <option value="" disabled>
-                  Choose an organization...
-                </option>
-                {mockOrgs.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name} ({org.category} {org.type === "LGU" ? "LGU" : "Club"})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="px-8 py-10 space-y-6">
+            <p className="text-center text-body-md text-on-surface font-medium">
+              Please sign in with your institutional Google account to continue.
+            </p>
 
-          {/* Head Office Selector — Shown only if role is Head Office */}
-          {selectedRole === "head-office" && (
-            <div className="space-y-2">
-              <label
-                htmlFor="office"
-                className="block font-body-sm text-body-sm text-on-surface font-medium"
-              >
-                Select Head Office
-              </label>
-              <select
-                id="office"
-                value={selectedOfficeId}
-                onChange={(e) => {
-                  setSelectedOfficeId(e.target.value);
-                  setError("");
-                }}
-                className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
-              >
-                <option value="" disabled>
-                  Choose an office...
-                </option>
-                {mockOffices.map((office) => (
-                  <option key={office.id} value={office.id}>
-                    {office.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+            {error && (
+              <div className="flex items-start gap-2.5 p-4 rounded-lg bg-red-50 border border-red-200">
+                <span className="material-symbols-outlined text-brand-red text-[20px] shrink-0 mt-0.5">error</span>
+                <p className="text-brand-red font-body-sm text-body-sm font-medium leading-relaxed">{error}</p>
+              </div>
+            )}
 
-          {/* Department Selector — Shown only if role is Department Head */}
-          {selectedRole === "department" && (
-            <div className="space-y-2">
-              <label
-                htmlFor="department"
-                className="block font-body-sm text-body-sm text-on-surface font-medium"
-              >
-                Select Department
-              </label>
-              <select
-                id="department"
-                value={selectedDepartmentId}
-                onChange={(e) => {
-                  setSelectedDepartmentId(e.target.value);
-                  setError("");
-                }}
-                className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
-              >
-                <option value="" disabled>
-                  Choose a department...
-                </option>
-                {mockDepartments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.name} ({dept.abbreviation})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Student Selector — Shown only if role is Student */}
-          {selectedRole === "student" && (
-            <div className="space-y-2">
-              <label
-                htmlFor="studentId"
-                className="block font-body-sm text-body-sm text-on-surface font-medium"
-              >
-                Select Student
-              </label>
-              <select
-                id="studentId"
-                value={selectedStudentId}
-                onChange={(e) => {
-                  setSelectedStudentId(e.target.value);
-                  setError("");
-                }}
-                className="custom-ring w-full px-4 py-3 rounded-md border border-surface-container-high bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none transition-colors"
-              >
-                <option value="" disabled>
-                  Choose a student...
-                </option>
-                {mockStudentsList.map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.name} ({student.id})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {error && (
-            <p className="text-error font-body-sm text-body-sm">{error}</p>
-          )}
-
-          {/* Login Button */}
-          <button
-            onClick={handleLogin}
-            className="btn-hover w-full py-3 px-4 bg-brand-red text-white rounded-md font-medium text-body-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-red"
-          >
-            Sign In
-          </button>
-
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-surface-container-high" />
-            </div>
-            <div className="relative flex justify-center text-body-sm">
-              <span className="px-2 bg-surface-container-lowest text-tertiary">
-                or
-              </span>
-            </div>
-          </div>
-
-          {/* Google Sign In — keep from Stitch, wire up later */}
-          <button
-            type="button"
-            className="w-full flex justify-center items-center gap-3 py-3 px-4 border border-surface-container-high rounded-md shadow-sm text-on-surface bg-surface-container-lowest font-medium text-body-md hover:bg-surface-bright transition-colors duration-200 focus:outline-none"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-            </svg>
-            <span>Sign in with Google</span>
-          </button>
-        </div>
-
-        {/* Footer */}
-        <div className="px-8 py-4 bg-surface-bright border-t border-surface-container-high text-center">
-          <p className="font-body-sm text-body-sm text-tertiary">
-            Secure access for authorized personnel only.{" "}
-            <br />
-            Need help?{" "}
-            <a
-              href="#"
-              className="text-secondary font-medium hover:text-brand-red transition-colors"
-            >
-              Contact IT Support
-            </a>
-          </p>
-          <div className="mt-4 pt-4 border-t border-surface-container-high">
             <button
-              onClick={() => {
-                localStorage.removeItem("studentClearanceRecords");
-                alert("Clearance records have been reset to default state.");
-              }}
-              className="text-xs text-coral-red font-medium hover:underline flex items-center justify-center gap-1 mx-auto"
-              title="Reset data for debugging purposes"
+              type="button"
+              disabled={isLoading}
+              onClick={handleGoogleLogin}
+              className="w-full flex justify-center items-center gap-3.5 py-3.5 px-4 border border-surface-container-high rounded-md shadow-sm text-on-surface bg-surface-container-lowest font-medium text-body-md hover:bg-surface-bright transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <span className="material-symbols-outlined text-sm">restart_alt</span>
-              [Debug] Reset Clearance Data
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-secondary" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <span>Connecting to Google…</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                  </svg>
+                  <span>Sign in with Google</span>
+                </>
+              )}
             </button>
           </div>
+
+          <div className="px-8 py-5 bg-surface-bright border-t border-surface-container-high text-center">
+            <p className="font-body-sm text-body-sm text-tertiary">
+              Secure access for authorized personnel only.{" "}
+              <a href="#" className="text-secondary font-medium hover:text-brand-red transition-colors">
+                Contact IT Support
+              </a>
+            </p>
+          </div>
+        </div>
+
+        {/* ── Developer Diagnostics Panel (collapsible) ── */}
+        <div className="bg-surface-container-lowest rounded-xl shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1)] border border-dashed border-outline/30 overflow-hidden">
+
+          {/* Toggle header */}
+          <button
+            type="button"
+            onClick={() => setDevOpen(o => !o)}
+            className="w-full flex items-center justify-between gap-2 px-6 py-4 hover:bg-surface-container-low transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-primary">terminal</span>
+              <span className="text-sm font-bold text-on-surface uppercase tracking-wider">Developer Diagnostics</span>
+            </div>
+            <svg
+              className={`w-4 h-4 text-secondary transition-transform duration-200 ${devOpen ? "rotate-180" : ""}`}
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            >
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          {/* Collapsible body */}
+          {devOpen && (
+            <div className="px-6 pb-6 space-y-4 border-t border-surface-container-high">
+
+              {/* Bypass Login */}
+              <div className="space-y-3 pt-4">
+                <p className="text-[11px] font-bold text-secondary uppercase tracking-wider">Bypass Login</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-secondary uppercase tracking-wider">Select Role</label>
+                    <select
+                      value={devRole}
+                      onChange={(e) => setDevRole(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest text-xs text-on-surface outline-none focus:border-primary transition-colors"
+                    >
+                      <option value="student">Student (Eleanor — 2021-0492)</option>
+                      <option value="admin">System Admin</option>
+                      <option value="head-office">Head Office</option>
+                      <option value="department">Department Head</option>
+                      <option value="org">Org / Club Adviser</option>
+                    </select>
+                  </div>
+
+                  {devRole === "head-office" && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-secondary uppercase tracking-wider">Select Office</label>
+                      <select value={selectedOfficeId} onChange={(e) => setSelectedOfficeId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest text-xs text-on-surface outline-none focus:border-primary transition-colors">
+                        <option value="1">Registrar (ID: 1)</option>
+                        <option value="2">Library (ID: 2)</option>
+                        <option value="3">Guidance Office (ID: 3)</option>
+                        <option value="4">Accounting (ID: 4)</option>
+                        <option value="5">Discipline Office (ID: 5)</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {devRole === "department" && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-secondary uppercase tracking-wider">Select Department</label>
+                      <select value={selectedDeptId} onChange={(e) => setSelectedDeptId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest text-xs text-on-surface outline-none focus:border-primary transition-colors">
+                        <option value="1">CCIS (ID: 1)</option>
+                        <option value="2">COE (ID: 2)</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {devRole === "org" && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-secondary uppercase tracking-wider">Select Org / Club</label>
+                      <select value={selectedOrgId} onChange={(e) => setSelectedOrgId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest text-xs text-on-surface outline-none focus:border-primary transition-colors">
+                        <option value="1">Computer Science Society (ID: 1)</option>
+                        <option value="6">CCIS LGU (ID: 6)</option>
+                        <option value="4">Engineering Society (ID: 4)</option>
+                        <option value="5">Student Government (ID: 5)</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDevBypass}
+                  className="w-full py-3 px-4 border border-primary/30 rounded-lg text-primary font-bold text-sm bg-primary/5 hover:bg-primary/10 hover:border-primary transition-all duration-150 flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.99]"
+                >
+                  <span className="material-symbols-outlined text-sm">flash_on</span>
+                  Bypass &amp; Sign In (Dev Override)
+                </button>
+              </div>
+
+              {/* Debug Reset */}
+              <div className="pt-3 border-t border-dashed border-red-200/60 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-red-500">delete_sweep</span>
+                  <span className="text-[11px] font-bold text-red-600 uppercase tracking-wider">
+                    Debug Reset — Clear Submissions &amp; Status
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-secondary uppercase tracking-wider">Target Student</label>
+                  <select
+                    value={resetStudentId}
+                    onChange={(e) => { setResetStudentId(e.target.value); setResetStatus(null); }}
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-red-200 bg-red-50/40 text-xs text-on-surface outline-none focus:border-red-400 transition-colors"
+                  >
+                    <option value="__all__">⚠️ All Students (Full Reset)</option>
+                    <option value="CJC-928994">CJC-928994 — GIELOU CHARLS SALUDO</option>
+                    <option value="2021-0492">2021-0492 — Eleanor Shellstrop</option>
+                    <option value="2022-1103">2022-1103 — Chidi Anagonye</option>
+                    <option value="2020-8831">2020-8831 — Tahani Al-Jamil</option>
+                    <option value="2023-0012">2023-0012 — Jason Mendoza</option>
+                    <option value="2021-5529">2021-5529 — Michael Realman</option>
+                  </select>
+                </div>
+
+                {resetStatus && (
+                  <div className={`flex items-start gap-2 p-3 rounded-lg border text-xs font-medium ${
+                    resetStatus.type === "success"
+                      ? "bg-green-50 border-green-200 text-green-700"
+                      : "bg-red-50 border-red-200 text-red-700"
+                  }`}>
+                    <span className="material-symbols-outlined text-[16px] shrink-0">
+                      {resetStatus.type === "success" ? "check_circle" : "error"}
+                    </span>
+                    {resetStatus.message}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleDebugReset}
+                  disabled={isResetting}
+                  className="w-full py-2.5 px-4 border border-red-300 rounded-lg text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 hover:border-red-400 transition-all duration-150 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
+                >
+                  {isResetting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Resetting…
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">restart_alt</span>
+                      Reset Clearance Data
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </div>
+          )}
+
         </div>
       </div>
     </div>

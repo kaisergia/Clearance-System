@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useOffices } from "@/components/contexts/OfficesContext";
 import { useDepartments } from "@/components/contexts/DepartmentsContext";
 import { mockStudents, mockOfficeHeads } from "@/mock/mockStudents";
+import { signOut, useSession } from "next-auth/react";
 
 function AddOfficeForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (data: any) => void }) {
   const [name, setName] = useState("");
@@ -187,6 +188,7 @@ const BOTTOM_NAV = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: session } = useSession();
   const { offices, setOpenAddOfficeModal, openAddOfficeModal, addOffice, deleteOffice } = useOffices();
   const { departments, setOpenAddDepartmentModal, openAddDepartmentModal, addDepartment, deleteDepartment } = useDepartments();
 
@@ -219,9 +221,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     "border-transparent text-secondary hover:text-primary hover:bg-surface-container-low";
 
   const handleLogout = () => {
-    document.cookie = "role=; path=/; max-age=0";
-    localStorage.removeItem("role");
-    router.push("/login");
+    const devKeys = ["dev-role-override", "dev-entityId-override", "role", "officeId", "departmentId", "orgId", "activeStudentId", "avatarUrl"];
+    devKeys.forEach((key) => {
+      localStorage.removeItem(key);
+      document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`;
+    });
+    signOut({ callbackUrl: "/login" });
   };
 
   return (
@@ -573,13 +578,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Admin profile footer */}
         <div className="px-md py-md border-t border-surface-container-high shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-brand-red flex items-center justify-center text-white font-bold text-sm shrink-0">
-              A
-            </div>
+            {session?.user && (session.user as any).avatarUrl ? (
+              <img
+                src={(session.user as any).avatarUrl}
+                alt={session.user.name || "Admin"}
+                className="w-9 h-9 rounded-full object-cover shrink-0"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-brand-red flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {session?.user?.name ? session.user.name.charAt(0) : "A"}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="font-label-md text-label-md text-on-surface truncate">Admin User</p>
+              <p className="font-label-md text-label-md text-on-surface truncate">
+                {session?.user?.name || "Admin User"}
+              </p>
               <p className="font-label-md text-label-md text-secondary truncate">
-                admin@clearance.edu
+                {session?.user?.email || "admin@clearance.edu"}
               </p>
             </div>
             <button

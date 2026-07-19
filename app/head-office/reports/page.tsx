@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
-import { mockOffices } from "@/mock/mockData";
 
 // Types
 interface Student {
@@ -262,12 +261,15 @@ export default function ReportsPage() {
   }, [currentTerm]);
 
   useEffect(() => {
-    const storedOfficeId = localStorage.getItem("officeId");
-    if (storedOfficeId) {
-      const oid = parseInt(storedOfficeId, 10);
-      const currentOffice = mockOffices.find((o) => o.id === oid);
-      if (currentOffice) setActiveOffice(currentOffice);
-    }
+    const loadOffice = async () => {
+      const storedOfficeId = localStorage.getItem("officeId");
+      if (storedOfficeId) {
+        const oid = parseInt(storedOfficeId, 10);
+        const currentOffice = await clearanceService.getOfficeById(oid);
+        if (currentOffice) setActiveOffice(currentOffice);
+      }
+    };
+    loadOffice();
   }, []);
 
   const [isLoading, setIsLoading] = useState(false);

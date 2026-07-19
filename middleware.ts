@@ -1,19 +1,38 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
 // Which paths each role is allowed to access
 const ROLE_ACCESS: Record<string, string> = {
   admin: "/admin",
   "head-office": "/head-office",
+  department: "/department",
   org: "/org",
   student: "/student",
 };
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Get role from cookie (set at login — more secure than localStorage for middleware)
-  const role = request.cookies.get("role")?.value;
+  // Check for developer role overrides in cookies
+  let role = request.cookies.get("dev-role-override")?.value;
+
+  if (!role) {
+    // Retrieve NextAuth JWT token to extract authenticated role
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+    role = token?.role as string | undefined;
+  }
+
+  // If user is already logged in and visits root or login page, redirect to dashboard
+  if (role && (pathname === "/" || pathname === "/login")) {
+    const allowedPath = ROLE_ACCESS[role];
+    if (allowedPath) {
+      return NextResponse.redirect(new URL(`${allowedPath}/dashboard`, request.url));
+    }
+  }
 
   // If visiting root, redirect to login
   if (pathname === "/") {
@@ -24,6 +43,7 @@ export function middleware(request: NextRequest) {
   const isProtectedRoute =
     pathname.startsWith("/admin") ||
     pathname.startsWith("/head-office") ||
+    pathname.startsWith("/department") ||
     pathname.startsWith("/org") ||
     pathname.startsWith("/student");
 

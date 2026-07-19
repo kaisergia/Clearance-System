@@ -3,33 +3,42 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import * as clearanceService from "@/services/clearanceService";
+import { signOut } from "next-auth/react";
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [student, setStudent] = useState<any>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadProfile = () => {
-      const stored = localStorage.getItem("students");
-      if (stored) {
-        const list = JSON.parse(stored);
-        const current = list.find((s: any) => s.id === "2021-0492") || list[0];
-        setStudent(current);
+    const loadProfile = async () => {
+      // DATABASE SWAP POINT: clearanceService.getStudentProfile() replaces
+      // the direct localStorage["students"] read. When a real DB is connected,
+      // this function will query the authenticated student's record.
+      const profile = await clearanceService.getStudentProfile();
+      if (profile) {
+        setStudent(profile);
       } else {
-        setStudent({ name: "Eleanor Shellstrop", email: "eleanor@uni.edu.ph" });
+        setStudent(null); // Profile unavailable — will show loading state
       }
+      setAvatarUrl(localStorage.getItem("avatarUrl"));
     };
     loadProfile();
-    // Listen for storage changes to sync layout footer immediately
+    // Re-sync if another tab/context updates the students store
     window.addEventListener("storage", loadProfile);
     return () => window.removeEventListener("storage", loadProfile);
   }, []);
 
   const handleLogout = () => {
-    document.cookie = "role=; path=/; max-age=0";
-    localStorage.removeItem("role");
-    router.push("/login");
+    // Clear developer override cookies (needed when using the dev bypass panel)
+    const devKeys = ["dev-role-override", "dev-entityId-override", "role", "officeId", "departmentId", "orgId", "activeStudentId", "avatarUrl"];
+    devKeys.forEach((key) => {
+      localStorage.removeItem(key);
+      document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`;
+    });
+    signOut({ callbackUrl: "/login" });
   };
 
   const isLinkActive = (path: string) => {
@@ -96,15 +105,23 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         <div className="px-4 mt-auto pt-4 border-t border-outline-variant">
           <div className="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold shrink-0">
-                <span>{student ? student.name.charAt(0) : "E"}</span>
-              </div>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={student ? student.name : "Profile Picture"}
+                  className="w-10 h-10 rounded-full object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold shrink-0">
+                  <span>{student ? student.name.charAt(0) : "S"}</span>
+                </div>
+              )}
               <div className="flex flex-col min-w-0">
                 <span className="font-medium text-on-surface text-body-sm leading-tight truncate w-32">
-                  {student ? student.name : "Eleanor Shellstrop"}
+                  {student ? student.name : "Loading..."}
                 </span>
                 <span className="text-secondary text-label-sm truncate w-32">
-                  {student ? student.email : "eleanor@uni.edu.ph"}
+                  {student ? student.email : "Student"}
                 </span>
               </div>
             </div>

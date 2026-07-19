@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useSettings } from "@/components/contexts/SettingsContext";
 
 import * as clearanceService from "@/services/clearanceService";
-import { mockDepartments } from "@/mock/mockData";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function DepartmentDashboard() {
@@ -43,7 +42,7 @@ export default function DepartmentDashboard() {
       const departmentId = localStorage.getItem("departmentId");
       let currentDepartment = null;
       if (departmentId) {
-        currentDepartment = mockDepartments.find((o) => o.id === Number(departmentId));
+        currentDepartment = await clearanceService.getDepartmentById(Number(departmentId));
         if (currentDepartment) setActiveDepartment(currentDepartment);
       }
 
@@ -276,6 +275,7 @@ export default function DepartmentDashboard() {
               <ClearanceStatus 
                 requirements={statusRequirements} 
                 studentId={selectedStudentForStatus.id} 
+                viewingDeptId={activeDepartment?.id}
               />
             </div>
           </div>

@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { mockOrgs, mockWeekData } from "@/mock/mockData";
-import { mockStudents } from "@/mock/mockStudents";
+import { mockWeekData } from "@/mock/mockData";
 import { useOffices } from "@/components/contexts/OfficesContext";
+import * as clearanceService from "@/services/clearanceService";
 
 export default function AdminDashboard() {
   const { offices } = useOffices();
-  const activeOrgs = mockOrgs.filter((o) => o.status === "Active").length;
-  const totalStudents = mockStudents.length;
-  const pendingClearances = mockStudents.filter((s) => s.status === "Pending").length;
-  const clearedClearances = mockStudents.filter((s) => s.status === "Cleared").length;
+
+  const [students, setStudents] = useState<any[]>([]);
+  const [orgs, setOrgs] = useState<any[]>([]);
+  useEffect(() => {
+    clearanceService.getStudents().then((s) => setStudents(s));
+    clearanceService.getOrgs().then((o) => setOrgs(o));
+  }, []);
+
+  const totalStudents = students.length;
+  const activeOrgs = orgs.filter((o) => o.status === "Active").length;
+  const pendingClearances = students.filter((s) => s.status === "Pending").length;
+  const clearedClearances = students.filter((s) => s.status === "Cleared").length;
   const clearedPct = totalStudents > 0 ? ((clearedClearances / totalStudents) * 100).toFixed(1) : "0";
 
   const STAT_CARDS = [
@@ -203,7 +211,7 @@ export default function AdminDashboard() {
           <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-md shadow-[0px_1px_3px_rgba(0,0,0,0.05)] flex-1">
             <h4 className="font-title-md text-title-md text-on-surface mb-md">Org Status</h4>
             <div className="space-y-sm">
-              {mockOrgs.slice(0, 4).map((org) => (
+              {orgs.slice(0, 4).map((org) => (
                 <div key={org.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-sm">
                     <div className="w-7 h-7 rounded bg-secondary-container text-secondary flex items-center justify-center text-xs font-bold shrink-0">

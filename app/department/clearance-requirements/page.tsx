@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AppliesToSelector } from "@/components/ui/AppliesToSelector";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
-import { defaultDepartmentRequirements, mockDepartments } from "@/mock/mockData";
+import * as clearanceService from "@/services/clearanceService";
+import { DEPARTMENTS, DEPT_PROGRAMS, YEAR_LEVELS } from "@/lib/constants";
 
 interface Requirement {
   id: string;
@@ -17,19 +18,12 @@ interface Requirement {
   appliesTo: string[];
   deadline?: string;
   requiresUpload?: boolean;
+  type?: string;
+  surveyQuestions?: any;
+  acknowledgmentText?: string;
 }
 
-const DEPARTMENTS = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
-
-const DEPT_PROGRAMS: Record<string, string[]> = {
-  CCIS: ["BS Computer Science", "BS Information Technology"],
-  COE: ["BS Civil Engineering", "BS Mechanical Engineering", "BS Electrical Engineering"],
-  CEDAS: ["BS Data Science", "BS Applied Mathematics"],
-  CHS: ["BS Nursing", "BS Pharmacy", "BS Medical Technology"],
-  CABE: ["BS Business Administration", "BS Accountancy", "BS Hospitality Management"],
-};
-
-const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+// DEPARTMENTS, DEPT_PROGRAMS, YEAR_LEVELS are imported from @/lib/constants
 
 function ExpandableAppliesTo({ appliesTo }: { appliesTo: string[] }) {
   const [expandDept, setExpandDept] = useState(false);
@@ -116,6 +110,9 @@ export default function ClearanceRequirementsPage() {
   const [linkUrl, setLinkUrl] = useState("");
   const [deadline, setDeadline] = useState("");
   const [requiresUpload, setRequiresUpload] = useState(false);
+  const [reqType, setReqType] = useState<string>("MANUAL");
+  const [surveyQuestions, setSurveyQuestions] = useState<any[]>([]);
+  const [acknowledgmentText, setAcknowledgmentText] = useState<string>("");
 
   // New Applies To States
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
@@ -124,19 +121,21 @@ export default function ClearanceRequirementsPage() {
 
   useEffect(() => {
     setMounted(true);
-    
-    const storedDepartmentId = localStorage.getItem("departmentId");
-    if (storedDepartmentId) {
-      const oid = parseInt(storedDepartmentId, 10);
-      setDepartmentId(oid);
 
-      const currentDept = mockDepartments.find((d) => d.id === oid);
-      if (currentDept) setActiveDepartment(currentDept);
-      
-      const storedDepartmentReqs = localStorage.getItem("departmentRequirements");
-      const allReqs = storedDepartmentReqs ? JSON.parse(storedDepartmentReqs) : defaultDepartmentRequirements;
-      setRequirements(allReqs[oid] || []);
-    }
+    const fetchDept = async () => {
+      const storedDepartmentId = localStorage.getItem("departmentId");
+      if (storedDepartmentId) {
+        const oid = parseInt(storedDepartmentId, 10);
+        setDepartmentId(oid);
+
+        const currentDept = await clearanceService.getDepartmentById(oid);
+        if (currentDept) setActiveDepartment(currentDept);
+
+        // DATABASE SWAP POINT: replace with DB query via clearanceService
+        clearanceService.getDepartmentRequirements(oid).then(setRequirements);
+      }
+    };
+    fetchDept();
   }, []);
 
   useEffect(() => {
@@ -162,6 +161,9 @@ export default function ClearanceRequirementsPage() {
     setSelectedYears([]);
     setDeadline("");
     setRequiresUpload(false);
+    setReqType("MANUAL");
+    setSurveyQuestions([]);
+    setAcknowledgmentText("");
     setShowNameError(false);
     setIsModalOpen(true);
   };
@@ -179,6 +181,13 @@ export default function ClearanceRequirementsPage() {
     setLinkName(req.linkName || "");
     setLinkUrl(req.linkUrl || "");
     setRequiresUpload(req.requiresUpload || false);
+    setReqType(req.type || "MANUAL");
+    setSurveyQuestions(
+      req.surveyQuestions 
+        ? (typeof req.surveyQuestions === "string" ? JSON.parse(req.surveyQuestions) : req.surveyQuestions)
+        : []
+    );
+    setAcknowledgmentText(req.acknowledgmentText || "");
 
     const depts: string[] = [];
     const progs: string[] = [];
@@ -219,12 +228,10 @@ export default function ClearanceRequirementsPage() {
     setShowConfirm(true);
   };
 
-  const saveToLocalStorage = (updatedReqs: Requirement[]) => {
+  const saveRequirements = (updatedReqs: Requirement[]) => {
     if (departmentId) {
-      const storedDepartmentReqs = localStorage.getItem("departmentRequirements");
-      const allReqs = storedDepartmentReqs ? JSON.parse(storedDepartmentReqs) : defaultDepartmentRequirements;
-      allReqs[departmentId] = updatedReqs;
-      localStorage.setItem("departmentRequirements", JSON.stringify(allReqs));
+      // DATABASE SWAP POINT: clearanceService.saveDepartmentRequirements wraps the localStorage write.
+      clearanceService.saveDepartmentRequirements(departmentId, updatedReqs);
     }
   };
 
@@ -247,11 +254,14 @@ export default function ClearanceRequirementsPage() {
               linkUrl: linkUrl ? linkUrl : undefined,
               appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
               deadline: deadline ? deadline : undefined,
-              requiresUpload,
+              requiresUpload: reqType === "DOCUMENT_UPLOAD" || reqType === "PAYMENT_PROOF",
+              type: reqType,
+              surveyQuestions: reqType === "SURVEY" ? surveyQuestions : undefined,
+              acknowledgmentText: reqType === "ACKNOWLEDGMENT" ? acknowledgmentText : undefined,
             }
             : r
         );
-        saveToLocalStorage(updated);
+        saveRequirements(updated);
         return updated;
       });
       setEditingReqId(null);
@@ -270,11 +280,14 @@ export default function ClearanceRequirementsPage() {
         status: "Draft",
         appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
         deadline: deadline ? deadline : undefined,
-        requiresUpload,
+        requiresUpload: reqType === "DOCUMENT_UPLOAD" || reqType === "PAYMENT_PROOF",
+        type: reqType,
+        surveyQuestions: reqType === "SURVEY" ? surveyQuestions : undefined,
+        acknowledgmentText: reqType === "ACKNOWLEDGMENT" ? acknowledgmentText : undefined,
       };
       setRequirements((prev) => {
         const updated = [newReq, ...prev];
-        saveToLocalStorage(updated);
+        saveRequirements(updated);
         return updated;
       });
     }
@@ -285,7 +298,7 @@ export default function ClearanceRequirementsPage() {
   const handleDeleteRequirement = (id: string) => {
     setRequirements((prev) => {
       const updated = prev.filter((r) => r.id !== id);
-      saveToLocalStorage(updated);
+      saveRequirements(updated);
       return updated;
     });
   };
@@ -295,7 +308,7 @@ export default function ClearanceRequirementsPage() {
       const updated = prev.map((r) =>
         r.id === id ? { ...r, status: (r.status === "Live" ? "Draft" : "Live") as "Live" | "Draft" } : r
       );
-      saveToLocalStorage(updated);
+      saveRequirements(updated);
       return updated;
     });
   };
@@ -517,26 +530,131 @@ export default function ClearanceRequirementsPage() {
                   isExclusiveDept={true}
                 />
 
-                {/* Upload Toggle */}
-                <div className="flex items-center justify-between p-4 border border-outline-variant rounded-xl bg-surface">
-                  <div>
-                    <h3 className="font-label-md text-sm font-bold text-on-surface">
-                      Requires Document Upload
-                    </h3>
-                    <p className="font-body-sm text-xs text-secondary mt-1">
-                      Turn this on if students need to upload a file (e.g. ID, Receipt) to complete this task.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={requiresUpload}
-                      onChange={(e) => setRequiresUpload(e.target.checked)}
-                    />
-                    <div className="w-11 h-6 bg-surface-container-high rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                {/* Requirement Type Selector */}
+                <div className="space-y-2">
+                  <label className="block font-body-sm text-body-sm text-on-surface mb-1">
+                    Requirement Type
                   </label>
+                  <select
+                    value={reqType}
+                    onChange={(e) => setReqType(e.target.value)}
+                    className="custom-ring w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none"
+                  >
+                    <option value="MANUAL">Manual Clearance (Checkbox toggled by Admin)</option>
+                    <option value="DOCUMENT_UPLOAD">Document Upload (Student uploads files)</option>
+                    <option value="PAYMENT_PROOF">Payment Proof (Student uploads file + OR Number)</option>
+                    <option value="SURVEY">Survey (Student fills questionnaire)</option>
+                    <option value="ACKNOWLEDGMENT">Acknowledgment (Student checks box after reading text)</option>
+                  </select>
                 </div>
+
+                {/* SURVEY Question Builder */}
+                {reqType === "SURVEY" && (
+                  <div className="border border-outline-variant rounded-xl bg-surface p-4 space-y-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-label-md text-sm font-bold text-on-surface">Survey Questions</h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSurveyQuestions(prev => [
+                            ...prev,
+                            { id: `q-${Date.now()}`, label: "", questionType: "text", options: [] }
+                          ]);
+                        }}
+                        className="px-3 py-1 bg-primary text-white font-label-md text-xs rounded hover:bg-primary-dark transition-all flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-xs">add</span> Add Question
+                      </button>
+                    </div>
+
+                    {surveyQuestions.length === 0 ? (
+                      <p className="font-body-sm text-xs text-secondary italic">No questions added yet. Click "Add Question" to start building your survey.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {surveyQuestions.map((q, qIdx) => (
+                          <div key={q.id} className="border border-surface-container-high rounded-lg p-3 space-y-3 relative bg-surface-container-lowest">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSurveyQuestions(prev => prev.filter(item => item.id !== q.id));
+                              }}
+                              className="absolute top-2 right-2 p-1 rounded text-error hover:bg-error/10 transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                            </button>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pr-8">
+                              <div>
+                                <label className="block font-label-md text-[11px] text-secondary mb-1">Question Label/Text</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={q.label}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setSurveyQuestions(prev => prev.map((item, idx) => idx === qIdx ? { ...item, label: val } : item));
+                                  }}
+                                  placeholder="e.g. Do you have any pending library fines?"
+                                  className="custom-ring w-full px-3 py-1.5 rounded border border-surface-container-high bg-surface-container-lowest font-body-sm text-xs text-on-surface outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block font-label-md text-[11px] text-secondary mb-1">Question Type</label>
+                                <select
+                                  value={q.questionType}
+                                  onChange={(e) => {
+                                    const val = e.target.value as "text" | "multiple_choice";
+                                    setSurveyQuestions(prev => prev.map((item, idx) => idx === qIdx ? { ...item, questionType: val } : item));
+                                  }}
+                                  className="custom-ring w-full px-3 py-1.5 rounded border border-surface-container-high bg-surface-container-lowest font-body-sm text-xs text-on-surface outline-none"
+                                >
+                                  <option value="text">Text Response</option>
+                                  <option value="multiple_choice">Multiple Choice</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            {q.questionType === "multiple_choice" && (
+                              <div className="pl-2 border-l-2 border-primary/20 space-y-2">
+                                <label className="block font-label-md text-[11px] text-secondary">
+                                  Choices / Options (comma-separated list)
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Yes, No, Maybe"
+                                  value={(q.options || []).join(", ")}
+                                  onChange={(e) => {
+                                    const opts = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                                    setSurveyQuestions(prev => prev.map((item, idx) => idx === qIdx ? { ...item, options: opts } : item));
+                                  }}
+                                  className="custom-ring w-full px-3 py-1.5 rounded border border-surface-container-high bg-surface-container-lowest font-body-sm text-xs text-on-surface outline-none"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ACKNOWLEDGMENT text area */}
+                {reqType === "ACKNOWLEDGMENT" && (
+                  <div className="space-y-2">
+                    <label className="block font-body-sm text-body-sm text-on-surface mb-1">
+                      Acknowledgment Statement
+                    </label>
+                    <textarea
+                      required
+                      value={acknowledgmentText}
+                      onChange={(e) => setAcknowledgmentText(e.target.value)}
+                      rows={4}
+                      className="custom-ring w-full px-4 py-2.5 rounded-lg border border-surface-container-high bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none resize-none"
+                      placeholder="e.g. I hereby acknowledge that all information provided is accurate and that I have cleared all my departmental liabilities."
+                    ></textarea>
+                  </div>
+                )}
 
                 {/* Attach Forms/Links */}
                 <div className="space-y-4 pt-2">

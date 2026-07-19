@@ -6,7 +6,6 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import * as clearanceService from "@/services/clearanceService";
-import { mockDepartments } from "@/mock/mockData";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function ConstituentsPage() {
@@ -47,7 +46,7 @@ export default function ConstituentsPage() {
       const departmentId = localStorage.getItem("departmentId");
       let currentDepartment = null;
       if (departmentId) {
-        currentDepartment = mockDepartments.find((o) => o.id === Number(departmentId));
+        currentDepartment = await clearanceService.getDepartmentById(Number(departmentId));
         if (currentDepartment) setActiveDepartment(currentDepartment);
       }
 
@@ -173,18 +172,9 @@ export default function ConstituentsPage() {
     }
     setShowConfirmModal(false);
     setPendingBulkStatus(null);
-  };  // Stats computation: prepared for database integration.
-  // When a real database is connected (e.g. list has many items), it uses direct counts.
-  // For the current mock/design demonstration, it maps to the visual baseline stats (1,284 / 1,207 / 42).
-  const isMock = constituents.length <= 5;
-
-  const totalCount = isMock ? 1284 : constituents.length;
-  const clearedCount = isMock
-    ? 1207 + (constituents.filter((s) => s.status === "Cleared").length - 4)
-    : constituents.filter((s) => s.status === "Cleared").length;
-  const pendingCount = isMock
-    ? 42 + (constituents.filter((s) => s.status === "Pending").length - 1)
-    : constituents.filter((s) => s.status === "Pending").length;
+  };  const totalCount = constituents.length;
+  const clearedCount = constituents.filter((s) => s.status === "Cleared").length;
+  const pendingCount = constituents.filter((s) => s.status === "Pending").length;
 
   const clearedPercent = totalCount === 0 ? 0 : Math.round((clearedCount / totalCount) * 100);
   const pendingPercent = totalCount === 0 ? 0 : Math.round((pendingCount / totalCount) * 100);
@@ -217,8 +207,6 @@ export default function ConstituentsPage() {
                 {totalCount.toLocaleString()}
               </h3>
               <p className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">trending_up</span> +12% from
-                last sem
               </p>
             </div>
           </div>
@@ -351,6 +339,7 @@ export default function ConstituentsPage() {
               <ClearanceStatus 
                 requirements={statusRequirements} 
                 studentId={selectedStudentForStatus.id} 
+                viewingDeptId={activeDepartment?.id}
               />
             </div>
           </div>

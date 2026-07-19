@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { mockOrgs } from "@/mock/mockData";
+import { signOut } from "next-auth/react";
+import * as clearanceService from "@/services/clearanceService";
 
 export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,19 +14,19 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const orgId = localStorage.getItem("orgId");
     if (orgId) {
-      const found = mockOrgs.find((o) => o.id === parseInt(orgId));
-      if (found) {
-        setOrg(found);
-      }
+      clearanceService.getOrgById(parseInt(orgId)).then(found => {
+        if (found) setOrg(found);
+      });
     }
   }, []);
 
   const handleLogout = () => {
-    document.cookie = "role=; path=/; max-age=0";
-    document.cookie = "orgId=; path=/; max-age=0";
-    localStorage.removeItem("role");
-    localStorage.removeItem("orgId");
-    router.push("/login");
+    const devKeys = ["dev-role-override", "dev-entityId-override", "role", "officeId", "departmentId", "orgId", "activeStudentId", "avatarUrl"];
+    devKeys.forEach((key) => {
+      localStorage.removeItem(key);
+      document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`;
+    });
+    signOut({ callbackUrl: "/login" });
   };
 
   const isLinkActive = (path: string) => {

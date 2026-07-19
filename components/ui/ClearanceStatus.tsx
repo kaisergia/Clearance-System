@@ -147,12 +147,17 @@ function ClearanceStepRow({ step, isLast }: { step: any; isLast: boolean }) {
   );
 }
 
-export default function ClearanceStatus({ requirements, studentId }: { requirements: ClearanceItem[], studentId?: string }) {
+export default function ClearanceStatus({ requirements, studentId, viewingOfficeId, viewingDeptId, viewingOrgId }: { requirements: ClearanceItem[], studentId?: string, viewingOfficeId?: number, viewingDeptId?: number, viewingOrgId?: number }) {
   const [currentStudent, setCurrentStudent] = useState<any>(null);
 
   useEffect(() => {
     const loadStudent = async () => {
-      const activeStudentId = studentId || localStorage.getItem("activeStudentId") || "2021-0492";
+      const cookieStudentId = document.cookie
+        .split("; ")
+        .find(c => c.startsWith("activeStudentId="))
+        ?.split("=")[1];
+      const activeStudentId = studentId || localStorage.getItem("activeStudentId") || cookieStudentId || "";
+      if (!activeStudentId) return;
       const student = await clearanceService.getStudentById(activeStudentId);
       setCurrentStudent(student);
     };
@@ -179,7 +184,12 @@ export default function ClearanceStatus({ requirements, studentId }: { requireme
   const sgReq = requirements.find((r) => r.responsible.toLowerCase().includes("student government"));
   const sgCleared = sgReq && sgReq.status === "Cleared";
 
-  const subClearances = orgReqs.map((orgReq) => ({
+  // Filter subClearances if viewingOrgId is provided
+  const relevantOrgReqs = viewingOrgId 
+    ? orgReqs.filter(r => r.id === viewingOrgId)
+    : orgReqs;
+
+  const subClearances = relevantOrgReqs.map((orgReq) => ({
     id: `org-${orgReq.id}`,
     name: orgReq.responsible,
     status: orgReq.status === "Cleared" ? "cleared" : "pending"
@@ -246,23 +256,41 @@ export default function ClearanceStatus({ requirements, studentId }: { requireme
     },
   ];
 
-  const allCleared = steps.every((s) => s.status === "cleared");
+  // If a specific office is viewing, filter steps to only show their own row
+  const visibleSteps = viewingOfficeId
+    ? steps.filter((step) => {
+        // Match the step's office name against the name of the office with the given id
+        // Requirements carry the office name in `responsible`
+        const officeReq = requirements.find(
+          (r) => r.type === "office" && r.id === viewingOfficeId
+        );
+        const officeName = officeReq?.responsible || "";
+        return step.office.toLowerCase().includes(officeName.toLowerCase()) ||
+          officeName.toLowerCase().includes(step.office.toLowerCase());
+      })
+    : viewingDeptId
+    ? steps.filter((step) => step.id === 7) // Department clearance is step 7
+    : viewingOrgId
+    ? steps.filter((step) => step.id === 4) // Orgs clearance is step 4
+    : steps;
+
+  const allCleared = visibleSteps.every((s) => s.status === "cleared");
 
   return (
-    <div className="bg-surface-container-lowest rounded-2xl border border-surface-container-high shadow-sm p-6 w-full">
-      <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-5">
+    <div className="bg-surface-container-lowest rounded-2xl border border-surface-container-high shadow-sm p-6 w-full space-y-5">
+      <p className="text-xs font-semibold text-secondary uppercase tracking-wider">
         Clearance Status
       </p>
 
       <div className="space-y-1">
-        {steps.map((step, i) => (
-          <ClearanceStepRow key={step.id} step={step} isLast={i === steps.length - 1} />
+        {visibleSteps.map((step, i) => (
+          <ClearanceStepRow key={step.id} step={step} isLast={i === visibleSteps.length - 1} />
         ))}
       </div>
 
       {allCleared && (
         <div className="text-center py-3 mt-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-          <p className="text-sm font-semibold text-emerald-700">All clear! You're fully cleared.</p>
+          <p className="text-sm font-semibold text-emerald-700">All clear! Fully cleared for this office.</p>
         </div>
       )}
     </div>

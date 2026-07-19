@@ -1,16 +1,22 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { mockRecentReports } from "@/mock/mockData";
-import { mockStudents } from "@/mock/mockStudents";
 import { useOffices } from "@/components/contexts/OfficesContext";
+import * as clearanceService from "@/services/clearanceService";
 
 export default function ReportsPage() {
   const { offices } = useOffices();
+  const [students, setStudents] = useState<any[]>([]);
+  useEffect(() => {
+    clearanceService.getStudents().then(s => setStudents(s));
+  }, []);
+
   const totalPending = offices.reduce((a, o) => a + (o.pending || 0), 0);
   const totalApproved = offices.reduce((a, o) => a + (o.approved || 0), 0);
 
   const courseStats: Record<string, { total: number, cleared: number }> = {};
-  mockStudents.forEach(s => {
+  students.forEach(s => {
     if (!courseStats[s.program]) {
       courseStats[s.program] = { total: 0, cleared: 0 };
     }
@@ -146,6 +152,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="font-body-sm text-body-sm divide-y divide-surface-container-low">
+                {/* TODO: Replace with real report history from DB */}
                 {mockRecentReports.map((r, i) => (
                   <tr key={i} className="hover:bg-surface-container-lowest transition-colors">
                     <td className="p-4 flex items-center gap-3 text-on-surface font-medium">

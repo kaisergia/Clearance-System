@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
-import { mockOrgs, mockOrgMembers, mockDepartments } from "@/mock/mockData";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
@@ -45,7 +44,7 @@ export default function OrgConstituentsPage() {
     const loadData = async () => {
       const orgId = localStorage.getItem("orgId");
       if (orgId) {
-        const currentOrg = mockOrgs.find((o) => o.id === parseInt(orgId));
+        const currentOrg = await clearanceService.getOrgById(parseInt(orgId));
         if (currentOrg) {
           setOrg(currentOrg);
 
@@ -62,9 +61,7 @@ export default function OrgConstituentsPage() {
             setDepartment(currentOrg.department || "All Departments"); // Lock department
             setProgram(currentOrg.program || "All Programs"); // Lock program
           } else if (currentOrg.type === "NonAcademicClub") {
-            const memberIds = mockOrgMembers
-              .filter((m) => m.orgId === currentOrg.id)
-              .map((m) => m.studentId);
+            const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
             list = allStudents.filter((s) => memberIds.includes(s.id));
           }
 
@@ -357,6 +354,7 @@ export default function OrgConstituentsPage() {
               <ClearanceStatus 
                 requirements={statusRequirements} 
                 studentId={selectedStudentForStatus.id} 
+                viewingOrgId={org?.id}
               />
             </div>
           </div>

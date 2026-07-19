@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import * as clearanceService from "@/services/clearanceService";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 import { Check } from "lucide-react";
@@ -8,24 +9,39 @@ import { Check } from "lucide-react";
 import { ClearanceItem } from "@/services/clearanceService";
 
 export default function StudentDashboard() {
+  const { data: session, status } = useSession();
   const [student, setStudent] = useState<any>(null);
   const [requirements, setRequirements] = useState<ClearanceItem[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    // Don't load until we know the session state
+    if (status === "loading") return;
+
     const loadDashboardData = async () => {
-      const activeStudentId = localStorage.getItem("activeStudentId") || "2021-0492";
+      // Priority: real session entityId → localStorage → cookie
+      const sessionStudentId = (session?.user as any)?.entityId as string | undefined;
+      const cookieStudentId = document.cookie
+        .split("; ")
+        .find(c => c.startsWith("activeStudentId="))
+        ?.split("=")[1];
+      const activeStudentId = sessionStudentId || localStorage.getItem("activeStudentId") || cookieStudentId;
+
+      if (!activeStudentId) return; // No student identity — don't load Eleanor
+
       const currentStudent = await clearanceService.getStudentById(activeStudentId);
       if (currentStudent) {
         setStudent(currentStudent);
         const mergedReqs = await clearanceService.getStudentRequirements(currentStudent.id);
         setRequirements(mergedReqs);
       }
+      setAvatarUrl((session?.user as any)?.avatarUrl || localStorage.getItem("avatarUrl"));
     };
 
     loadDashboardData();
     window.addEventListener("clearanceRecordsUpdated", loadDashboardData);
     return () => window.removeEventListener("clearanceRecordsUpdated", loadDashboardData);
-  }, []);
+  }, [status, session]);
 
   if (!student) {
     return (
@@ -57,10 +73,18 @@ export default function StudentDashboard() {
       {/* Student Info Card */}
       <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-5">
-          {/* Circular Profile Picture Placeholder */}
-          <div className="w-16 h-16 rounded-full bg-surface-container-high border border-surface-container-highest flex items-center justify-center text-secondary shrink-0 select-none">
-            <span className="material-symbols-outlined text-4xl text-secondary">account_circle</span>
-          </div>
+          {/* Profile Picture */}
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={student.name}
+              className="w-16 h-16 rounded-full object-cover border border-surface-container-highest shrink-0 shadow-sm"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-surface-container-high border border-surface-container-highest flex items-center justify-center text-secondary shrink-0 select-none">
+              <span className="material-symbols-outlined text-4xl text-secondary">account_circle</span>
+            </div>
+          )}
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="font-headline-lg text-2xl md:text-3xl font-bold text-on-surface">

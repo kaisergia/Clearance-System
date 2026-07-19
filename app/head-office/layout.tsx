@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 
 export default function HeadOfficeLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
   const handleLogout = () => {
-    document.cookie = "role=; path=/; max-age=0";
-    localStorage.removeItem("role");
-    router.push("/login");
+    const devKeys = ["dev-role-override", "dev-entityId-override", "role", "officeId", "departmentId", "orgId", "activeStudentId", "avatarUrl"];
+    devKeys.forEach((key) => {
+      localStorage.removeItem(key);
+      document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`;
+    });
+    signOut({ callbackUrl: "/login" });
   };
 
   const isLinkActive = (path: string) => {

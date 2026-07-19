@@ -3,10 +3,10 @@
 University clearance management system with role-based access.
 
 ## Tech Stack
-- **Design** — Google Stitch (Tailwind export)
-- **Frontend** — Next.js 14 (App Router) + Tailwind CSS
-- **Backend** — PHP API (separate repo, coming soon)
-- **Hosting** — Vercel
+- **Design** — Google Stitch / Material 3 Tailwind tokens
+- **Frontend** — Next.js 16 (App Router) + TypeScript + Tailwind CSS
+- **Planned Backend** — Prisma ORM + MySQL (XAMPP)
+- **Hosting** — Vercel (frontend) / XAMPP localhost (DB, development)
 
 ## Roles
 | Role | Dashboard Route |
@@ -49,27 +49,31 @@ You'll be redirected to the login page automatically.
 ## Project Structure
 ```
 app/
-├── (auth)/login/         → Login page (mock role selector)
+├── (auth)/login/         → Login page (mock role selector — intentional, dev-only)
 ├── admin/                → System Admin pages
-│   └── dashboard/
 ├── head-office/          → Head Office pages
-│   └── dashboard/
 ├── org/                  → Org/Club Officer pages
-│   └── dashboard/
 └── student/              → Student pages
-    └── dashboard/
 
 components/
-├── shared/               → Reusable across all roles
+├── constituents/         → Shared table/filter components
+├── contexts/             → React Contexts (SettingsContext, OfficesContext, etc.)
 ├── layouts/              → Role-specific layouts (sidebar, navbar)
-├── admin/
-├── head-office/
-├── org/
-└── student/
+└── ui/                   → Reusable UI primitives
 
-mock/                     → Fake data (replace with API later)
-├── mockStudents.ts
-└── mockData.ts           → orgs, offices, requirements
+lib/
+└── constants.ts          → Shared lookup tables (DEPARTMENTS, DEPT_PROGRAMS,
+                            YEAR_LEVELS, PROGRAM_MAP) — single source of truth
+
+mock/                     → Mock seed data (DO NOT DELETE — used as Prisma seed source)
+├── mockStudents.ts       → Student records
+└── mockData.ts           → Orgs, offices, departments, requirements, clearance records
+
+services/
+└── clearanceService.ts   → ★ DATABASE SWAP POINT ★
+                            Single data-access layer. All reads/writes for students,
+                            clearance records, and requirements go through this file.
+                            Replace localStorage calls with Prisma queries in Phase 2.
 ```
 
 ---
@@ -78,7 +82,43 @@ mock/                     → Fake data (replace with API later)
 The login page has a **role dropdown** for development.
 Select a role → click Sign In → redirected to that role's dashboard.
 
-**This will be replaced with real PHP API authentication later.**
+**This will be replaced with real authentication (Prisma session + MySQL) in Phase 2.**
+
+---
+
+## Data Access Architecture
+
+All student, clearance record, and requirement data flows through **`services/clearanceService.ts`**.
+This is the single **DATABASE SWAP POINT**. It currently reads/writes `localStorage`
+seeded from `mock/mockData.ts` and `mock/mockStudents.ts`.
+
+> **Rule:** No page or component should read/write `localStorage` for student or requirement
+> data directly. All such access must go through `clearanceService`.
+
+### Planned database: Prisma + XAMPP MySQL
+```
+Database URL: mysql://root:@localhost:3306/clearance_system
+```
+
+### Swapping to Prisma (Phase 2)
+Replace the `localStorage` operations inside each `clearanceService` function with
+Prisma client queries, for example:
+
+```ts
+// Before (mock localStorage)
+export async function getStudents(): Promise<any[]> {
+  const stored = localStorage.getItem("students");
+  return stored ? JSON.parse(stored) : mockStudents;
+}
+
+// After (Prisma + MySQL)
+import { prisma } from "@/lib/prisma";
+export async function getStudents() {
+  return prisma.student.findMany();
+}
+```
+
+Because all service functions are `async`, **no changes are needed in UI pages or components**.
 
 ---
 
