@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { mockOrgs, mockRequirementsByOrgType } from "@/mock/mockData";
 
 export default function OrganizationDashboard({ title, description, orgType }: { title: string, description: string, orgType: string }) {

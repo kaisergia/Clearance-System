@@ -1,68 +1,143 @@
 /**
  * lib/fileStorage.ts
  *
- * NOTE FOR FUTURE CLOUD MIGRATION:
- * To migrate to cloud storage (e.g. Cloudinary, S3, UploadThing), only this file needs to change — 
- * swap the implementation of uploadFile/deleteFile, keep the same function signatures, and every 
- * caller elsewhere in the app keeps working unmodified.
+ * ── STORAGE ABSTRACTION LAYER ──────────────────────────────────────────────
+ * Unified interface for file uploads and deletions across the application.
  *
- * NOTE ON SCALING/PERSISTENCE:
- * Saving files directly to public/uploads/ is a dev-only stopgap. It will not persist or scale 
- * once the application is built and deployed to a real serverless or containerised cloud platform 
- * (like Vercel, Heroku, or AWS ECS), where ephemeral filesystems are reset on each container restart.
+ * Supported Drivers:
+ * 1. "supabase" — Uploads files to Supabase Storage Bucket ('clearance-files').
+ * 2. "local"    — Saves files to local disk under `public/uploads/` (dev fallback).
+ *
+ * ── EASY MIGRATION TO OTHER STORAGE (AWS S3 / Cloudinary / MinIO) ──────────
+ * To switch to AWS S3, Cloudinary, MinIO, or a custom self-hosted server later:
+ * 1. Add your new driver function below (e.g. `uploadToS3`).
+ * 2. Update `uploadFile()` to call your new driver function.
+ * All API routes and UI components calling `uploadFile()` will keep working without any changes.
  */
+
 import fs from "fs/promises";
 import path from "path";
 
-// Helper to determine the local public uploads directory path
 const UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads");
 
+// Retrieve Supabase Storage Configuration from environment
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_BUCKET = process.env.STORAGE_BUCKET || "clearance-files";
+
 /**
- * Saves an uploaded File object to the local filesystem under public/uploads/{folder}/
- * and returns the public relative URL path.
+ * Uploads a file to Supabase Storage via REST API.
  */
-export async function uploadFile(file: File, folder: string): Promise<string> {
-  // Generate a unique filename using timestamp and random number to prevent name collisions
+async function uploadToSupabase(file: File, folder: string): Promise<string> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error("Supabase URL and Anon Key must be defined in .env to use Supabase Storage.");
+  }
+
   const uniqueId = `${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
   const originalExt = path.extname(file.name);
   const sanitizedName = `${uniqueId}${originalExt}`;
-  
+  const storagePath = `${folder}/${sanitizedName}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const fileBuffer = Buffer.from(arrayBuffer);
+
+  const endpoint = `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${storagePath}`;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "apiKey": SUPABASE_KEY,
+      "Content-Type": file.type || "application/octet-stream",
+      "x-upsert": "true",
+    },
+    body: fileBuffer,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[Supabase Storage Upload Error]", errorText);
+    throw new Error(`Supabase Storage upload failed: ${response.statusText}`);
+  }
+
+  // Return public URL of the uploaded object
+  return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${storagePath}`;
+}
+
+/**
+ * Saves an uploaded File object to the local filesystem under public/uploads/{folder}/
+ */
+async function uploadToLocal(file: File, folder: string): Promise<string> {
+  const uniqueId = `${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+  const originalExt = path.extname(file.name);
+  const sanitizedName = `${uniqueId}${originalExt}`;
+
   const targetDir = path.join(UPLOAD_ROOT, folder);
   const targetFilePath = path.join(targetDir, sanitizedName);
 
-  // Ensure upload directory exists
   await fs.mkdir(targetDir, { recursive: true });
 
-  // Read array buffer from the browser's uploaded File object
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // Write file to local disk
   await fs.writeFile(targetFilePath, buffer);
 
-  // Return the public relative URL path
   return `/uploads/${folder}/${sanitizedName}`;
 }
 
 /**
- * Deletes a file from the local filesystem based on its public relative URL path.
+ * Universal File Upload function called across the application.
+ */
+export async function uploadFile(file: File, folder: string): Promise<string> {
+  // Use Supabase Storage if configured, otherwise fall back to local disk
+  const useSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY);
+
+  if (useSupabase) {
+    try {
+      return await uploadToSupabase(file, folder);
+    } catch (err) {
+      console.warn("[fileStorage] Supabase upload failed. Falling back to local storage.", err);
+      return await uploadToLocal(file, folder);
+    }
+  }
+
+  return await uploadToLocal(file, folder);
+}
+
+/**
+ * Deletes a file based on its URL (Supabase URL or local relative path).
  */
 export async function deleteFile(url: string): Promise<void> {
-  // Only process if it points to a local upload path
-  if (!url.startsWith("/uploads/")) {
+  if (url.includes("/storage/v1/object/public/")) {
+    if (!SUPABASE_URL || !SUPABASE_KEY) return;
+    try {
+      const parts = url.split(`/storage/v1/object/public/${SUPABASE_BUCKET}/`);
+      if (parts.length < 2) return;
+      const storagePath = parts[1];
+      const endpoint = `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${storagePath}`;
+      await fetch(endpoint, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "apiKey": SUPABASE_KEY,
+        },
+      });
+    } catch (err) {
+      console.error("[fileStorage] Failed to delete file from Supabase Storage", err);
+    }
     return;
   }
 
-  // Convert the URL route to the local filesystem path
+  if (!url.startsWith("/uploads/")) return;
+
   const relativePath = url.substring("/uploads/".length);
   const targetFilePath = path.join(UPLOAD_ROOT, relativePath);
 
   try {
     await fs.unlink(targetFilePath);
   } catch (err: any) {
-    // If the file was already deleted or doesn't exist, ignore
     if (err.code !== "ENOENT") {
-      console.error(`[fileStorage] Failed to delete file at: ${targetFilePath}`, err);
+      console.error(`[fileStorage] Failed to delete local file: ${targetFilePath}`, err);
     }
   }
 }

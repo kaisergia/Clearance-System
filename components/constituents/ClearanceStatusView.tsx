@@ -774,63 +774,39 @@ export function ClearanceStatusView({
     setDeptReqs(storedDeptReqs ? JSON.parse(storedDeptReqs) : defaultDepartmentRequirements);
 
     // Load student profile from DB (not localStorage)
-    let resolvedId = targetStudentId;
-    if (!resolvedId) {
-      const params = new URLSearchParams(window.location.search);
-      const cookieStudentId = document.cookie
-        .split("; ")
-        .find(c => c.startsWith("activeStudentId="))
-        ?.split("=")[1];
-      resolvedId = params.get("studentId") || localStorage.getItem("activeStudentId") || cookieStudentId || "";
-    }
-    
-    if (!resolvedId) return;
+    const initStudent = async () => {
+      let resolvedId = targetStudentId;
+      if (!resolvedId) {
+        const params = new URLSearchParams(window.location.search);
+        const cookieStudentId = document.cookie
+          .split("; ")
+          .find(c => c.startsWith("activeStudentId="))
+          ?.split("=")[1];
+        resolvedId = params.get("studentId") || localStorage.getItem("activeStudentId") || cookieStudentId || "";
+      }
+      
+      if (!resolvedId) {
+        const profile = await clearanceService.getStudentProfile();
+        if (profile) {
+          resolvedId = profile.id;
+          setStudent(profile);
+        }
+      } else {
+        const currentStudent = await clearanceService.getStudentById(resolvedId);
+        if (currentStudent) setStudent(currentStudent);
+      }
 
-    // Fetch student profile from the DB API
-    clearanceService.getStudentById(resolvedId).then(currentStudent => {
-      if (currentStudent) setStudent(currentStudent);
-    });
+      if (!resolvedId) return;
 
-    const loadData = async () => {
       try {
         const mergedReqs = await clearanceService.getStudentRequirements(resolvedId);
         setRequirements(mergedReqs);
       } catch (err) {
-        console.error("Failed to load student requirements from DB, falling back to mock", err);
-        // Fallback mock logic
-        const baseOffices = mockRequirements.filter((r: any) => r.type === "office");
-        const studentOrgs = mockOrgMembers
-          .filter((m) => m.studentId === currentStudent.id)
-          .map((m) => mockOrgs.find((o) => o.id === m.orgId))
-          .filter(Boolean);
-
-        const dynamicOrgs = studentOrgs.map((org: any) => ({
-          id: org.id,
-          name: "Org Membership Clearance",
-          responsible: org.name,
-          type: "org",
-          status: "Pending",
-          dateCleared: null,
-          remarks: "",
-        }));
-
-        const studentDept = mockDepartments.find((d: any) => d.abbreviation === currentStudent.department);
-        const dynamicDepts = studentDept ? [{
-          id: studentDept.id,
-          name: "Department Clearance",
-          responsible: studentDept.name,
-          type: "department",
-          status: "Pending",
-          dateCleared: null,
-          remarks: "",
-        }] : [];
-
-        const combinedReqs = [...baseOffices, ...dynamicOrgs, ...dynamicDepts];
-        setRequirements(combinedReqs as any);
+        console.error("Failed to load student requirements", err);
       }
     };
 
-    loadData();
+    initStudent();
   }, [targetStudentId, triggerSync]);
 
   const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {

@@ -10,24 +10,22 @@ export default function StudentProfile() {
   const [student, setStudent] = useState<any>(null);
   const [orgs, setOrgs] = useState<any[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
-      // DATABASE SWAP POINT: clearanceService.getStudentProfile() replaces
-      // the direct localStorage["students"] read.
       const currentStudent = await clearanceService.getStudentProfile();
       if (!currentStudent) return;
       setStudent(currentStudent);
 
-      // Calculate affiliated organizations
       const memberships = await clearanceService.getStudentOrgMemberships(currentStudent.id);
       const affiliated = memberships.map((m: any) => m.org).filter(Boolean);
       setOrgs(affiliated);
+
+      const sessionAvatar = (session?.user as any)?.image || (session?.user as any)?.avatarUrl;
+      setAvatarUrl(currentStudent.avatarUrl || sessionAvatar || localStorage.getItem("avatarUrl"));
     };
     loadProfile();
-    // Resolve avatar: session image (Google) > localStorage > null
-    const sessionAvatar = (session?.user as any)?.image || (session?.user as any)?.avatarUrl;
-    setAvatarUrl(sessionAvatar || localStorage.getItem("avatarUrl"));
   }, [session]);
 
   if (!student) {
@@ -81,15 +79,17 @@ export default function StudentProfile() {
       {/* Profile Details Card */}
       <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-8 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-surface-container-high">
-          {avatarUrl ? (
+          {avatarUrl && !imgError ? (
             <img
               src={avatarUrl}
               alt={student.name}
+              referrerPolicy="no-referrer"
+              onError={() => setImgError(true)}
               className="w-20 h-20 rounded-full object-cover border-2 border-surface-container-highest shadow-sm"
             />
           ) : (
-            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold text-3xl shadow-sm">
-              <span>{student.name.charAt(0)}</span>
+            <div className="w-20 h-20 rounded-full bg-brand-red text-white flex items-center justify-center text-3xl font-bold shadow-sm">
+              <span>{student.name ? student.name.charAt(0) : "S"}</span>
             </div>
           )}
           <div className="text-center sm:text-left space-y-1.5">

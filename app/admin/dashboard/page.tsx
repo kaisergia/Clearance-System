@@ -215,7 +215,7 @@ export default function AdminDashboard() {
                 <div key={org.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-sm">
                     <div className="w-7 h-7 rounded bg-secondary-container text-secondary flex items-center justify-center text-xs font-bold shrink-0">
-                      {org.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+                      {org.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2)}
                     </div>
                     <span className="font-body-sm text-body-sm text-on-surface truncate max-w-[130px]">{org.name}</span>
                   </div>

@@ -13,6 +13,7 @@ export default function StudentDashboard() {
   const [student, setStudent] = useState<any>(null);
   const [requirements, setRequirements] = useState<ClearanceItem[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     // Don't load until we know the session state
@@ -25,17 +26,23 @@ export default function StudentDashboard() {
         .split("; ")
         .find(c => c.startsWith("activeStudentId="))
         ?.split("=")[1];
-      const activeStudentId = sessionStudentId || localStorage.getItem("activeStudentId") || cookieStudentId;
+      let activeStudentId = sessionStudentId || localStorage.getItem("activeStudentId") || cookieStudentId;
 
-      if (!activeStudentId) return; // No student identity — don't load Eleanor
+      let currentStudent = null;
+      if (activeStudentId) {
+        currentStudent = await clearanceService.getStudentById(activeStudentId);
+      } else {
+        currentStudent = await clearanceService.getStudentProfile();
+      }
 
-      const currentStudent = await clearanceService.getStudentById(activeStudentId);
       if (currentStudent) {
         setStudent(currentStudent);
+        localStorage.setItem("activeStudentId", currentStudent.id);
+        document.cookie = `activeStudentId=${currentStudent.id}; path=/; max-age=86400`;
         const mergedReqs = await clearanceService.getStudentRequirements(currentStudent.id);
         setRequirements(mergedReqs);
+        setAvatarUrl(currentStudent.avatarUrl || (session?.user as any)?.avatarUrl || localStorage.getItem("avatarUrl"));
       }
-      setAvatarUrl((session?.user as any)?.avatarUrl || localStorage.getItem("avatarUrl"));
     };
 
     loadDashboardData();
@@ -74,15 +81,17 @@ export default function StudentDashboard() {
       <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-5">
           {/* Profile Picture */}
-          {avatarUrl ? (
+          {avatarUrl && !imgError ? (
             <img
               src={avatarUrl}
               alt={student.name}
+              referrerPolicy="no-referrer"
+              onError={() => setImgError(true)}
               className="w-16 h-16 rounded-full object-cover border border-surface-container-highest shrink-0 shadow-sm"
             />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-surface-container-high border border-surface-container-highest flex items-center justify-center text-secondary shrink-0 select-none">
-              <span className="material-symbols-outlined text-4xl text-secondary">account_circle</span>
+            <div className="w-16 h-16 rounded-full bg-brand-red text-white flex items-center justify-center text-2xl font-bold shrink-0 shadow-sm">
+              <span>{student.name ? student.name.charAt(0) : "S"}</span>
             </div>
           )}
           <div className="space-y-2">

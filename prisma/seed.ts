@@ -233,6 +233,55 @@ async function main() {
     });
   }
 
+  // ── 11. Announcements ──────────────────────────────────────────────────────
+  console.log("  → Announcements");
+  const sampleAnnouncements = [
+    {
+      id: 1,
+      title: "1st Semester 2025-2026 Student Clearance Deadline Notice",
+      content: "All graduating and continuing students are advised to complete their clearance requirements before the semester deadline. Please ensure all office, department, and organization deficiencies are settled promptly.",
+      priority: "high" as const,
+      isSystemWide: true,
+      showOnLandingPage: true,
+      isActive: true,
+    },
+    {
+      id: 2,
+      title: "Registrar Office — Document & Transcript Submissions",
+      content: "Students with pending document submissions (Form 137/138, Honorable Dismissal, or Birth Certificates) must submit physical copies to Window 2 at the Registrar's Office.",
+      priority: "normal" as const,
+      isSystemWide: false,
+      showOnLandingPage: true,
+      isActive: true,
+      officeId: 1,
+    },
+    {
+      id: 3,
+      title: "CCIS Departmental Clearance & Project Submissions",
+      content: "All BS Computer Science and BS Information Technology students are requested to complete their CCIS department evaluation and capstone clearance.",
+      priority: "normal" as const,
+      isSystemWide: false,
+      showOnLandingPage: true,
+      isActive: true,
+      departmentId: 1,
+    },
+  ];
+
+  for (const a of sampleAnnouncements) {
+    await prisma.announcement.upsert({
+      where: { id: a.id },
+      update: {
+        title: a.title,
+        content: a.content,
+        priority: a.priority,
+        isSystemWide: a.isSystemWide,
+        showOnLandingPage: a.showOnLandingPage,
+        isActive: a.isActive,
+      },
+      create: a,
+    });
+  }
+
   console.log("✅  Seed complete!");
 }
 

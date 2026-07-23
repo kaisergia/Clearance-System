@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,9 +73,11 @@ model Office {
   pending  Int    @default(0)
   approved Int    @default(0)
   rejected Int    @default(0)
+  logoUrl  String? @db.Text
 
   users        User[]
   requirements OfficeRequirement[]
+  announcements Announcement[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -89,9 +92,11 @@ model Department {
   pending      Int    @default(0)
   approved     Int    @default(0)
   rejected     Int    @default(0)
+  logoUrl      String? @db.Text
 
   users        User[]
   requirements DepartmentRequirement[]
+  announcements Announcement[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,10 +113,12 @@ model Org {
   status      String  @default("Active")
   dateAdded   String?
   memberCount Int     @default(0)
+  logoUrl     String? @db.Text
 
   users        User[]
   members      OrgMember[]
   requirements OrgRequirement[]
+  announcements Announcement[]
 }
 
 model OrgMember {
@@ -251,4 +258,47 @@ enum SubmissionStatus {
   pending
   approved
   rejected
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Announcements  (system-wide or scoped to office / department / org)
+// ─────────────────────────────────────────────────────────────────────────────
+model Announcement {
+  id                Int       @id @default(autoincrement())
+  title             String
+  content           String    @db.Text
+  priority          AnnouncementPriority @default(normal)
+  isSystemWide      Boolean   @default(false)
+  showOnLandingPage Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  eventDate         String?   // ISO date string
+  eventLocation     String?
+  expiresAt         DateTime?
+  imageUrls         Json?     // string[]
+  linkLabel         String?
+  linkUrl           String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Scoping — at most one will be set (null = system-wide)
+  officeId          Int?
+  departmentId      Int?
+  orgId             Int?
+
+  office            Office?     @relation(fields: [officeId],     references: [id])
+  department        Department? @relation(fields: [departmentId], references: [id])
+  org               Org?        @relation(fields: [orgId],        references: [id])
+
+  @@index([isSystemWide, isActive])
+  @@index([showOnLandingPage, isActive])
+  @@index([officeId])
+  @@index([departmentId])
+  @@index([orgId])
+}
+
+enum AnnouncementPriority {
+  low
+  normal
+  high
+  urgent
 }

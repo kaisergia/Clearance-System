@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import * as clearanceService from "@/services/clearanceService";
 
 // Types
 interface Student {

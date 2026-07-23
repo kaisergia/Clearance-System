@@ -7,8 +7,8 @@ import { AuthProvider } from "@/components/contexts/AuthProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Clearance System",
-  description: "University Clearance Management System",
+  title: "CJC Student Clearance System",
+  description: "Track your clearance across departments, offices, and organizations at Cor Jesu College — all in one place.",
 };
 
 export default function RootLayout({
