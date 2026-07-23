@@ -204,7 +204,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "Dashboard", icon: "dashboard", href: "/admin/dashboard" },
     { label: "Announcements", icon: "campaign", href: "/admin/announcements" },
     { label: "Reports", icon: "assessment", href: "/admin/reports" },
-    { label: "Audit Logs", icon: "history", href: "/admin/audit-logs" },
+    { label: "Audit Logs", icon: "history", href: "/admin/activity-logs" },
     { label: "Settings", icon: "settings", href: "/admin/settings" },
   ];
 

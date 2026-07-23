@@ -232,7 +232,7 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
-            <Link href="/admin/user-management/orgs" className="mt-md flex items-center gap-1 font-label-md text-label-md text-brand-red hover:text-primary transition-colors">
+            <Link href="/admin/organizations/clubs/academic" className="mt-md flex items-center gap-1 font-label-md text-label-md text-brand-red hover:text-primary transition-colors">
               View all orgs <span className="material-symbols-outlined text-base">arrow_forward</span>
             </Link>
           </div>
