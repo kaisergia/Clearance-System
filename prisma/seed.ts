@@ -286,6 +286,16 @@ async function main() {
     });
   }
 
+  // Resync PostgreSQL sequences for autoincrement tables after seeding explicit IDs
+  try {
+    await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Office"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Office"));`);
+    await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Department"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Department"));`);
+    await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Org"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Org"));`);
+    await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Announcement"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Announcement"));`);
+  } catch (err) {
+    // Ignore error if database is MySQL (XAMPP), as MySQL handles AUTO_INCREMENT sequence automatically
+  }
+
   console.log("✅  Seed complete!");
 }
 

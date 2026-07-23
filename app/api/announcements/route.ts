@@ -227,26 +227,39 @@ export async function POST(request: NextRequest) {
       parsedExpiresAt = new Date(expiresAt);
     }
 
-    const announcement = await prisma.announcement.create({
-      data: {
-        title,
-        content,
-        priority: priority || "normal",
-        isSystemWide: Boolean(isSystemWide),
-        showOnLandingPage: Boolean(showOnLandingPage),
-        eventDate: eventDate || null,
-        eventLocation: eventLocation || null,
-        expiresAt: parsedExpiresAt,
-        imageUrls: Array.isArray(imageUrls) && imageUrls.length > 0 ? imageUrls : undefined,
-        linkLabel: linkLabel || null,
-        linkUrl: linkUrl || null,
-        officeId: validOfficeId,
-        departmentId: validDepartmentId,
-        orgId: validOrgId,
-      },
-    });
+    const createData = {
+      title,
+      content,
+      priority: priority || "normal",
+      isSystemWide: Boolean(isSystemWide),
+      showOnLandingPage: Boolean(showOnLandingPage),
+      eventDate: eventDate || null,
+      eventLocation: eventLocation || null,
+      expiresAt: parsedExpiresAt,
+      imageUrls: Array.isArray(imageUrls) && imageUrls.length > 0 ? imageUrls : undefined,
+      linkLabel: linkLabel || null,
+      linkUrl: linkUrl || null,
+      officeId: validOfficeId,
+      departmentId: validDepartmentId,
+      orgId: validOrgId,
+    };
 
-    return NextResponse.json(announcement, { status: 201 });
+    try {
+      const announcement = await prisma.announcement.create({ data: createData });
+      return NextResponse.json(announcement, { status: 201 });
+    } catch (createErr: any) {
+      if (createErr?.code === "P2002" || createErr?.message?.includes("Unique constraint")) {
+        // Resync PostgreSQL sequence to MAX(id) in case seed data caused sequence desync
+        try {
+          await prisma.$executeRawUnsafe(
+            `SELECT setval(pg_get_serial_sequence('"Announcement"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Announcement"));`
+          );
+        } catch {}
+        const announcement = await prisma.announcement.create({ data: createData });
+        return NextResponse.json(announcement, { status: 201 });
+      }
+      throw createErr;
+    }
   } catch (err: any) {
     console.error("[POST /api/announcements]", err);
     return NextResponse.json({ error: err?.message || "Failed to create announcement" }, { status: 500 });
