@@ -1,15 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { ArrowRight, Calendar, ChevronDown } from "lucide-react";
 import { InstallPwaButton } from "@/components/landing/InstallPwaButton";
 
 interface HeroSectionProps {
   totalSources: number;
+  onOpenLogin: () => void;
 }
 
-export function HeroSection({ totalSources }: HeroSectionProps) {
+export function HeroSection({ totalSources, onOpenLogin }: HeroSectionProps) {
   const scrollDown = () => {
     document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -63,18 +63,19 @@ export function HeroSection({ totalSources }: HeroSectionProps) {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 animate-fadeIn">
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center gap-2 bg-[#c41e2a] hover:bg-[#9a1820] text-white font-semibold text-base px-8 py-3.5 rounded-md transition-colors duration-150 shadow-lg"
+            <button
+              type="button"
+              onClick={onOpenLogin}
+              className="inline-flex items-center justify-center gap-2 bg-[#c41e2a] hover:bg-[#9a1820] text-white font-semibold text-base px-8 py-3.5 rounded-lg transition-colors duration-150 shadow-lg"
             >
               Sign In
               <ArrowRight className="w-4 h-4" />
-            </Link>
+            </button>
             <InstallPwaButton variant="hero" />
             <button
               type="button"
               onClick={scrollDown}
-              className="inline-flex items-center justify-center gap-2 border-2 border-white/50 hover:border-white text-white font-semibold text-base px-8 py-3.5 rounded-md transition-colors duration-150 backdrop-blur-sm"
+              className="inline-flex items-center justify-center gap-2 border-2 border-white/50 hover:border-white text-white font-semibold text-base px-8 py-3.5 rounded-lg transition-colors duration-150 backdrop-blur-sm"
             >
               Learn More
               <ChevronDown className="w-4 h-4" />

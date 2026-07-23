@@ -1,9 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { HeroSection } from "@/components/landing/HeroSection";
@@ -12,6 +12,8 @@ import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
 import { AnnouncementsSection } from "@/components/landing/AnnouncementsSection";
 import { CTASection } from "@/components/landing/CTASection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
+import { LoginModal } from "@/components/landing/LoginModal";
+import { DevDiagnosticsModal } from "@/components/landing/DevDiagnosticsModal";
 import type { Announcement } from "@/components/landing/AnnouncementsSection";
 
 // Video carousel — client only (uses embla + iframe)
@@ -26,7 +28,6 @@ export interface ClearanceSource {
   logoUrl?: string | null;
 }
 
-// Static fallback shown when DB is unreachable (e.g. XAMPP not started yet)
 const STATIC_SOURCES: ClearanceSource[] = [
   { name: "Registrar", type: "office" },
   { name: "Library", type: "office" },
@@ -41,11 +42,22 @@ const STATIC_SOURCES: ClearanceSource[] = [
   { name: "Student Government", type: "org" },
 ];
 
-export default function LandingPage() {
+function LandingContent({ defaultLoginOpen }: { defaultLoginOpen?: boolean }) {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [sources, setSources] = useState<ClearanceSource[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isDevOpen, setIsDevOpen] = useState(false);
+
+  // Auto-open login modal if query has ?login=true or ?error=... or defaultLoginOpen prop is true
+  useEffect(() => {
+    if (defaultLoginOpen || searchParams.get("login") === "true" || searchParams.get("error")) {
+      setIsLoginOpen(true);
+    }
+  }, [defaultLoginOpen, searchParams]);
 
   // Redirect authenticated users to their dashboard
   useEffect(() => {
@@ -63,7 +75,7 @@ export default function LandingPage() {
     }
   }, [session, status, router]);
 
-  // Fetch clearance sources from DB, fall back to static list if DB is down
+  // Fetch clearance sources
   useEffect(() => {
     async function loadSources() {
       try {
@@ -110,27 +122,47 @@ export default function LandingPage() {
           setAnnouncements(Array.isArray(data) ? data : []);
         }
       } catch {
-        // no-op — AnnouncementsSection hides itself when empty
+        // no-op
       }
     }
     loadAnnouncements();
   }, []);
 
-  // Don't render landing page if session is confirmed — redirect in progress
   if (status === "authenticated") return null;
 
   return (
     <div className="min-h-screen bg-white">
-      <LandingHeader />
+      <LandingHeader
+        onOpenLogin={() => setIsLoginOpen(true)}
+        onOpenDev={() => setIsDevOpen(true)}
+      />
       <main>
-        <HeroSection totalSources={sources.length} />
+        <HeroSection
+          totalSources={sources.length}
+          onOpenLogin={() => setIsLoginOpen(true)}
+        />
         <FeaturesSection clearanceSources={sources} />
         <HowItWorksSection />
-        <AnnouncementsSection announcements={announcements} />
+        <AnnouncementsSection
+          announcements={announcements}
+          onOpenLogin={() => setIsLoginOpen(true)}
+        />
         <VideoSection />
-        <CTASection />
+        <CTASection onOpenLogin={() => setIsLoginOpen(true)} />
       </main>
       <LandingFooter />
+
+      {/* Pop-up Modals */}
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+      <DevDiagnosticsModal isOpen={isDevOpen} onClose={() => setIsDevOpen(false)} />
     </div>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <LandingContent />
+    </Suspense>
   );
 }

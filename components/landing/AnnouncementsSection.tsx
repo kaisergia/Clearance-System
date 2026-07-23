@@ -17,6 +17,7 @@ export interface Announcement {
 
 interface AnnouncementsSectionProps {
   announcements: Announcement[];
+  onOpenLogin?: () => void;
 }
 
 function formatDate(dateString: string) {
@@ -136,7 +137,7 @@ function AnnouncementModal({
 }
 
 // ── Main Section ─────────────────────────────────────────────────────────────
-export function AnnouncementsSection({ announcements }: AnnouncementsSectionProps) {
+export function AnnouncementsSection({ announcements, onOpenLogin }: AnnouncementsSectionProps) {
   const [selected, setSelected] = useState<Announcement | null>(null);
 
   if (announcements.length === 0) return null;
@@ -247,12 +248,13 @@ export function AnnouncementsSection({ announcements }: AnnouncementsSectionProp
                 <p className="text-sm text-white/80 leading-relaxed">
                   Sign in to view department and organization announcements specific to you.
                 </p>
-                <a
-                  href="/login"
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
                   className="inline-flex items-center gap-2 bg-white text-[#c41e2a] text-sm font-bold px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors self-start"
                 >
                   Sign In <ArrowRight className="w-3.5 h-3.5" />
-                </a>
+                </button>
               </div>
             </div>
           </div>
