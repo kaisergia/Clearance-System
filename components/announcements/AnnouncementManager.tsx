@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Trash2, Edit2, X, Megaphone, Globe, Building2, Image as ImageIcon, Link as LinkIcon, Upload, Check } from "lucide-react";
 import Image from "next/image";
+import { compressImage } from "@/lib/imageUtils";
 
 type Priority = "low" | "normal" | "high" | "urgent";
 
@@ -118,7 +119,12 @@ function AnnouncementForm({
     try {
       const formData = new FormData();
       formData.append("folder", "announcements");
-      Array.from(files).forEach((file) => formData.append("files", file));
+
+      const compressedFiles = await Promise.all(
+        Array.from(files).map((file) => compressImage(file))
+      );
+
+      compressedFiles.forEach((file) => formData.append("files", file));
 
       const res = await fetch("/api/upload", {
         method: "POST",
