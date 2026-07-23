@@ -316,9 +316,11 @@ export default function OrgClearanceRequirementsPage() {
                   <span className="font-body-md text-base font-bold text-on-surface">
                     {req.name}
                   </span>
-                  <span className="font-body-sm text-sm text-secondary">
-                    {req.description}
-                  </span>
+                  {req.description && (
+                    <span className="font-body-sm text-sm text-secondary">
+                      {req.description}
+                    </span>
+                  )}
                   {req.appliesTo && req.appliesTo.length > 0 && (
                     <ExpandableAppliesTo appliesTo={req.appliesTo} />
                   )}

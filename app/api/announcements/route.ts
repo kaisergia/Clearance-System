@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 4. Scoped for specific office / department / org dashboard
-    const where: any = { isActive: true };
+    const where: any = {};
     if (officeId) where.officeId = parseInt(officeId);
     if (departmentId) where.departmentId = parseInt(departmentId);
     if (orgId) where.orgId = parseInt(orgId);
