@@ -456,7 +456,10 @@ export function AnnouncementManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("Failed to create announcement");
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || errData.message || "Failed to create announcement");
+    }
     await load();
   };
 
@@ -467,7 +470,10 @@ export function AnnouncementManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("Failed to update announcement");
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || errData.message || "Failed to update announcement");
+    }
     await load();
   };
 

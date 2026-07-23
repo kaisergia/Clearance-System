@@ -193,31 +193,62 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!title || !content) {
-      return NextResponse.json({ error: "title and content are required" }, { status: 400 });
+      return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
+    }
+
+    const parsedOfficeId = officeId ? parseInt(String(officeId), 10) : null;
+    const parsedDepartmentId = departmentId ? parseInt(String(departmentId), 10) : null;
+    const parsedOrgId = orgId ? parseInt(String(orgId), 10) : null;
+
+    // Verify office exists if officeId is provided
+    let validOfficeId = null;
+    if (parsedOfficeId && !isNaN(parsedOfficeId)) {
+      const exists = await prisma.office.findUnique({ where: { id: parsedOfficeId } });
+      if (exists) validOfficeId = parsedOfficeId;
+    }
+
+    // Verify department exists if departmentId is provided
+    let validDepartmentId = null;
+    if (parsedDepartmentId && !isNaN(parsedDepartmentId)) {
+      const exists = await prisma.department.findUnique({ where: { id: parsedDepartmentId } });
+      if (exists) validDepartmentId = parsedDepartmentId;
+    }
+
+    // Verify org exists if orgId is provided
+    let validOrgId = null;
+    if (parsedOrgId && !isNaN(parsedOrgId)) {
+      const exists = await prisma.org.findUnique({ where: { id: parsedOrgId } });
+      if (exists) validOrgId = parsedOrgId;
+    }
+
+    // Parse expiresAt date safely
+    let parsedExpiresAt: Date | null = null;
+    if (expiresAt && typeof expiresAt === "string" && !isNaN(Date.parse(expiresAt))) {
+      parsedExpiresAt = new Date(expiresAt);
     }
 
     const announcement = await prisma.announcement.create({
       data: {
         title,
         content,
-        priority,
-        isSystemWide,
-        showOnLandingPage,
+        priority: priority || "normal",
+        isSystemWide: Boolean(isSystemWide),
+        showOnLandingPage: Boolean(showOnLandingPage),
         eventDate: eventDate || null,
         eventLocation: eventLocation || null,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-        imageUrls: imageUrls && imageUrls.length > 0 ? imageUrls : null,
+        expiresAt: parsedExpiresAt,
+        imageUrls: Array.isArray(imageUrls) && imageUrls.length > 0 ? imageUrls : undefined,
         linkLabel: linkLabel || null,
         linkUrl: linkUrl || null,
-        officeId: officeId ? parseInt(officeId) : null,
-        departmentId: departmentId ? parseInt(departmentId) : null,
-        orgId: orgId ? parseInt(orgId) : null,
+        officeId: validOfficeId,
+        departmentId: validDepartmentId,
+        orgId: validOrgId,
       },
     });
 
     return NextResponse.json(announcement, { status: 201 });
-  } catch (err) {
+  } catch (err: any) {
     console.error("[POST /api/announcements]", err);
-    return NextResponse.json({ error: "Failed to create announcement" }, { status: 500 });
+    return NextResponse.json({ error: err?.message || "Failed to create announcement" }, { status: 500 });
   }
 }
