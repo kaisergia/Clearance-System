@@ -11,6 +11,7 @@ export const mockOrgs = [
     status: "Active",
     dateAdded: "Aug 1, 2024",
     memberCount: 45,
+    logoUrl: "/images/logos/csso.svg",
   },
   {
     id: 2,
@@ -23,6 +24,7 @@ export const mockOrgs = [
     status: "Active",
     dateAdded: "Aug 1, 2024",
     memberCount: 32,
+    logoUrl: "/images/logos/jma.svg",
   },
   {
     id: 3,
@@ -33,6 +35,7 @@ export const mockOrgs = [
     program: null,
     adviser: "Prof. Lim",
     status: "Active",
+    logoUrl: "/images/logos/dance-troupe.svg",
     dateAdded: "Aug 5, 2024",
     memberCount: 20,
   },
@@ -47,6 +50,7 @@ export const mockOrgs = [
     status: "Active",
     dateAdded: "Aug 1, 2024",
     memberCount: 60,
+    logoUrl: "/images/logos/engsoc.svg",
   },
   {
     id: 5,
@@ -58,6 +62,7 @@ export const mockOrgs = [
     adviser: "Prof. Villanueva",
     status: "Active",
     dateAdded: "Jul 28, 2024",
+    logoUrl: "/images/logos/student-gov.svg",
     memberCount: 15,
   },
   {
@@ -70,6 +75,7 @@ export const mockOrgs = [
     adviser: "Prof. Dimaculangan",
     status: "Active",
     dateAdded: "Jul 30, 2024",
+    logoUrl: "/images/logos/ccis-lgu.svg",
     memberCount: 150,
   },
 ];
@@ -95,6 +101,7 @@ export const mockDepartments = [
     pending: 5,
     approved: 120,
     rejected: 1,
+    logoUrl: "/images/logos/ccis.svg",
   },
   {
     id: 2,
@@ -105,6 +112,7 @@ export const mockDepartments = [
     pending: 10,
     approved: 90,
     rejected: 0,
+    logoUrl: "/images/logos/coe.svg",
   },
 ];
 
@@ -118,6 +126,7 @@ export const mockOffices = [
     pending: 12,
     approved: 45,
     rejected: 3,
+    logoUrl: "/images/logos/registrar.svg",
   },
   {
     id: 2,
@@ -127,6 +136,7 @@ export const mockOffices = [
     pending: 8,
     approved: 50,
     rejected: 2,
+    logoUrl: "/images/logos/library.svg",
   },
   {
     id: 3,
@@ -136,6 +146,7 @@ export const mockOffices = [
     pending: 15,
     approved: 40,
     rejected: 5,
+    logoUrl: "/images/logos/guidance.svg",
   },
   {
     id: 4,
@@ -145,6 +156,7 @@ export const mockOffices = [
     pending: 20,
     approved: 35,
     rejected: 5,
+    logoUrl: "/images/logos/accounting.svg",
   },
   {
     id: 5,
@@ -154,6 +166,7 @@ export const mockOffices = [
     pending: 5,
     approved: 55,
     rejected: 0,
+    logoUrl: "/images/logos/discipline.svg",
   },
 ];
 

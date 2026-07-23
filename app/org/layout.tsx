@@ -52,6 +52,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     { label: "Clearance Requirements", href: "/org/clearance-requirements", icon: "task_alt" },
     { label: "Announcements", href: "/org/announcements", icon: "campaign" },
     { label: "Reports", href: "/org/reports", icon: "assessment" },
+    { label: "Settings", href: "/org/settings", icon: "settings" },
   ];
 
   return (

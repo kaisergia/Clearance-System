@@ -34,6 +34,7 @@ export default function DepartmentLayout({ children }: { children: React.ReactNo
     { label: "Clearance Requirements", href: "/department/clearance-requirements", icon: "task_alt" },
     { label: "Announcements", href: "/department/announcements", icon: "campaign" },
     { label: "Reports", href: "/department/reports", icon: "assessment" },
+    { label: "Settings", href: "/department/settings", icon: "settings" },
   ];
 
   return (

@@ -34,6 +34,7 @@ export default function HeadOfficeLayout({ children }: { children: React.ReactNo
     { label: "Clearance Requirements", href: "/head-office/clearance-requirements", icon: "task_alt" },
     { label: "Announcements", href: "/head-office/announcements", icon: "campaign" },
     { label: "Reports", href: "/head-office/reports", icon: "assessment" },
+    { label: "Settings", href: "/head-office/settings", icon: "settings" },
   ];
 
   return (

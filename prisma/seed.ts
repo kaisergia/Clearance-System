@@ -41,9 +41,10 @@ async function main() {
   for (const o of mockOffices) {
     await prisma.office.upsert({
       where:  { id: o.id },
-      update: { name: o.name, head: o.head, email: o.email },
+      update: { name: o.name, head: o.head, email: o.email, logoUrl: (o as any).logoUrl ?? null },
       create: { id: o.id, name: o.name, head: o.head, email: o.email,
-                pending: o.pending, approved: o.approved, rejected: o.rejected },
+                pending: o.pending, approved: o.approved, rejected: o.rejected,
+                logoUrl: (o as any).logoUrl ?? null },
     });
   }
 
@@ -52,10 +53,11 @@ async function main() {
   for (const d of mockDepartments) {
     await prisma.department.upsert({
       where:  { id: d.id },
-      update: { name: d.name, abbreviation: d.abbreviation, head: d.head, email: d.email },
+      update: { name: d.name, abbreviation: d.abbreviation, head: d.head, email: d.email, logoUrl: (d as any).logoUrl ?? null },
       create: { id: d.id, name: d.name, abbreviation: d.abbreviation,
                 head: d.head, email: d.email,
-                pending: d.pending, approved: d.approved, rejected: d.rejected },
+                pending: d.pending, approved: d.approved, rejected: d.rejected,
+                logoUrl: (d as any).logoUrl ?? null },
     });
   }
 
@@ -64,7 +66,7 @@ async function main() {
   for (const o of mockOrgs) {
     await prisma.org.upsert({
       where:  { id: o.id },
-      update: { name: o.name, type: o.type, category: o.category },
+      update: { name: o.name, type: o.type, category: o.category, logoUrl: (o as any).logoUrl ?? null },
       create: {
         id:          o.id,
         name:        o.name,
@@ -76,6 +78,7 @@ async function main() {
         status:      o.status ?? "Active",
         dateAdded:   (o as any).dateAdded ?? null,
         memberCount: (o as any).memberCount ?? 0,
+        logoUrl:     (o as any).logoUrl ?? null,
       },
     });
   }
