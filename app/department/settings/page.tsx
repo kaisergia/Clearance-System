@@ -8,8 +8,8 @@ function getEntityId(key: string): number | null {
   if (typeof window === "undefined") return null;
   const devOverride = localStorage.getItem("dev-entityId-override");
   if (devOverride) return parseInt(devOverride, 10) || null;
-  const cookie = document.cookie.split('; ').find(c => c.startsWith(key + '='));
-  return cookie ? parseInt(cookie.split('=')[1], 10) || null : null;
+  const stored = localStorage.getItem(key);
+  return stored ? parseInt(stored, 10) || null : null;
 }
 
 export default function DepartmentSettingsPage() {
