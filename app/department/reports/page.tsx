@@ -520,11 +520,11 @@ export default function ReportsPage() {
     }
 
     // Populate counts (cumulative: cleared on or before this week's end)
-    weeks.forEach((w) => {
+    weeks.forEach((w: any) => {
       w.count = clearedStudents.filter((s) => new Date(s.lastUpdated).getTime() <= w.end).length;
     });
 
-    return weeks.map((w) => ({ label: w.label, count: w.count }));
+    return weeks.map((w: any) => ({ label: w.label, count: w.count }));
   }, [students]);
 
   // Year Level breakdown

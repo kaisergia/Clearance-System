@@ -79,7 +79,7 @@ export default function DepartmentsPage() {
                   <td className="px-lg py-4">
                     <div className="flex items-center gap-md">
                       <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm shrink-0 ${PALETTE[idx % PALETTE.length]}`}>
-                        {dept.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                        {dept.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
                       </div>
                       <span className="font-bold text-on-surface">{dept.name}</span>
                     </div>
