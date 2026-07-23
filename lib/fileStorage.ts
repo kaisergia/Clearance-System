@@ -65,38 +65,53 @@ async function uploadToSupabase(file: File, folder: string): Promise<string> {
 }
 
 /**
+ * Converts a File to a Base64 data URL fallback when filesystem storage is unavailable (e.g., read-only environments).
+ */
+async function fileToBase64DataUrl(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const mimeType = file.type || "image/png";
+  return `data:${mimeType};base64,${base64}`;
+}
+
+/**
  * Saves an uploaded File object to the local filesystem under public/uploads/{folder}/
  */
 async function uploadToLocal(file: File, folder: string): Promise<string> {
-  const uniqueId = `${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
-  const originalExt = path.extname(file.name);
-  const sanitizedName = `${uniqueId}${originalExt}`;
+  try {
+    const uniqueId = `${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+    const originalExt = path.extname(file.name);
+    const sanitizedName = `${uniqueId}${originalExt}`;
 
-  const targetDir = path.join(UPLOAD_ROOT, folder);
-  const targetFilePath = path.join(targetDir, sanitizedName);
+    const targetDir = path.join(UPLOAD_ROOT, folder);
+    const targetFilePath = path.join(targetDir, sanitizedName);
 
-  await fs.mkdir(targetDir, { recursive: true });
+    await fs.mkdir(targetDir, { recursive: true });
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-  await fs.writeFile(targetFilePath, buffer);
+    await fs.writeFile(targetFilePath, buffer);
 
-  return `/uploads/${folder}/${sanitizedName}`;
+    return `/uploads/${folder}/${sanitizedName}`;
+  } catch (err) {
+    console.warn("[fileStorage] Local disk upload failed (read-only filesystem). Falling back to Base64 data URL.", err);
+    return await fileToBase64DataUrl(file);
+  }
 }
 
 /**
  * Universal File Upload function called across the application.
  */
 export async function uploadFile(file: File, folder: string): Promise<string> {
-  // Use Supabase Storage if configured, otherwise fall back to local disk
+  // Use Supabase Storage if configured, otherwise fall back to local disk or base64
   const useSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY);
 
   if (useSupabase) {
     try {
       return await uploadToSupabase(file, folder);
     } catch (err) {
-      console.warn("[fileStorage] Supabase upload failed. Falling back to local storage.", err);
+      console.warn("[fileStorage] Supabase upload failed. Falling back to local storage / base64.", err);
       return await uploadToLocal(file, folder);
     }
   }

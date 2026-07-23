@@ -5,11 +5,22 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Menu, X, LogOut } from "lucide-react";
+import { applyThemeColor } from "@/lib/themeUtils";
 
 export default function HeadOfficeLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const officeId = localStorage.getItem("officeId") || "1";
+    fetch(`/api/offices/${officeId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.themeColor) applyThemeColor(data.themeColor);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setMobileMenuOpen(false);

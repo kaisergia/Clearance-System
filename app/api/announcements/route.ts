@@ -39,6 +39,11 @@ export async function GET(request: NextRequest) {
           { createdAt: "desc" },
           { id: "desc" },
         ],
+        include: {
+          office: { select: { id: true, name: true, logoUrl: true, themeColor: true } },
+          department: { select: { id: true, name: true, abbreviation: true, logoUrl: true, themeColor: true } },
+          org: { select: { id: true, name: true, logoUrl: true, themeColor: true } },
+        },
         take: 6,
       });
 
@@ -114,9 +119,9 @@ export async function GET(request: NextRequest) {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: limit + 1,
         include: {
-          office: { select: { id: true, name: true, logoUrl: true } },
-          department: { select: { id: true, name: true, abbreviation: true, logoUrl: true } },
-          org: { select: { id: true, name: true, logoUrl: true } },
+          office: { select: { id: true, name: true, logoUrl: true, themeColor: true } },
+          department: { select: { id: true, name: true, abbreviation: true, logoUrl: true, themeColor: true } },
+          org: { select: { id: true, name: true, logoUrl: true, themeColor: true } },
         },
       });
 

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Upload, X, Check, Loader2, Trash2, Image as ImageIcon } from "lucide-react";
+import { applyThemeColor } from "@/lib/themeUtils";
 
 interface BrandingSettingsProps {
   entityType: "offices" | "departments" | "orgs";
@@ -54,6 +55,13 @@ export function BrandingSettings({
   const [themeColor, setThemeColor] = useState<string | null>(currentThemeColor || null);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
 
+  // Apply theme color to page CSS variables dynamically
+  useEffect(() => {
+    if (themeColor) {
+      applyThemeColor(themeColor);
+    }
+  }, [themeColor]);
+
   // Feedback state
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -80,6 +88,7 @@ export function BrandingSettings({
   const uploadImage = async (file: File, folder: string) => {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("files", file);
     formData.append("folder", folder);
 
     const res = await fetch("/api/upload", {
@@ -87,10 +96,13 @@ export function BrandingSettings({
       body: formData,
     });
 
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error("Upload failed");
+      throw new Error(data.error || `Upload failed with status ${res.status}`);
     }
-    const data = await res.json();
+    if (!data.url) {
+      throw new Error("No URL returned from server");
+    }
     return data.url;
   };
 
@@ -102,10 +114,11 @@ export function BrandingSettings({
       body: JSON.stringify(payload),
     });
 
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error("Update failed");
+      throw new Error(data.error || `Update failed with status ${res.status}`);
     }
-    return res.json();
+    return data;
   };
 
   // --- LOGO HANDLERS ---
@@ -144,8 +157,9 @@ export function BrandingSettings({
       setLogoFile(null);
       setLogoPreview(null);
       showFeedback("success", "Logo updated successfully");
-    } catch (error) {
-      showFeedback("error", "Failed to update logo");
+    } catch (error: any) {
+      console.error("[SaveLogoError]", error);
+      showFeedback("error", error?.message || "Failed to update logo");
     } finally {
       setIsUploadingLogo(false);
     }
@@ -202,8 +216,9 @@ export function BrandingSettings({
       setCoverFile(null);
       setCoverPreview(null);
       showFeedback("success", "Cover image updated successfully");
-    } catch (error) {
-      showFeedback("error", "Failed to update cover image");
+    } catch (error: any) {
+      console.error("[SaveCoverError]", error);
+      showFeedback("error", error?.message || "Failed to update cover image");
     } finally {
       setIsUploadingCover(false);
     }
@@ -228,6 +243,7 @@ export function BrandingSettings({
   const handleThemeSelect = async (color: string) => {
     setIsSavingTheme(true);
     try {
+      applyThemeColor(color);
       await updateEntity({ themeColor: color });
       setThemeColor(color);
       showFeedback("success", "Theme color updated successfully");

@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import * as clearanceService from "@/services/clearanceService";
 import { Menu, X, LogOut } from "lucide-react";
+import { applyThemeColor } from "@/lib/themeUtils";
 
 export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -17,7 +18,10 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     const orgId = localStorage.getItem("orgId");
     if (orgId) {
       clearanceService.getOrgById(parseInt(orgId, 10)).then((found) => {
-        if (found) setOrg(found);
+        if (found) {
+          setOrg(found);
+          if (found.themeColor) applyThemeColor(found.themeColor);
+        }
       });
     }
   }, []);

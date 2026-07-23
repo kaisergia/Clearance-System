@@ -14,9 +14,9 @@ const config: Config = {
         "brand-red": "#f44a3b",
         "coral-red": "#f44a3b",
 
-        // Primary
-        "primary": "#b51b15",
-        "primary-container": "#d9372a",
+        // Primary (dynamic CSS variable support)
+        "primary": "var(--primary, #b51b15)",
+        "primary-container": "var(--primary-container, #d9372a)",
         "on-primary": "#ffffff",
         "on-primary-container": "#fffbff",
         "primary-fixed": "#ffdad5",

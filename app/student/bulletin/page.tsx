@@ -17,9 +17,9 @@ export interface AnnouncementItem {
   linkLabel: string | null;
   linkUrl: string | null;
   createdAt: string;
-  office?: { id: number; name: string; logoUrl?: string } | null;
-  department?: { id: number; name: string; abbreviation: string; logoUrl?: string } | null;
-  org?: { id: number; name: string; logoUrl?: string } | null;
+  office?: { id: number; name: string; logoUrl?: string | null; themeColor?: string | null } | null;
+  department?: { id: number; name: string; abbreviation: string; logoUrl?: string | null; themeColor?: string | null } | null;
+  org?: { id: number; name: string; logoUrl?: string | null; themeColor?: string | null } | null;
 }
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -32,7 +32,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 const PRIORITY_BADGE: Record<string, string> = {
   urgent: "bg-red-100 text-red-700 border-red-200",
   high: "bg-amber-100 text-amber-700 border-amber-200",
-  normal: "bg-red-50 text-[#c41e2a] border-red-100",
+  normal: "bg-red-50 text-primary border-red-100",
   low: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
@@ -44,11 +44,15 @@ function formatDate(dateString: string) {
   });
 }
 
+function getEntityInfo(item: AnnouncementItem): { name: string; logoUrl?: string | null; themeColor?: string | null } {
+  if (item.office) return { name: item.office.name, logoUrl: item.office.logoUrl, themeColor: item.office.themeColor };
+  if (item.department) return { name: `${item.department.name} (${item.department.abbreviation})`, logoUrl: item.department.logoUrl, themeColor: item.department.themeColor };
+  if (item.org) return { name: item.org.name, logoUrl: item.org.logoUrl, themeColor: item.org.themeColor };
+  return { name: "Cor Jesu College", logoUrl: "/images/logos/cjc-logo.webp", themeColor: "#b51b15" };
+}
+
 function getPostedBy(item: AnnouncementItem): string {
-  if (item.office) return item.office.name;
-  if (item.department) return `${item.department.name} (${item.department.abbreviation})`;
-  if (item.org) return item.org.name;
-  return "Cor Jesu College";
+  return getEntityInfo(item).name;
 }
 
 // ── Share Component / Dialog ──────────────────────────────────────────────────
@@ -168,9 +172,28 @@ function DetailModal({ item, onClose }: { item: AnnouncementItem; onClose: () =>
               <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${PRIORITY_BADGE[item.priority] ?? PRIORITY_BADGE.normal}`}>
                 {PRIORITY_LABELS[item.priority] ?? "Notice"}
               </span>
-              <span className="text-xs font-semibold text-[#c41e2a] bg-red-50 px-2.5 py-1 rounded-full">
-                {getPostedBy(item)}
-              </span>
+              {(() => {
+                const entity = getEntityInfo(item);
+                return (
+                  <span
+                    className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 border"
+                    style={{
+                      color: entity.themeColor || "#b51b15",
+                      backgroundColor: `${entity.themeColor || "#b51b15"}12`,
+                      borderColor: `${entity.themeColor || "#b51b15"}30`,
+                    }}
+                  >
+                    {entity.logoUrl && (
+                      <img
+                        src={entity.logoUrl}
+                        alt={entity.name}
+                        className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                      />
+                    )}
+                    {entity.name}
+                  </span>
+                );
+              })()}
             </div>
             <h2 className="text-xl font-bold text-gray-900 leading-snug">{item.title}</h2>
           </div>
@@ -362,25 +385,42 @@ export default function StudentBulletinPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {announcements.map((item) => (
-            <article
-              key={item.id}
-              onClick={() => setSelectedItem(item)}
-              className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden cursor-pointer group"
-            >
-              <div className="p-6">
-                {/* Header row: priority + postedBy + date */}
-                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${PRIORITY_BADGE[item.priority] ?? PRIORITY_BADGE.normal}`}>
-                      {PRIORITY_LABELS[item.priority] ?? "Notice"}
-                    </span>
-                    <span className="text-xs font-semibold text-[#c41e2a] bg-red-50 px-2.5 py-0.5 rounded-full">
-                      {getPostedBy(item)}
-                    </span>
+          {announcements.map((item) => {
+            const entity = getEntityInfo(item);
+            return (
+              <article
+                key={item.id}
+                onClick={() => setSelectedItem(item)}
+                className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer group"
+                style={{ borderLeft: `4px solid ${entity.themeColor || "#b51b15"}` }}
+              >
+                <div className="p-6">
+                  {/* Header row: priority + postedBy + date */}
+                  <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${PRIORITY_BADGE[item.priority] ?? PRIORITY_BADGE.normal}`}>
+                        {PRIORITY_LABELS[item.priority] ?? "Notice"}
+                      </span>
+                      <span
+                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1.5 border"
+                        style={{
+                          color: entity.themeColor || "#b51b15",
+                          backgroundColor: `${entity.themeColor || "#b51b15"}12`,
+                          borderColor: `${entity.themeColor || "#b51b15"}30`,
+                        }}
+                      >
+                        {entity.logoUrl && (
+                          <img
+                            src={entity.logoUrl}
+                            alt={entity.name}
+                            className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                          />
+                        )}
+                        {entity.name}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400">{formatDate(item.createdAt)}</span>
                   </div>
-                  <span className="text-xs text-gray-400">{formatDate(item.createdAt)}</span>
-                </div>
 
                 {/* Title */}
                 <h2 className="text-lg font-bold text-gray-900 group-hover:text-[#c41e2a] transition-colors leading-snug mb-2">
@@ -431,12 +471,12 @@ export default function StudentBulletinPage() {
                         {item.linkLabel || "Link"}
                       </a>
                     )}
-                    <ShareButton item={item} />
                   </div>
                 </div>
               </div>
             </article>
-          ))}
+          );
+        })}
         </div>
       )}
 
