@@ -13,7 +13,7 @@ function getEntityId(key: string): number | null {
 }
 
 export default function DepartmentSettingsPage() {
-  const [department, setDepartment] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
+  const [department, setDepartment] = useState<{ id: number; name: string; logoUrl?: string | null; coverUrl?: string | null; themeColor?: string | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +71,8 @@ export default function DepartmentSettingsPage() {
             entityId={department.id}
             entityName={department.name}
             currentLogoUrl={department.logoUrl}
+            currentCoverUrl={department.coverUrl}
+            currentThemeColor={department.themeColor}
           />
         ) : null}
       </div>

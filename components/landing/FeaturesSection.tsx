@@ -1,6 +1,7 @@
 "use client";
 
-import Image from "next/image";
+
+
 import { CheckCircle2, Users, FileCheck, ScanLine } from "lucide-react";
 import type { ClearanceSource } from "@/app/page";
 
@@ -38,14 +39,20 @@ export function FeaturesSection({ clearanceSources }: FeaturesSectionProps) {
                 <div
                   key={`${source.type}-${source.name}`}
                   className="flex items-center gap-2.5 py-3 px-3 sm:px-4 rounded-lg bg-white/15 hover:bg-white/25 transition-colors duration-200"
+                  style={source.themeColor ? { borderLeft: `3px solid ${source.themeColor}` } : undefined}
                 >
                   {source.logoUrl ? (
-                    <Image
+                    <img
                       src={source.logoUrl}
                       alt={`${source.name} logo`}
                       width={24}
                       height={24}
                       className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : source.themeColor ? (
+                    <div
+                      className="w-4 h-4 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: source.themeColor }}
                     />
                   ) : (
                     <CheckCircle2

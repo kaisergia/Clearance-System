@@ -73,7 +73,9 @@ model Office {
   pending  Int    @default(0)
   approved Int    @default(0)
   rejected Int    @default(0)
-  logoUrl  String? @db.Text
+  logoUrl    String? @db.Text
+  coverUrl   String? @db.Text
+  themeColor String?
 
   users        User[]
   requirements OfficeRequirement[]
@@ -93,6 +95,8 @@ model Department {
   approved     Int    @default(0)
   rejected     Int    @default(0)
   logoUrl      String? @db.Text
+  coverUrl     String? @db.Text
+  themeColor   String?
 
   users        User[]
   requirements DepartmentRequirement[]
@@ -114,6 +118,8 @@ model Org {
   dateAdded   String?
   memberCount Int     @default(0)
   logoUrl     String? @db.Text
+  coverUrl    String? @db.Text
+  themeColor  String?
 
   users        User[]
   members      OrgMember[]

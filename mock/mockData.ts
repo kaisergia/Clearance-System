@@ -12,6 +12,7 @@ export const mockOrgs = [
     dateAdded: "Aug 1, 2024",
     memberCount: 45,
     logoUrl: "/images/logos/csso.svg",
+    themeColor: "#0369a1",
   },
   {
     id: 2,
@@ -25,6 +26,7 @@ export const mockOrgs = [
     dateAdded: "Aug 1, 2024",
     memberCount: 32,
     logoUrl: "/images/logos/jma.svg",
+    themeColor: "#be185d",
   },
   {
     id: 3,
@@ -36,6 +38,7 @@ export const mockOrgs = [
     adviser: "Prof. Lim",
     status: "Active",
     logoUrl: "/images/logos/dance-troupe.svg",
+    themeColor: "#9333ea",
     dateAdded: "Aug 5, 2024",
     memberCount: 20,
   },
@@ -51,6 +54,7 @@ export const mockOrgs = [
     dateAdded: "Aug 1, 2024",
     memberCount: 60,
     logoUrl: "/images/logos/engsoc.svg",
+    themeColor: "#ea580c",
   },
   {
     id: 5,
@@ -63,6 +67,7 @@ export const mockOrgs = [
     status: "Active",
     dateAdded: "Jul 28, 2024",
     logoUrl: "/images/logos/student-gov.svg",
+    themeColor: "#dc2626",
     memberCount: 15,
   },
   {
@@ -76,6 +81,7 @@ export const mockOrgs = [
     status: "Active",
     dateAdded: "Jul 30, 2024",
     logoUrl: "/images/logos/ccis-lgu.svg",
+    themeColor: "#0891b2",
     memberCount: 150,
   },
 ];
@@ -102,6 +108,7 @@ export const mockDepartments = [
     approved: 120,
     rejected: 1,
     logoUrl: "/images/logos/ccis.svg",
+    themeColor: "#1e40af",
   },
   {
     id: 2,
@@ -113,6 +120,7 @@ export const mockDepartments = [
     approved: 90,
     rejected: 0,
     logoUrl: "/images/logos/coe.svg",
+    themeColor: "#b45309",
   },
 ];
 
@@ -127,6 +135,7 @@ export const mockOffices = [
     approved: 45,
     rejected: 3,
     logoUrl: "/images/logos/registrar.svg",
+    themeColor: "#b51b15",
   },
   {
     id: 2,
@@ -137,6 +146,7 @@ export const mockOffices = [
     approved: 50,
     rejected: 2,
     logoUrl: "/images/logos/library.svg",
+    themeColor: "#2563eb",
   },
   {
     id: 3,
@@ -147,6 +157,7 @@ export const mockOffices = [
     approved: 40,
     rejected: 5,
     logoUrl: "/images/logos/guidance.svg",
+    themeColor: "#059669",
   },
   {
     id: 4,
@@ -157,6 +168,7 @@ export const mockOffices = [
     approved: 35,
     rejected: 5,
     logoUrl: "/images/logos/accounting.svg",
+    themeColor: "#d97706",
   },
   {
     id: 5,
@@ -167,6 +179,7 @@ export const mockOffices = [
     approved: 55,
     rejected: 0,
     logoUrl: "/images/logos/discipline.svg",
+    themeColor: "#7c3aed",
   },
 ];
 

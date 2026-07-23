@@ -13,7 +13,7 @@ function getEntityId(key: string): number | null {
 }
 
 export default function OrgSettingsPage() {
-  const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
+  const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null; coverUrl?: string | null; themeColor?: string | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +71,8 @@ export default function OrgSettingsPage() {
             entityId={org.id}
             entityName={org.name}
             currentLogoUrl={org.logoUrl}
+            currentCoverUrl={org.coverUrl}
+            currentThemeColor={org.themeColor}
           />
         ) : null}
       </div>

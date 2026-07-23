@@ -26,6 +26,7 @@ export interface ClearanceSource {
   name: string;
   type: "office" | "department" | "org";
   logoUrl?: string | null;
+  themeColor?: string | null;
 }
 
 const STATIC_SOURCES: ClearanceSource[] = [
@@ -93,15 +94,15 @@ function LandingContent({ defaultLoginOpen }: { defaultLoginOpen?: boolean }) {
 
         const offices: ClearanceSource[] = (
           Array.isArray(officesData) ? officesData : officesData.offices ?? []
-        ).map((o: any) => ({ name: o.name, type: "office" as const, logoUrl: o.logoUrl ?? null }));
+        ).map((o: any) => ({ name: o.name, type: "office" as const, logoUrl: o.logoUrl ?? null, themeColor: o.themeColor ?? null }));
 
         const depts: ClearanceSource[] = (
           Array.isArray(deptsData) ? deptsData : deptsData.departments ?? []
-        ).map((d: any) => ({ name: d.name, type: "department" as const, logoUrl: d.logoUrl ?? null }));
+        ).map((d: any) => ({ name: d.name, type: "department" as const, logoUrl: d.logoUrl ?? null, themeColor: d.themeColor ?? null }));
 
         const orgs: ClearanceSource[] = (
           Array.isArray(orgsData) ? orgsData : orgsData.orgs ?? []
-        ).map((o: any) => ({ name: o.name, type: "org" as const, logoUrl: o.logoUrl ?? null }));
+        ).map((o: any) => ({ name: o.name, type: "org" as const, logoUrl: o.logoUrl ?? null, themeColor: o.themeColor ?? null }));
 
         const combined = [...offices, ...depts, ...orgs];
         setSources(combined.length > 0 ? combined : STATIC_SOURCES);

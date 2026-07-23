@@ -47,10 +47,12 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { logoUrl, name, head, email } = body;
+    const { logoUrl, coverUrl, themeColor, name, head, email } = body;
     
     const updateData: any = {};
     if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
+    if (coverUrl !== undefined) updateData.coverUrl = coverUrl;
+    if (themeColor !== undefined) updateData.themeColor = themeColor;
     if (name !== undefined) updateData.name = name;
     if (head !== undefined) updateData.head = head;
     if (email !== undefined) updateData.email = email;
