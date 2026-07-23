@@ -27,6 +27,22 @@ interface Requirement {
 
 import { ExpandableAppliesTo } from "@/components/ui/ExpandableAppliesTo";
 
+const TYPE_LABELS: Record<string, string> = {
+  MANUAL: "Manual Clearance",
+  DOCUMENT_UPLOAD: "Document Upload",
+  PAYMENT_PROOF: "Payment Proof",
+  SURVEY: "Survey Questionnaire",
+  ACKNOWLEDGMENT: "Acknowledgment",
+};
+
+const TYPE_BADGES: Record<string, string> = {
+  MANUAL: "bg-gray-100 text-gray-700 border-gray-200",
+  DOCUMENT_UPLOAD: "bg-blue-50 text-blue-700 border-blue-200",
+  PAYMENT_PROOF: "bg-amber-50 text-amber-800 border-amber-200",
+  SURVEY: "bg-purple-50 text-purple-700 border-purple-200",
+  ACKNOWLEDGMENT: "bg-teal-50 text-teal-700 border-teal-200",
+};
+
 export default function ClearanceRequirementsPage() {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [officeId, setOfficeId] = useState<number | null>(null);
@@ -292,11 +308,16 @@ export default function ClearanceRequirementsPage() {
                 key={req.id}
                 className="grid grid-cols-[3fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-5 items-center hover:bg-surface-bright/50 transition-colors group"
               >
-                {/* Name & Description */}
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-body-md text-base font-bold text-on-surface">
-                    {req.name}
-                  </span>
+                {/* Name, Type & Description */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-body-md text-base font-bold text-on-surface">
+                      {req.name}
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${TYPE_BADGES[req.type || "MANUAL"] ?? TYPE_BADGES.MANUAL}`}>
+                      {TYPE_LABELS[req.type || "MANUAL"] ?? "Manual Clearance"}
+                    </span>
+                  </div>
                   {req.description && (
                     <span className="font-body-sm text-sm text-secondary">
                       {req.description}
