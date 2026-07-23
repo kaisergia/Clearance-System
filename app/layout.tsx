@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { SettingsProvider } from "@/components/contexts/SettingsContext";
 import { AuthProvider } from "@/components/contexts/AuthProvider";
+import { OfficesProvider } from "@/components/contexts/OfficesContext";
+import { DepartmentsProvider } from "@/components/contexts/DepartmentsContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -35,11 +37,14 @@ export default function RootLayout({
       <body className={`${inter.className} h-full`} suppressHydrationWarning>
         <AuthProvider>
           <SettingsProvider>
-            {children}
+            <OfficesProvider>
+              <DepartmentsProvider>
+                {children}
+              </DepartmentsProvider>
+            </OfficesProvider>
           </SettingsProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
-
