@@ -257,48 +257,27 @@ export default function ReportsPage() {
   const [selectedTerm, setSelectedTerm] = useState(currentTerm);
   const [activeDepartment, setActiveDepartment] = useState<any>(null);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-
-  const [dbStudents, setDbStudents] = useState<any[]>([]);
-  const [dbRecords, setDbRecords] = useState<any[]>([]);
-  const [dbRequirements, setDbRequirements] = useState<any[]>([]);
-  const [dbSubmissions, setDbSubmissions] = useState<any[]>([]);
-
   useEffect(() => {
     setSelectedTerm(currentTerm);
   }, [currentTerm]);
 
   useEffect(() => {
-    const loadDeptAndData = async () => {
-      setIsLoading(true);
-      try {
-        const storedDepartmentId = localStorage.getItem("departmentId");
-        const oid = storedDepartmentId ? parseInt(storedDepartmentId, 10) : null;
-
-        const [studentsList, reqs, recs, subs, currentDept] = await Promise.all([
-          clearanceService.getStudents(),
-          oid ? clearanceService.getDepartmentRequirements(oid) : Promise.resolve([]),
-          oid ? clearanceService.getClearanceRecordsByDepartment(oid) : Promise.resolve([]),
-          oid ? clearanceService.getSubmissionsByDepartment(oid) : Promise.resolve([]),
-          oid ? clearanceService.getDepartmentById(oid) : Promise.resolve(null),
-        ]);
-
-        setDbStudents(studentsList || []);
+    const fetchDept = async () => {
+      const storedDepartmentId = localStorage.getItem("departmentId");
+      if (storedDepartmentId) {
+        const oid = parseInt(storedDepartmentId, 10);
+        const currentDept = await clearanceService.getDepartmentById(oid);
         if (currentDept) setActiveDepartment(currentDept);
-        if (oid) {
-          setDbRequirements(reqs || []);
-          setDbRecords(recs || []);
-          setDbSubmissions(subs || []);
-        }
-      } catch (err) {
-        console.error("Error fetching department report data:", err);
-      } finally {
-        setIsLoading(false);
       }
     };
-    loadDeptAndData();
+    fetchDept();
   }, []);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [records, setRecords] = useState<ClearanceRecord[]>([]);
+  const [deptRequirementsList, setDeptRequirementsList] = useState<Requirement[]>([]);
 
   // Mounted state for SSR safety (portal)
   const [mounted, setMounted] = useState(false);
@@ -434,74 +413,96 @@ export default function ReportsPage() {
     });
   };
 
-  // Filter students and records dynamically from database
-  const students = useMemo(() => {
-    if (!activeDepartment || !dbStudents || dbStudents.length === 0) return [];
-    return dbStudents
-      .filter((s: any) => s.department === activeDepartment.abbreviation && s.semester === selectedTerm)
-      .map((s: any) => {
-        const deptRec = dbRecords.find((r: any) => r.studentId === s.id && r.departmentId === activeDepartment.id);
-        return {
-          id: s.id,
-          name: s.name,
-          program: s.program,
-          department: s.department,
-          yearLevel: s.year,
-          status: (deptRec?.status === "Cleared" ? "cleared" : "uncleared") as "cleared" | "uncleared",
-          lastUpdated: deptRec?.dateCleared || s.createdAt || new Date().toISOString().split("T")[0],
-        };
-      });
-  }, [dbStudents, dbRecords, selectedTerm, activeDepartment]);
+  // Trigger loading effect when term changes
+  const handleTermChange = (term: string) => {
+    setSelectedTerm(term);
+  };
 
-  const records = useMemo(() => {
-    const list: any[] = [];
-    if (!dbStudents || dbStudents.length === 0 || !activeDepartment) return [];
+  useEffect(() => {
+    const loadDeptAndData = async () => {
+      setIsLoading(true);
+      const storedDepartmentId = localStorage.getItem("departmentId");
+      if (storedDepartmentId) {
+        const did = parseInt(storedDepartmentId, 10);
+        const currentDept = await clearanceService.getDepartmentById(did);
+        if (currentDept) setActiveDepartment(currentDept);
 
-    const termStudents = dbStudents.filter((s: any) => s.department === activeDepartment.abbreviation && s.semester === selectedTerm);
+        // Fetch department requirements
+        const reqs = await clearanceService.getDepartmentRequirements(did);
+        const mappedReqs = reqs.map((r: any) => ({
+          id: String(r.id),
+          name: r.name,
+          description: r.description || "",
+          isActive: r.status === "Live",
+        }));
+        setDeptRequirementsList(mappedReqs);
 
-    for (const student of termStudents) {
-      const deptRec = dbRecords.find((r: any) => r.studentId === student.id && r.departmentId === activeDepartment.id);
-      
-      const applicableReqs = dbRequirements.filter((req: any) => {
-        const appliesTo = req.appliesTo || [];
-        if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
-        return (
-          appliesTo.includes(student.program) ||
-          appliesTo.includes(student.department) ||
-          appliesTo.includes(student.year)
+        // Fetch all students
+        const fetchedStudents = await clearanceService.getStudents();
+        // Filter by department abbreviation and selected term
+        const filtered = fetchedStudents.filter(
+          (s: any) =>
+            s.semester === selectedTerm &&
+            (!currentDept || s.department === currentDept.abbreviation)
         );
-      });
 
-      applicableReqs.forEach((req: any, idx: number) => {
-        let isCleared = false;
-        if (req.type === "MANUAL") {
-          const completedTasks = (deptRec?.completedTasks as number[]) || [];
-          isCleared = completedTasks.includes(idx);
-        } else {
-          const sub = dbSubmissions.find((s: any) => s.studentId === student.id && s.requirementId === req.id);
-          isCleared = sub?.status === "approved";
+        const mappedStudents: Student[] = [];
+        const gatheredRecords: ClearanceRecord[] = [];
+
+        for (const s of filtered) {
+          const studentRecs = await clearanceService.getStudentClearanceRecords(s.id);
+          const deptRec = studentRecs.find((r: any) => r.departmentId === did);
+
+          // Find the student's requirements specifically for this department
+          const studentDeptReqs = await clearanceService.getStudentRequirements(s.id);
+          const currentDeptReq = studentDeptReqs.find((r: any) => r.type === "department" && r.id === did);
+
+          mappedStudents.push({
+            id: s.id,
+            name: s.name,
+            program: s.program,
+            department: s.department,
+            yearLevel: s.year,
+            status: deptRec?.status === "Cleared" ? "cleared" : "uncleared",
+            lastUpdated: deptRec?.dateCleared || "2024-11-20", // fallback
+          });
+
+          // Map the individual requirement records
+          for (const req of reqs) {
+            let isCleared = false;
+            if (currentDeptReq) {
+              const task = currentDeptReq.tasks?.find((t: any) => t.id === String(req.id));
+              if (task) {
+                const subStatus = task.submission?.status;
+                const isTaskApproved = subStatus === "approved";
+                const completedTasks = deptRec?.completedTasks || [];
+                const taskIdx = reqs.findIndex((x: any) => x.id === req.id);
+                const isManualCompleted = (req.type === "MANUAL" || !req.type) && completedTasks.includes(taskIdx);
+                isCleared = isTaskApproved || isManualCompleted;
+              }
+            } else if (deptRec?.status === "Cleared") {
+              isCleared = true;
+            }
+
+            gatheredRecords.push({
+              studentId: s.id,
+              requirementId: String(req.id),
+              status: isCleared ? "cleared" : "uncleared",
+              remark: deptRec?.remarks || "",
+              dateAssigned: "2024-10-01",
+              dateResolved: deptRec?.dateCleared || undefined,
+            });
+          }
         }
 
-        list.push({
-          studentId: student.id,
-          requirementId: req.id,
-          status: isCleared ? "cleared" : "uncleared",
-          dateResolved: deptRec?.dateCleared || undefined,
-        });
-      });
-    }
-
-    return list;
-  }, [dbStudents, dbRecords, dbRequirements, dbSubmissions, selectedTerm, activeDepartment]);
-
-  // Trigger loading effect when term changes (to emulate backend connectivity)
-  const handleTermChange = (term: string) => {
-    setIsLoading(true);
-    setSelectedTerm(term);
-    setTimeout(() => {
+        setStudents(mappedStudents);
+        setRecords(gatheredRecords);
+      }
       setIsLoading(false);
-    }, 400);
-  };
+    };
+
+    loadDeptAndData();
+  }, [selectedTerm]);
 
   // Stats Calculations
   const stats = useMemo(() => {
@@ -554,11 +555,11 @@ export default function ReportsPage() {
     }
 
     // Populate counts (cumulative: cleared on or before this week's end)
-    weeks.forEach((w) => {
+    weeks.forEach((w: any) => {
       w.count = clearedStudents.filter((s) => new Date(s.lastUpdated).getTime() <= w.end).length;
     });
 
-    return weeks.map((w) => ({ label: w.label, count: w.count }));
+    return weeks.map((w: any) => ({ label: w.label, count: w.count }));
   }, [students]);
 
   // Year Level breakdown
@@ -585,14 +586,14 @@ export default function ReportsPage() {
 
   // Requirement Completion Table data
   const reqCompletionData = useMemo(() => {
-    return dbRequirements.map((req) => {
+    return deptRequirementsList.map((req) => {
       const assignedRecords = records.filter((r) => r.requirementId === req.id);
       const cleared = assignedRecords.filter((r) => r.status === "cleared").length;
       const total = assignedRecords.length;
       const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
       return { ...req, cleared, total, rate };
     });
-  }, [dbRequirements, records]);
+  }, [deptRequirementsList, records]);
 
   // Export CSV Modal Trigger
   const handleExportCSV = () => {
@@ -658,10 +659,10 @@ export default function ReportsPage() {
     // XML Spreadsheet 2003 content with header bolding styles
     const xmlHeader = `<?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:department:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:department:department"
- xmlns:x="urn:schemas-microsoft-com:department:excel"
- xmlns:ss="urn:schemas-microsoft-com:department:spreadsheet"
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:html="http://www.w3.org/TR/REC-html40">
   <Styles>
     <Style ss:ID="headerStyle">

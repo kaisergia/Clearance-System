@@ -257,44 +257,20 @@ export default function ReportsPage() {
   const [selectedTerm, setSelectedTerm] = useState(currentTerm);
   const [activeOffice, setActiveOffice] = useState<any>(null);
 
-  const [dbStudents, setDbStudents] = useState<any[]>([]);
-  const [dbRecords, setDbRecords] = useState<any[]>([]);
-  const [dbRequirements, setDbRequirements] = useState<any[]>([]);
-  const [dbSubmissions, setDbSubmissions] = useState<any[]>([]);
-
   useEffect(() => {
     setSelectedTerm(currentTerm);
   }, [currentTerm]);
 
   useEffect(() => {
-    const loadOfficeAndData = async () => {
-      setIsLoading(true);
-      try {
-        const storedOfficeId = localStorage.getItem("officeId");
-        const oid = storedOfficeId ? parseInt(storedOfficeId, 10) : null;
-
-        const [studentsList, reqs, recs, subs, currentOffice] = await Promise.all([
-          clearanceService.getStudents(),
-          oid ? clearanceService.getOfficeRequirements(oid) : Promise.resolve([]),
-          oid ? clearanceService.getClearanceRecordsByOffice(oid) : Promise.resolve([]),
-          oid ? clearanceService.getSubmissionsByOffice(oid) : Promise.resolve([]),
-          oid ? clearanceService.getOfficeById(oid) : Promise.resolve(null),
-        ]);
-
-        setDbStudents(studentsList || []);
+    const loadOffice = async () => {
+      const storedOfficeId = localStorage.getItem("officeId");
+      if (storedOfficeId) {
+        const oid = parseInt(storedOfficeId, 10);
+        const currentOffice = await clearanceService.getOfficeById(oid);
         if (currentOffice) setActiveOffice(currentOffice);
-        if (oid) {
-          setDbRequirements(reqs || []);
-          setDbRecords(recs || []);
-          setDbSubmissions(subs || []);
-        }
-      } catch (err) {
-        console.error("Error fetching office report data:", err);
-      } finally {
-        setIsLoading(false);
       }
     };
-    loadOfficeAndData();
+    loadOffice();
   }, []);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -431,74 +407,96 @@ export default function ReportsPage() {
     });
   };
 
-  // Filter students and records dynamically from database
-  const students = useMemo(() => {
-    if (!dbStudents || dbStudents.length === 0) return [];
-    return dbStudents
-      .filter((s: any) => s.semester === selectedTerm)
-      .map((s: any) => {
-        const officeRec = dbRecords.find((r: any) => r.studentId === s.id && r.officeId === activeOffice?.id);
-        return {
-          id: s.id,
-          name: s.name,
-          program: s.program,
-          department: s.department,
-          yearLevel: s.year,
-          status: (officeRec?.status === "Cleared" ? "cleared" : "uncleared") as "cleared" | "uncleared",
-          lastUpdated: officeRec?.dateCleared || s.createdAt || new Date().toISOString().split("T")[0],
-        };
-      });
-  }, [dbStudents, dbRecords, selectedTerm, activeOffice]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [records, setRecords] = useState<ClearanceRecord[]>([]);
+  const [officeRequirementsList, setOfficeRequirementsList] = useState<Requirement[]>([]);
 
-  const records = useMemo(() => {
-    const list: any[] = [];
-    if (!dbStudents || dbStudents.length === 0 || !activeOffice) return [];
+  // Trigger loading effect when term changes
+  const handleTermChange = (term: string) => {
+    setSelectedTerm(term);
+  };
 
-    const termStudents = dbStudents.filter((s: any) => s.semester === selectedTerm);
+  useEffect(() => {
+    const loadOfficeAndData = async () => {
+      setIsLoading(true);
+      const storedOfficeId = localStorage.getItem("officeId");
+      if (storedOfficeId) {
+        const oid = parseInt(storedOfficeId, 10);
+        const currentOffice = await clearanceService.getOfficeById(oid);
+        if (currentOffice) setActiveOffice(currentOffice);
 
-    for (const student of termStudents) {
-      const officeRec = dbRecords.find((r: any) => r.studentId === student.id && r.officeId === activeOffice.id);
-      
-      const applicableReqs = dbRequirements.filter((req: any) => {
-        const appliesTo = req.appliesTo || [];
-        if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
-        return (
-          appliesTo.includes(student.program) ||
-          appliesTo.includes(student.department) ||
-          appliesTo.includes(student.year)
-        );
-      });
+        // Fetch office requirements
+        const reqs = await clearanceService.getOfficeRequirements(oid);
+        const mappedReqs = reqs.map((r: any) => ({
+          id: String(r.id),
+          name: r.name,
+          description: r.description || "",
+          isActive: r.status === "Live",
+        }));
+        setOfficeRequirementsList(mappedReqs);
 
-      applicableReqs.forEach((req: any, idx: number) => {
-        let isCleared = false;
-        if (req.type === "MANUAL") {
-          const completedTasks = (officeRec?.completedTasks as number[]) || [];
-          isCleared = completedTasks.includes(idx);
-        } else {
-          const sub = dbSubmissions.find((s: any) => s.studentId === student.id && s.requirementId === req.id);
-          isCleared = sub?.status === "approved";
+        // Fetch all students
+        const fetchedStudents = await clearanceService.getStudents();
+        // Filter by selected term
+        const termFilteredStudents = fetchedStudents.filter((s: any) => s.semester === selectedTerm);
+
+        const mappedStudents: Student[] = [];
+        const gatheredRecords: ClearanceRecord[] = [];
+
+        for (const s of termFilteredStudents) {
+          const studentRecs = await clearanceService.getStudentClearanceRecords(s.id);
+          const officeRec = studentRecs.find((r: any) => r.officeId === oid);
+
+          // Find the student's requirements specifically for this office
+          const studentOfficeReqs = await clearanceService.getStudentRequirements(s.id);
+          const currentOfficeReq = studentOfficeReqs.find((r: any) => r.type === "office" && r.id === oid);
+
+          mappedStudents.push({
+            id: s.id,
+            name: s.name,
+            program: s.program,
+            department: s.department,
+            yearLevel: s.year,
+            status: officeRec?.status === "Cleared" ? "cleared" : "uncleared",
+            lastUpdated: officeRec?.dateCleared || "2024-11-20", // fallback
+          });
+
+          // Map the individual requirement records
+          for (const req of reqs) {
+            let isCleared = false;
+            if (currentOfficeReq) {
+              const task = currentOfficeReq.tasks?.find((t: any) => t.id === String(req.id));
+              if (task) {
+                const subStatus = task.submission?.status;
+                const isTaskApproved = subStatus === "approved";
+                const completedTasks = officeRec?.completedTasks || [];
+                const taskIdx = reqs.findIndex((x: any) => x.id === req.id);
+                const isManualCompleted = (req.type === "MANUAL" || !req.type) && completedTasks.includes(taskIdx);
+                isCleared = isTaskApproved || isManualCompleted;
+              }
+            } else if (officeRec?.status === "Cleared") {
+              isCleared = true;
+            }
+
+            gatheredRecords.push({
+              studentId: s.id,
+              requirementId: String(req.id),
+              status: isCleared ? "cleared" : "uncleared",
+              remark: officeRec?.remarks || "",
+              dateAssigned: "2024-10-01",
+              dateResolved: officeRec?.dateCleared || undefined,
+            });
+          }
         }
 
-        list.push({
-          studentId: student.id,
-          requirementId: req.id,
-          status: isCleared ? "cleared" : "uncleared",
-          dateResolved: officeRec?.dateCleared || undefined,
-        });
-      });
-    }
-
-    return list;
-  }, [dbStudents, dbRecords, dbRequirements, dbSubmissions, selectedTerm, activeOffice]);
-
-  // Trigger loading effect when term changes (to emulate backend connectivity)
-  const handleTermChange = (term: string) => {
-    setIsLoading(true);
-    setSelectedTerm(term);
-    setTimeout(() => {
+        setStudents(mappedStudents);
+        setRecords(gatheredRecords);
+      }
       setIsLoading(false);
-    }, 400);
-  };
+    };
+
+    loadOfficeAndData();
+  }, [selectedTerm]);
 
   // Stats Calculations
   const stats = useMemo(() => {
@@ -551,11 +549,11 @@ export default function ReportsPage() {
     }
 
     // Populate counts (cumulative: cleared on or before this week's end)
-    weeks.forEach((w) => {
+    weeks.forEach((w: any) => {
       w.count = clearedStudents.filter((s) => new Date(s.lastUpdated).getTime() <= w.end).length;
     });
 
-    return weeks.map((w) => ({ label: w.label, count: w.count }));
+    return weeks.map((w: any) => ({ label: w.label, count: w.count }));
   }, [students]);
 
   // Year Level breakdown
@@ -580,14 +578,14 @@ export default function ReportsPage() {
 
   // Requirement Completion Table data
   const reqCompletionData = useMemo(() => {
-    return dbRequirements.map((req) => {
+    return officeRequirementsList.map((req) => {
       const assignedRecords = records.filter((r) => r.requirementId === req.id);
       const cleared = assignedRecords.filter((r) => r.status === "cleared").length;
       const total = assignedRecords.length;
       const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
       return { ...req, cleared, total, rate };
     });
-  }, [dbRequirements, records]);
+  }, [officeRequirementsList, records]);
 
   // Export CSV Modal Trigger
   const handleExportCSV = () => {

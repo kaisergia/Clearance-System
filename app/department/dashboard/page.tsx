@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import Image from "next/image";
 import { useSettings } from "@/components/contexts/SettingsContext";
 
 import * as clearanceService from "@/services/clearanceService";
@@ -83,6 +84,49 @@ export default function DepartmentDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
+      {/* Cover Banner */}
+      <div className="relative w-full rounded-2xl overflow-hidden mb-8" style={{ aspectRatio: '16/5' }}>
+        {activeDepartment?.coverUrl ? (
+          <Image
+            src={activeDepartment.coverUrl}
+            alt="Cover"
+            fill
+            className="object-cover"
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(135deg, ${activeDepartment?.themeColor || '#b51b15'} 0%, ${activeDepartment?.themeColor || '#b51b15'}88 50%, ${activeDepartment?.themeColor || '#b51b15'}44 100%)`,
+            }}
+          />
+        )}
+        {/* Logo + Name overlay at bottom-left */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/60 to-transparent">
+          <div className="flex items-end gap-4">
+            <div className="w-16 h-16 rounded-full border-2 border-white overflow-hidden bg-white/20 flex-shrink-0 flex items-center justify-center">
+              {activeDepartment?.logoUrl ? (
+                <Image
+                  src={activeDepartment.logoUrl}
+                  alt={activeDepartment.name || 'Logo'}
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-white text-2xl font-bold">
+                  {activeDepartment?.name?.charAt(0) || '?'}
+                </span>
+              )}
+            </div>
+            <div>
+              <h1 className="text-white text-xl font-bold">{activeDepartment?.name || 'Loading...'}</h1>
+              <p className="text-white/70 text-sm">{activeDepartment?.head ? `Head: ${activeDepartment.head}` : ''}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-surface-container-high">
         <div>
