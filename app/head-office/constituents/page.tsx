@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
-import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
+import { ConstituentsTable, TableStudent } from "@/components/constituents/ConstituentsTable";
 import * as clearanceService from "@/services/clearanceService";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
+import { mockStudents } from "@/mock/mockStudents";
+import { mockRequirements } from "@/mock/mockData";
+import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 export default function ConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -142,8 +145,37 @@ export default function ConstituentsPage() {
     }
   };
 
+  const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<TableStudent | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingBulkStatus, setPendingBulkStatus] = useState<"Cleared" | "Pending" | null>(null);
+
+  const getSelectedStudentRequirements = () => {
+    if (!selectedStudentForDetails) return [];
+    const storedReqs = localStorage.getItem("requirements");
+    const reqsList = storedReqs ? JSON.parse(storedReqs) : mockRequirements;
+    
+    // Normalize Rejected to Pending
+    const normalized = reqsList.map((r: any) => ({
+      ...r,
+      status: r.status === "Rejected" ? "Pending" : r.status
+    }));
+
+    // Find the student in the current page constituents state to get their local toggle status
+    const currentStudentState = constituents.find((s) => s.id === selectedStudentForDetails.id);
+    const isOfficeCleared = currentStudentState ? currentStudentState.status === "Cleared" : false;
+
+    // Only mark the "Guidance Office" requirement based on this status
+    return normalized.map((r: any) => {
+      if (r.responsible === "Guidance Office") {
+        return {
+          ...r,
+          status: isOfficeCleared ? "Cleared" : "Pending",
+          dateCleared: isOfficeCleared ? (r.dateCleared || "Jan 14, 2026") : null
+        };
+      }
+      return r;
+    });
+  };
 
   const triggerBulkStatusChange = (status: "Cleared" | "Pending") => {
     setPendingBulkStatus(status);
@@ -266,12 +298,13 @@ export default function ConstituentsPage() {
         onSelectAllChange={handleSelectAllChange}
         onToggleStatus={handleToggleStatus}
         onBulkStatusChange={triggerBulkStatusChange}
+        onViewDetails={setSelectedStudentForDetails}
         isAllSelected={isAllSelected}
         onViewDetails={handleOpenStatusModal}
       />
 
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-6 max-w-md w-full mx-4 shadow-lg animate-scale-up">
             <div className="flex items-center gap-3 text-amber-600 mb-4">
               <span className="material-symbols-outlined text-3xl">warning</span>
