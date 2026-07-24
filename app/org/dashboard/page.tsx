@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
-import ClearanceStatus from "@/components/ui/ClearanceStatus";
+import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 
 export default function OrgDashboard() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -262,13 +262,13 @@ export default function OrgDashboard() {
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
               <div className="flex flex-col">
                 <h3 className="font-title-md text-base font-bold text-on-surface">
-                  Clearance Status Checklist
+                  Student Clearance Details
                 </h3>
                 <span className="text-xs text-secondary mt-0.5">
                   Viewing details for <span className="font-bold text-on-surface">{selectedStudentForStatus.name} ({selectedStudentForStatus.id})</span>
@@ -284,9 +284,9 @@ export default function OrgDashboard() {
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto pr-1">
-              <ClearanceStatus 
-                requirements={statusRequirements} 
-                studentId={selectedStudentForStatus.id} 
+              <ClearanceStatusView 
+                targetStudentId={selectedStudentForStatus.id} 
+                isSysAdminView={true}
                 viewingOrgId={org?.id}
               />
             </div>

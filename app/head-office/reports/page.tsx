@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import * as clearanceService from "@/services/clearanceService";
 
 // Types
 interface Student {
@@ -256,20 +257,44 @@ export default function ReportsPage() {
   const [selectedTerm, setSelectedTerm] = useState(currentTerm);
   const [activeOffice, setActiveOffice] = useState<any>(null);
 
+  const [dbStudents, setDbStudents] = useState<any[]>([]);
+  const [dbRecords, setDbRecords] = useState<any[]>([]);
+  const [dbRequirements, setDbRequirements] = useState<any[]>([]);
+  const [dbSubmissions, setDbSubmissions] = useState<any[]>([]);
+
   useEffect(() => {
     setSelectedTerm(currentTerm);
   }, [currentTerm]);
 
   useEffect(() => {
-    const loadOffice = async () => {
-      const storedOfficeId = localStorage.getItem("officeId");
-      if (storedOfficeId) {
-        const oid = parseInt(storedOfficeId, 10);
-        const currentOffice = await clearanceService.getOfficeById(oid);
+    const loadOfficeAndData = async () => {
+      setIsLoading(true);
+      try {
+        const storedOfficeId = localStorage.getItem("officeId");
+        const oid = storedOfficeId ? parseInt(storedOfficeId, 10) : null;
+
+        const [studentsList, reqs, recs, subs, currentOffice] = await Promise.all([
+          clearanceService.getStudents(),
+          oid ? clearanceService.getOfficeRequirements(oid) : Promise.resolve([]),
+          oid ? clearanceService.getClearanceRecordsByOffice(oid) : Promise.resolve([]),
+          oid ? clearanceService.getSubmissionsByOffice(oid) : Promise.resolve([]),
+          oid ? clearanceService.getOfficeById(oid) : Promise.resolve(null),
+        ]);
+
+        setDbStudents(studentsList || []);
         if (currentOffice) setActiveOffice(currentOffice);
+        if (oid) {
+          setDbRequirements(reqs || []);
+          setDbRecords(recs || []);
+          setDbSubmissions(subs || []);
+        }
+      } catch (err) {
+        console.error("Error fetching office report data:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
-    loadOffice();
+    loadOfficeAndData();
   }, []);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -406,22 +431,65 @@ export default function ReportsPage() {
     });
   };
 
-  // Fetch / get data for selected term
-  const mockTermKey = useMemo(() => {
-    if (MOCK_STUDENTS_BY_TERM[selectedTerm]) return selectedTerm;
-    
-    // Semantic fallback based on semester type
-    if (selectedTerm.includes("1st Semester") || selectedTerm.includes("Fall")) {
-      return "1st Semester 2025-2026";
-    }
-    if (selectedTerm.includes("2nd Semester") || selectedTerm.includes("Spring")) {
-      return "2nd Semester 2024-2025";
-    }
-    return "1st Semester 2024-2025";
-  }, [selectedTerm]);
+  // Filter students and records dynamically from database
+  const students = useMemo(() => {
+    if (!dbStudents || dbStudents.length === 0) return [];
+    return dbStudents
+      .filter((s: any) => s.semester === selectedTerm)
+      .map((s: any) => {
+        const officeRec = dbRecords.find((r: any) => r.studentId === s.id && r.officeId === activeOffice?.id);
+        return {
+          id: s.id,
+          name: s.name,
+          program: s.program,
+          department: s.department,
+          yearLevel: s.year,
+          status: (officeRec?.status === "Cleared" ? "cleared" : "uncleared") as "cleared" | "uncleared",
+          lastUpdated: officeRec?.dateCleared || s.createdAt || new Date().toISOString().split("T")[0],
+        };
+      });
+  }, [dbStudents, dbRecords, selectedTerm, activeOffice]);
 
-  const students = useMemo(() => MOCK_STUDENTS_BY_TERM[mockTermKey] || [], [mockTermKey]);
-  const records = useMemo(() => MOCK_RECORDS_BY_TERM[mockTermKey] || [], [mockTermKey]);
+  const records = useMemo(() => {
+    const list: any[] = [];
+    if (!dbStudents || dbStudents.length === 0 || !activeOffice) return [];
+
+    const termStudents = dbStudents.filter((s: any) => s.semester === selectedTerm);
+
+    for (const student of termStudents) {
+      const officeRec = dbRecords.find((r: any) => r.studentId === student.id && r.officeId === activeOffice.id);
+      
+      const applicableReqs = dbRequirements.filter((req: any) => {
+        const appliesTo = req.appliesTo || [];
+        if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
+        return (
+          appliesTo.includes(student.program) ||
+          appliesTo.includes(student.department) ||
+          appliesTo.includes(student.year)
+        );
+      });
+
+      applicableReqs.forEach((req: any, idx: number) => {
+        let isCleared = false;
+        if (req.type === "MANUAL") {
+          const completedTasks = (officeRec?.completedTasks as number[]) || [];
+          isCleared = completedTasks.includes(idx);
+        } else {
+          const sub = dbSubmissions.find((s: any) => s.studentId === student.id && s.requirementId === req.id);
+          isCleared = sub?.status === "approved";
+        }
+
+        list.push({
+          studentId: student.id,
+          requirementId: req.id,
+          status: isCleared ? "cleared" : "uncleared",
+          dateResolved: officeRec?.dateCleared || undefined,
+        });
+      });
+    }
+
+    return list;
+  }, [dbStudents, dbRecords, dbRequirements, dbSubmissions, selectedTerm, activeOffice]);
 
   // Trigger loading effect when term changes (to emulate backend connectivity)
   const handleTermChange = (term: string) => {
@@ -512,14 +580,14 @@ export default function ReportsPage() {
 
   // Requirement Completion Table data
   const reqCompletionData = useMemo(() => {
-    return MOCK_REQUIREMENTS.map((req) => {
+    return dbRequirements.map((req) => {
       const assignedRecords = records.filter((r) => r.requirementId === req.id);
       const cleared = assignedRecords.filter((r) => r.status === "cleared").length;
       const total = assignedRecords.length;
       const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
       return { ...req, cleared, total, rate };
     });
-  }, [records]);
+  }, [dbRequirements, records]);
 
   // Export CSV Modal Trigger
   const handleExportCSV = () => {
@@ -544,7 +612,7 @@ export default function ReportsPage() {
 
   // Actual Excel XML Generator and Downloader with applied export filters
   const executeDownloadCSV = () => {
-    let list = MOCK_STUDENTS_BY_TERM[mockTermKey] || [];
+    let list = students;
 
     // Filter by selected departments (ignoring the "All Departments" selector)
     const activeDepts = exportDepts.filter((d) => d !== "All Departments");

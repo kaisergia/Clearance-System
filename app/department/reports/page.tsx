@@ -257,38 +257,48 @@ export default function ReportsPage() {
   const [selectedTerm, setSelectedTerm] = useState(currentTerm);
   const [activeDepartment, setActiveDepartment] = useState<any>(null);
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const [dbStudents, setDbStudents] = useState<any[]>([]);
+  const [dbRecords, setDbRecords] = useState<any[]>([]);
+  const [dbRequirements, setDbRequirements] = useState<any[]>([]);
+  const [dbSubmissions, setDbSubmissions] = useState<any[]>([]);
+
   useEffect(() => {
     setSelectedTerm(currentTerm);
   }, [currentTerm]);
 
   useEffect(() => {
-    const fetchDept = async () => {
-      const storedDepartmentId = localStorage.getItem("departmentId");
-      if (storedDepartmentId) {
-        const oid = parseInt(storedDepartmentId, 10);
-        const currentDept = await clearanceService.getDepartmentById(oid);
-        if (currentDept) setActiveDepartment(currentDept);
-      }
-    };
-    fetchDept();
-  }, []);
+    const loadDeptAndData = async () => {
+      setIsLoading(true);
+      try {
+        const storedDepartmentId = localStorage.getItem("departmentId");
+        const oid = storedDepartmentId ? parseInt(storedDepartmentId, 10) : null;
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  // Real students from DB — filtered by this department
-  const [dbStudents, setDbStudents] = useState<any[]>([]);
-  useEffect(() => {
-    const fetchStudents = async () => {
-      const all = await clearanceService.getStudents();
-      // Filter to only students in this department (abbreviation match)
-      if (activeDepartment) {
-        setDbStudents(all.filter((s: any) => s.department === activeDepartment.abbreviation));
-      } else {
-        setDbStudents(all);
+        const [studentsList, reqs, recs, subs, currentDept] = await Promise.all([
+          clearanceService.getStudents(),
+          oid ? clearanceService.getDepartmentRequirements(oid) : Promise.resolve([]),
+          oid ? clearanceService.getClearanceRecordsByDepartment(oid) : Promise.resolve([]),
+          oid ? clearanceService.getSubmissionsByDepartment(oid) : Promise.resolve([]),
+          oid ? clearanceService.getDepartmentById(oid) : Promise.resolve(null),
+        ]);
+
+        setDbStudents(studentsList || []);
+        if (currentDept) setActiveDepartment(currentDept);
+        if (oid) {
+          setDbRequirements(reqs || []);
+          setDbRecords(recs || []);
+          setDbSubmissions(subs || []);
+        }
+      } catch (err) {
+        console.error("Error fetching department report data:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
-    fetchStudents();
-  }, [activeDepartment]);
+    loadDeptAndData();
+  }, []);
 
   // Mounted state for SSR safety (portal)
   const [mounted, setMounted] = useState(false);
@@ -424,41 +434,65 @@ export default function ReportsPage() {
     });
   };
 
-  // Fetch / get data for selected term
-  const mockTermKey = useMemo(() => {
-    if (MOCK_STUDENTS_BY_TERM[selectedTerm]) return selectedTerm;
-    
-    // Semantic fallback based on semester type
-    if (selectedTerm.includes("1st Semester") || selectedTerm.includes("Fall")) {
-      return "1st Semester 2025-2026";
-    }
-    if (selectedTerm.includes("2nd Semester") || selectedTerm.includes("Spring")) {
-      return "2nd Semester 2024-2025";
-    }
-    return "1st Semester 2024-2025";
-  }, [selectedTerm]);
-
-  // Use real DB students (mapped to the Student interface expected by charts/stats)
-  // TODO: Once a term-based clearance history API is available, replace MOCK_RECORDS_BY_TERM
+  // Filter students and records dynamically from database
   const students = useMemo(() => {
-    if (!activeDepartment) return [];
-    return dbStudents.map((s: any) => ({
-      id: s.id,
-      name: s.name,
-      program: s.program,
-      department: s.department,
-      yearLevel: s.year,
-      status: (s.status === "Cleared" ? "cleared" : "uncleared") as "cleared" | "uncleared",
-      lastUpdated: new Date().toISOString().split("T")[0],
-    }));
-  }, [dbStudents, activeDepartment]);
+    if (!activeDepartment || !dbStudents || dbStudents.length === 0) return [];
+    return dbStudents
+      .filter((s: any) => s.department === activeDepartment.abbreviation && s.semester === selectedTerm)
+      .map((s: any) => {
+        const deptRec = dbRecords.find((r: any) => r.studentId === s.id && r.departmentId === activeDepartment.id);
+        return {
+          id: s.id,
+          name: s.name,
+          program: s.program,
+          department: s.department,
+          yearLevel: s.year,
+          status: (deptRec?.status === "Cleared" ? "cleared" : "uncleared") as "cleared" | "uncleared",
+          lastUpdated: deptRec?.dateCleared || s.createdAt || new Date().toISOString().split("T")[0],
+        };
+      });
+  }, [dbStudents, dbRecords, selectedTerm, activeDepartment]);
 
   const records = useMemo(() => {
-    const allRecords = MOCK_RECORDS_BY_TERM[mockTermKey] || [];
-    if (!activeDepartment) return [];
-    const deptStudentIds = new Set(students.map((s) => s.id));
-    return allRecords.filter((r) => deptStudentIds.has(r.studentId));
-  }, [mockTermKey, students, activeDepartment]);
+    const list: any[] = [];
+    if (!dbStudents || dbStudents.length === 0 || !activeDepartment) return [];
+
+    const termStudents = dbStudents.filter((s: any) => s.department === activeDepartment.abbreviation && s.semester === selectedTerm);
+
+    for (const student of termStudents) {
+      const deptRec = dbRecords.find((r: any) => r.studentId === student.id && r.departmentId === activeDepartment.id);
+      
+      const applicableReqs = dbRequirements.filter((req: any) => {
+        const appliesTo = req.appliesTo || [];
+        if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
+        return (
+          appliesTo.includes(student.program) ||
+          appliesTo.includes(student.department) ||
+          appliesTo.includes(student.year)
+        );
+      });
+
+      applicableReqs.forEach((req: any, idx: number) => {
+        let isCleared = false;
+        if (req.type === "MANUAL") {
+          const completedTasks = (deptRec?.completedTasks as number[]) || [];
+          isCleared = completedTasks.includes(idx);
+        } else {
+          const sub = dbSubmissions.find((s: any) => s.studentId === student.id && s.requirementId === req.id);
+          isCleared = sub?.status === "approved";
+        }
+
+        list.push({
+          studentId: student.id,
+          requirementId: req.id,
+          status: isCleared ? "cleared" : "uncleared",
+          dateResolved: deptRec?.dateCleared || undefined,
+        });
+      });
+    }
+
+    return list;
+  }, [dbStudents, dbRecords, dbRequirements, dbSubmissions, selectedTerm, activeDepartment]);
 
   // Trigger loading effect when term changes (to emulate backend connectivity)
   const handleTermChange = (term: string) => {
@@ -551,14 +585,14 @@ export default function ReportsPage() {
 
   // Requirement Completion Table data
   const reqCompletionData = useMemo(() => {
-    return MOCK_REQUIREMENTS.map((req) => {
+    return dbRequirements.map((req) => {
       const assignedRecords = records.filter((r) => r.requirementId === req.id);
       const cleared = assignedRecords.filter((r) => r.status === "cleared").length;
       const total = assignedRecords.length;
       const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
       return { ...req, cleared, total, rate };
     });
-  }, [records]);
+  }, [dbRequirements, records]);
 
   // Export CSV Modal Trigger
   const handleExportCSV = () => {
@@ -583,7 +617,7 @@ export default function ReportsPage() {
 
   // Actual Excel XML Generator and Downloader with applied export filters
   const executeDownloadCSV = () => {
-    let list = MOCK_STUDENTS_BY_TERM[mockTermKey] || [];
+    let list = students;
 
     // Filter by selected departments (ignoring the "All Departments" selector)
     const activeDepts = exportDepts.filter((d) => d !== "All Departments");

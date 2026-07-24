@@ -173,6 +173,9 @@ export default function OrgReportsPage() {
 
   // Active Org Configuration
   const [org, setOrg] = useState<any>(null);
+  const [dbRequirements, setDbRequirements] = useState<any[]>([]);
+  const [dbRecords, setDbRecords] = useState<any[]>([]);
+  const [dbSubmissions, setDbSubmissions] = useState<any[]>([]);
 
   // Export Modal States
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -199,16 +202,31 @@ export default function OrgReportsPage() {
   useEffect(() => {
     setMounted(true);
 
-    const fetchOrg = async () => {
-      const orgId = localStorage.getItem("orgId");
-      if (orgId) {
-        const currentOrg = await clearanceService.getOrgById(parseInt(orgId));
-        if (currentOrg) {
-          setOrg(currentOrg);
+    const loadOrgAndData = async () => {
+      setIsLoading(true);
+      try {
+        const orgId = localStorage.getItem("orgId");
+        if (orgId) {
+          const oid = parseInt(orgId, 10);
+          const [currentOrg, reqs, recs, subs] = await Promise.all([
+            clearanceService.getOrgById(oid),
+            clearanceService.getOrgRequirements(oid),
+            clearanceService.getClearanceRecordsByOrg(oid),
+            clearanceService.getSubmissionsByOrg(oid),
+          ]);
+
+          if (currentOrg) setOrg(currentOrg);
+          setDbRequirements(reqs || []);
+          setDbRecords(recs || []);
+          setDbSubmissions(subs || []);
         }
+      } catch (err) {
+        console.error("Error loading org report data:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
-    fetchOrg();
+    loadOrgAndData();
 
     function handleClickOutside(event: MouseEvent) {
       if (exportDeptRef.current && !exportDeptRef.current.contains(event.target as Node)) {
@@ -330,17 +348,22 @@ export default function OrgReportsPage() {
 
       // Map students to reports-compatible interface
       const fetchedStudents = await clearanceService.getStudents();
-      const mappedStudents: Student[] = fetchedStudents.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        program: s.program,
-        department: s.department,
-        year: s.year,
-        status: s.status || "Pending",
-        email: s.email,
-        semester: s.semester,
-        lastUpdated: "2024-11-20", // Mock date
-      }));
+      const mappedStudents: Student[] = fetchedStudents
+        .filter((s: any) => s.semester === selectedTerm)
+        .map((s: any) => {
+          const orgRec = dbRecords.find((r: any) => r.studentId === s.id && r.orgId === org.id);
+          return {
+            id: s.id,
+            name: s.name,
+            program: s.program,
+            department: s.department,
+            year: s.year,
+            status: (orgRec?.status === "Cleared" ? "Cleared" : "Pending") as "Cleared" | "Pending",
+            email: s.email,
+            semester: s.semester,
+            lastUpdated: orgRec?.dateCleared || s.createdAt || new Date().toISOString().split("T")[0],
+          };
+        });
 
       if (org.type === "Gov") {
         list = mappedStudents;
@@ -356,7 +379,7 @@ export default function OrgReportsPage() {
       setConstituents(list);
     };
     fetchConstituents();
-  }, [org]);
+  }, [org, selectedTerm, dbRecords, dbSubmissions]);
 
   const handleTermChange = (term: string) => {
     setIsLoading(true);
@@ -461,16 +484,56 @@ export default function OrgReportsPage() {
     return "Clearance Status by Department";
   }, [org]);
 
+  // Dynamically compute virtual clearance records for org requirements
+  const records = useMemo(() => {
+    const list: any[] = [];
+    if (!org || constituents.length === 0) return [];
+
+    for (const student of constituents) {
+      const orgRec = dbRecords.find((r: any) => r.studentId === student.id && r.orgId === org.id);
+      
+      const applicableReqs = dbRequirements.filter((req: any) => {
+        const appliesTo = req.appliesTo || [];
+        if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
+        return (
+          appliesTo.includes(student.program) ||
+          appliesTo.includes(student.department) ||
+          appliesTo.includes(student.year)
+        );
+      });
+
+      applicableReqs.forEach((req: any, idx: number) => {
+        let isCleared = false;
+        if (req.type === "MANUAL") {
+          const completedTasks = (orgRec?.completedTasks as number[]) || [];
+          isCleared = completedTasks.includes(idx);
+        } else {
+          const sub = dbSubmissions.find((s: any) => s.studentId === student.id && s.requirementId === req.id);
+          isCleared = sub?.status === "approved";
+        }
+
+        list.push({
+          studentId: student.id,
+          requirementId: req.id,
+          status: isCleared ? "cleared" : "uncleared",
+          dateResolved: orgRec?.dateCleared || undefined,
+        });
+      });
+    }
+
+    return list;
+  }, [constituents, dbRecords, dbRequirements, dbSubmissions, org]);
+
   // Requirement Completion Table data
   const reqCompletionData = useMemo(() => {
-    return MOCK_REQUIREMENTS.map((req) => {
-      const assignedRecords = MOCK_RECORDS.filter((r) => r.requirementId === req.id);
+    return dbRequirements.map((req) => {
+      const assignedRecords = records.filter((r) => r.requirementId === req.id);
       const cleared = assignedRecords.filter((r) => r.status === "cleared").length;
       const total = assignedRecords.length;
       const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
       return { ...req, cleared, total, rate };
     });
-  }, []);
+  }, [dbRequirements, records]);
 
   // Export CSV Handler
   const handleExportCSV = () => {

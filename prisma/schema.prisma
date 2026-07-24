@@ -20,6 +20,7 @@ model User {
   avatarUrl   String?  @db.Text
   role        Role
   displayName String
+  isProfileComplete Boolean @default(false)
   createdAt   DateTime @default(now())
 
   // Role-specific entity links — at most one will be non-null per user
@@ -32,6 +33,20 @@ model User {
   department Department? @relation(fields: [departmentId], references: [id])
   org        Org?        @relation(fields: [orgId],        references: [id])
   student    Student?    @relation(fields: [studentId],    references: [id])
+  studentProfile StudentProfile?
+}
+
+model StudentProfile {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college      String
+  program      String
+  yearLevel    Int
+  organization String?
+  studentType  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 enum Role {

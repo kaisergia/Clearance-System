@@ -10,17 +10,28 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: NextRequest) {
   try {
     const studentId = req.nextUrl.searchParams.get("studentId");
-    if (!studentId) {
-      return NextResponse.json({ error: "studentId is required" }, { status: 400 });
+    const officeId = req.nextUrl.searchParams.get("officeId");
+    const departmentId = req.nextUrl.searchParams.get("departmentId");
+    const orgId = req.nextUrl.searchParams.get("orgId");
+
+    const where: any = {};
+    if (studentId) where.studentId = studentId;
+    if (officeId) where.officeId = parseInt(officeId, 10);
+    if (departmentId) where.departmentId = parseInt(departmentId, 10);
+    if (orgId) where.orgId = parseInt(orgId, 10);
+
+    if (!studentId && !officeId && !departmentId && !orgId) {
+      return NextResponse.json({ error: "At least one filter (studentId, officeId, departmentId, orgId) is required" }, { status: 400 });
     }
 
     const records = await prisma.clearanceRecord.findMany({
-      where: { studentId },
+      where,
     });
 
     // Normalise to the same shape the UI expects
     return NextResponse.json(
       records.map((r) => ({
+        studentId:     r.studentId,
         officeId:      r.officeId ?? undefined,
         orgId:         r.orgId ?? undefined,
         departmentId:  r.departmentId ?? undefined,

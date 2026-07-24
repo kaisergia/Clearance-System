@@ -58,9 +58,9 @@ export async function POST(req: NextRequest) {
       const appliesTo = (r.appliesTo as string[]) || [];
       if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
       return (
-        appliesTo.includes(student?.program) ||
-        appliesTo.includes(student?.department) ||
-        appliesTo.includes(student?.year)
+        (student?.program ? appliesTo.includes(student.program) : false) ||
+        (student?.department ? appliesTo.includes(student.department) : false) ||
+        (student?.year ? appliesTo.includes(student.year) : false)
       );
     };
 

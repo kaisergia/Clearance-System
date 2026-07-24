@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements, mockDepartments, defaultDepartmentRequirements } from "@/mock/mockData";
 import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X } from "lucide-react";
 import * as clearanceService from "@/services/clearanceService";
+import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 interface ClearanceItem {
   id: number;
@@ -740,6 +741,7 @@ export function ClearanceStatusView({
   const [orgReqs, setOrgReqs] = useState<Record<number, any[]>>({});
   const [deptReqs, setDeptReqs] = useState<Record<number, any[]>>({});
   const [triggerSync, setTriggerSync] = useState(0);
+  const [viewMode, setViewMode] = useState<"office" | "all">("office");
 
   useEffect(() => {
     const handleSync = () => {
@@ -786,21 +788,26 @@ export function ClearanceStatusView({
     
     if (!resolvedId) return;
 
-    // Fetch student profile from the DB API
-    clearanceService.getStudentById(resolvedId).then(currentStudent => {
-      if (currentStudent) setStudent(currentStudent);
-    });
-
     const loadData = async () => {
       try {
+        const currentStudent = await clearanceService.getStudentById(resolvedId);
+        if (currentStudent) setStudent(currentStudent);
+
         const mergedReqs = await clearanceService.getStudentRequirements(resolvedId);
         setRequirements(mergedReqs);
       } catch (err) {
         console.error("Failed to load student requirements from DB, falling back to mock", err);
+        
+        // Fetch student in catch block as fallback to resolve currentStudent scope
+        const currentStudent = await clearanceService.getStudentById(resolvedId);
+        if (currentStudent) setStudent(currentStudent);
+        const activeStudent = currentStudent || student;
+        if (!activeStudent) return;
+
         // Fallback mock logic
         const baseOffices = mockRequirements.filter((r: any) => r.type === "office");
         const studentOrgs = mockOrgMembers
-          .filter((m) => m.studentId === currentStudent.id)
+          .filter((m) => m.studentId === activeStudent.id)
           .map((m) => mockOrgs.find((o) => o.id === m.orgId))
           .filter(Boolean);
 
@@ -814,7 +821,7 @@ export function ClearanceStatusView({
           remarks: "",
         }));
 
-        const studentDept = mockDepartments.find((d: any) => d.abbreviation === currentStudent.department);
+        const studentDept = mockDepartments.find((d: any) => d.abbreviation === activeStudent.department);
         const dynamicDepts = studentDept ? [{
           id: studentDept.id,
           name: "Department Clearance",
@@ -894,32 +901,34 @@ export function ClearanceStatusView({
   let orgsClubs = requirements.filter((req) => req.type === "org");
   let departments = requirements.filter((req) => req.type === "department");
 
-  // Explicit props take highest precedence (used when an office/dept/org views a student's detail).
-  // Falls back to the localStorage role for dev-bypass sessions.
-  if (viewingOfficeId) {
-    headOffices = headOffices.filter(req => req.id === viewingOfficeId);
-    orgsClubs = [];
-    departments = [];
-  } else if (viewingOrgId) {
-    orgsClubs = orgsClubs.filter(req => req.id === viewingOrgId);
-    headOffices = [];
-    departments = [];
-  } else if (viewingDeptId) {
-    departments = departments.filter(req => req.id === viewingDeptId);
-    headOffices = [];
-    orgsClubs = [];
-  } else if (currentUserRole === "head-office" && currentEntityId) {
-    headOffices = headOffices.filter(req => req.id === currentEntityId);
-    orgsClubs = [];
-    departments = [];
-  } else if (currentUserRole === "org" && currentEntityId) {
-    orgsClubs = orgsClubs.filter(req => req.id === currentEntityId);
-    headOffices = [];
-    departments = [];
-  } else if (currentUserRole === "department" && currentEntityId) {
-    departments = departments.filter(req => req.id === currentEntityId);
-    headOffices = [];
-    orgsClubs = [];
+  const isOfficeView = !!(viewingOfficeId || viewingOrgId || viewingDeptId || (currentUserRole && currentUserRole !== "admin" && currentUserRole !== "student"));
+
+  if (isOfficeView && viewMode === "office") {
+    if (viewingOfficeId) {
+      headOffices = headOffices.filter(req => req.id === viewingOfficeId);
+      orgsClubs = [];
+      departments = [];
+    } else if (viewingOrgId) {
+      orgsClubs = orgsClubs.filter(req => req.id === viewingOrgId);
+      headOffices = [];
+      departments = [];
+    } else if (viewingDeptId) {
+      departments = departments.filter(req => req.id === viewingDeptId);
+      headOffices = [];
+      orgsClubs = [];
+    } else if (currentUserRole === "head-office" && currentEntityId) {
+      headOffices = headOffices.filter(req => req.id === currentEntityId);
+      orgsClubs = [];
+      departments = [];
+    } else if (currentUserRole === "org" && currentEntityId) {
+      orgsClubs = orgsClubs.filter(req => req.id === currentEntityId);
+      headOffices = [];
+      departments = [];
+    } else if (currentUserRole === "department" && currentEntityId) {
+      departments = departments.filter(req => req.id === currentEntityId);
+      headOffices = [];
+      orgsClubs = [];
+    }
   }
 
   // Helper function to check if a requirement applies to the current student
@@ -931,8 +940,6 @@ export function ClearanceStatusView({
       r.appliesTo.includes(student.year)
     );
   };
-
-  const isOfficeView = !!(viewingOfficeId || viewingOrgId || viewingDeptId);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
@@ -988,6 +995,32 @@ export function ClearanceStatusView({
         </div>
       )}
 
+      {/* View Toggle Tabs — shown to office/dept/org viewers */}
+      {isOfficeView && (
+        <div className="flex border-b border-surface-container-high mb-2 gap-2">
+          <button
+            onClick={() => setViewMode("office")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              viewMode === "office"
+                ? "border-brand-red text-brand-red font-bold"
+                : "border-transparent text-secondary hover:text-on-surface"
+            }`}
+          >
+            Office Requirements
+          </button>
+          <button
+            onClick={() => setViewMode("all")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              viewMode === "all"
+                ? "border-brand-red text-brand-red font-bold"
+                : "border-transparent text-secondary hover:text-on-surface"
+            }`}
+          >
+            Overall Progress / All Signatories
+          </button>
+        </div>
+      )}
+
       {/* Document upload instructions — student-only */}
       {!isSysAdminView && !isOfficeView && (
         <div className="bg-primary-container/10 border border-primary-container/20 rounded-xl p-4 flex gap-3 text-on-surface">
@@ -1003,98 +1036,104 @@ export function ClearanceStatusView({
         </div>
       )}
 
-      {/* Lists of Requirements */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Head Offices Section */}
-        {headOffices.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center px-1">
-              <h2 className="font-title-md text-base font-bold text-on-surface">Head Offices</h2>
-              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
-                {headOffices.length} Total
-              </span>
-            </div>
-            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
-              <div className="space-y-1">
-                {headOffices.map((item, i) => {
-                  const tasks = item.tasks || (officeReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
-                  return (
-                    <ClearanceItemRow
-                      key={item.id}
-                      item={item}
-                      isLast={i === headOffices.length - 1}
-                      isSysAdminView={isSysAdminView}
-                      studentId={student?.id || ""}
-                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
-                      tasks={tasks}
-                    />
-                  );
-                })}
+      {/* Lists of Requirements OR Clearance Status Progress Map */}
+      {isOfficeView && viewMode === "all" ? (
+        <div className="w-full">
+          <ClearanceStatus requirements={requirements} studentId={student.id} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Head Offices Section */}
+          {headOffices.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="font-title-md text-base font-bold text-on-surface">Head Offices</h2>
+                <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                  {headOffices.length} Total
+                </span>
+              </div>
+              <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+                <div className="space-y-1">
+                  {headOffices.map((item, i) => {
+                    const tasks = item.tasks || (officeReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
+                    return (
+                      <ClearanceItemRow
+                        key={item.id}
+                        item={item}
+                        isLast={i === headOffices.length - 1}
+                        isSysAdminView={isSysAdminView}
+                        studentId={student?.id || ""}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        tasks={tasks}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Departments Section */}
-        {departments.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center px-1">
-              <h2 className="font-title-md text-base font-bold text-on-surface">Departments</h2>
-              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
-                {departments.length} Total
-              </span>
-            </div>
-            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
-              <div className="space-y-1">
-                {departments.map((item, i) => {
-                  const tasks = item.tasks || (deptReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
-                  return (
-                    <ClearanceItemRow
-                      key={item.id}
-                      item={item}
-                      isLast={i === departments.length - 1}
-                      isSysAdminView={isSysAdminView}
-                      studentId={student?.id || ""}
-                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
-                      tasks={tasks}
-                    />
-                  );
-                })}
+          {/* Departments Section */}
+          {departments.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="font-title-md text-base font-bold text-on-surface">Departments</h2>
+                <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                  {departments.length} Total
+                </span>
+              </div>
+              <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+                <div className="space-y-1">
+                  {departments.map((item, i) => {
+                    const tasks = item.tasks || (deptReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
+                    return (
+                      <ClearanceItemRow
+                        key={item.id}
+                        item={item}
+                        isLast={i === departments.length - 1}
+                        isSysAdminView={isSysAdminView}
+                        studentId={student?.id || ""}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        tasks={tasks}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Orgs & Clubs Section */}
-        {orgsClubs.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center px-1">
-              <h2 className="font-title-md text-base font-bold text-on-surface">Orgs & Clubs</h2>
-              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
-                {orgsClubs.length} Total
-              </span>
-            </div>
-            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
-              <div className="space-y-1">
-                {orgsClubs.map((item, i) => {
-                  const tasks = item.tasks || (orgReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
-                  return (
-                    <ClearanceItemRow
-                      key={item.id}
-                      item={item}
-                      isLast={i === orgsClubs.length - 1}
-                      isSysAdminView={isSysAdminView}
-                      studentId={student?.id || ""}
-                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
-                      tasks={tasks}
-                    />
-                  );
-                })}
+          {/* Orgs & Clubs Section */}
+          {orgsClubs.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="font-title-md text-base font-bold text-on-surface">Orgs & Clubs</h2>
+                <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                  {orgsClubs.length} Total
+                </span>
+              </div>
+              <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+                <div className="space-y-1">
+                  {orgsClubs.map((item, i) => {
+                    const tasks = item.tasks || (orgReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
+                    return (
+                      <ClearanceItemRow
+                        key={item.id}
+                        item={item}
+                        isLast={i === orgsClubs.length - 1}
+                        isSysAdminView={isSysAdminView}
+                        studentId={student?.id || ""}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        tasks={tasks}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -54,6 +54,14 @@ This document summarizes the development progress, completed features, tasks cur
 
 ## 2. In Progress
 
+### 🏗️ Database-Ready Service Layer Refactoring
+* **Description**: Abstracting all clearance status checks, dynamic checklists, and overall clearance status updates behind a database-ready asynchronous service layer (`services/clearanceService.ts`).
+* **Implementation Details**:
+  - Expose asynchronous functions (`getStudents`, `getStudentRequirements`, `updateClearanceRecord`, etc.).
+  - Centralize dynamic overall status calculation to prevent data inconsistency between the overall status badge and individual requirements.
+  - Automatically synchronize overall status updates back to the student list in storage.
+  - Provide a single swap point for future Supabase/API database connection.
+
 ### 📊 Organization Reports & Metrics
 * **Description**: Implementing the Reports and Metrics page for the Organization Portal, porting charts and export options.
 * **Current Focus**: Restricting calculations, charts, and export modal targets to the active organization's inclusive or exclusive scope.

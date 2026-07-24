@@ -55,32 +55,37 @@ export interface ClearanceItem {
 /** True when running in the browser (not during SSR). */
 const isBrowser = typeof window !== "undefined";
 
-/**
- * Wrapper around fetch that returns null on any error, so callers can fall
- * back to localStorage gracefully.
- */
 async function apiFetch<T>(path: string): Promise<T | null> {
   if (!isBrowser) return null;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
   try {
-    const res = await fetch(path);
+    const res = await fetch(path, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {
+    clearTimeout(timeoutId);
     return null;
   }
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T | null> {
   if (!isBrowser) return null;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
   try {
     const res = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {
+    clearTimeout(timeoutId);
     return null;
   }
 }
@@ -476,4 +481,40 @@ export async function getStudentOrgMemberships(studentId: string): Promise<any[]
     .map((m: any) => mockOrgs.find((o: any) => o.id === m.orgId))
     .filter(Boolean);
   return memberOrgs.map((org: any) => ({ org }));
+}
+
+export async function getClearanceRecordsByOffice(officeId: number): Promise<any[]> {
+  const dbResult = await apiFetch<any[]>(`/api/clearance-records?officeId=${officeId}`);
+  if (dbResult) return dbResult;
+  return [];
+}
+
+export async function getClearanceRecordsByDepartment(departmentId: number): Promise<any[]> {
+  const dbResult = await apiFetch<any[]>(`/api/clearance-records?departmentId=${departmentId}`);
+  if (dbResult) return dbResult;
+  return [];
+}
+
+export async function getClearanceRecordsByOrg(orgId: number): Promise<any[]> {
+  const dbResult = await apiFetch<any[]>(`/api/clearance-records?orgId=${orgId}`);
+  if (dbResult) return dbResult;
+  return [];
+}
+
+export async function getSubmissionsByOffice(officeId: number): Promise<any[]> {
+  const dbResult = await apiFetch<any[]>(`/api/submissions?officeId=${officeId}`);
+  if (dbResult) return dbResult;
+  return [];
+}
+
+export async function getSubmissionsByDepartment(departmentId: number): Promise<any[]> {
+  const dbResult = await apiFetch<any[]>(`/api/submissions?departmentId=${departmentId}`);
+  if (dbResult) return dbResult;
+  return [];
+}
+
+export async function getSubmissionsByOrg(orgId: number): Promise<any[]> {
+  const dbResult = await apiFetch<any[]>(`/api/submissions?orgId=${orgId}`);
+  if (dbResult) return dbResult;
+  return [];
 }
