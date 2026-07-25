@@ -46,6 +46,7 @@ export interface ClearanceItem {
   remarks?: string;
   uploadedFiles?: Record<number, string>;
   completedTasks?: number[];
+  tasks?: any[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

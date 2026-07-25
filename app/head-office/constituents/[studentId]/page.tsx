@@ -1,7 +1,7 @@
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/authOptions";
 
 export default async function HeadOfficeStudentClearanceView({ params }: { params: Promise<{ studentId: string }> }) {
   const resolvedParams = await params;

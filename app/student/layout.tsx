@@ -4,16 +4,33 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as clearanceService from "@/services/clearanceService";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { Menu, X, LogOut } from "lucide-react";
+import ProfileCompletionModal from "@/components/constituents/ProfileCompletionModal";
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [student, setStudent] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      const isStudent = session.user.role === "student" || session.user.role === "STUDENT";
+      const isCompleteInSession = session.user.isProfileComplete;
+      const isCompleteInStorage = typeof window !== "undefined" && localStorage.getItem("activeStudentProfileComplete") === "true";
+      
+      if (isStudent && !isCompleteInSession && !isCompleteInStorage) {
+        setShowCompletionModal(true);
+      } else {
+        setShowCompletionModal(false);
+      }
+    }
+  }, [session, status]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -244,6 +261,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       <main className="md:ml-[280px] min-h-screen p-4 sm:p-6 md:p-10 pt-20 md:pt-10">
         {children}
       </main>
+      <ProfileCompletionModal isOpen={showCompletionModal} />
     </div>
   );
 }

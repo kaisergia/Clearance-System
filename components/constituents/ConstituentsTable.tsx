@@ -17,6 +17,7 @@ interface ConstituentsTableProps {
   onSelectAllChange: (checked: boolean) => void;
   onToggleStatus: (id: string) => void;
   onBulkStatusChange: (status: "Cleared" | "Pending") => void;
+  onViewDetails?: (student: TableStudent) => void;
   isAllSelected: boolean;
   isSysAdmin?: boolean;
   basePath?: string;
@@ -30,6 +31,7 @@ export function ConstituentsTable({
   onSelectAllChange,
   onToggleStatus,
   onBulkStatusChange,
+  onViewDetails,
   isAllSelected,
   isSysAdmin = false,
   basePath = "/head-office/constituents",
@@ -169,6 +171,7 @@ export function ConstituentsTable({
                       </a>
                     )}
                   </td>
+
                 </tr>
               ))
             )}
