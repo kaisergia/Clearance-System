@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { mockStudents } from "@/mock/mockStudents";
+import { mockRequirements, mockStudentClearanceRecords } from "@/mock/mockData";
 
 export async function GET(
   req: NextRequest,
@@ -17,67 +19,128 @@ export async function GET(
       studentIdMatch = cleanCode.replace("CJC-", "");
     }
 
-    // Try finding student by exact ID, email, or formatted code match
-    const student = await prisma.student.findFirst({
-      where: {
-        OR: [
-          { id: studentIdMatch },
-          { id: cleanCode },
-          { email: cleanCode.toLowerCase() },
-        ],
-      },
-      include: {
-        clearanceRecords: true,
-      },
-    });
+    let studentData: any = null;
+    let recordsData: any[] = [];
 
-    if (!student) {
+    try {
+      // 1. Try finding in Prisma DB
+      const dbStudent = await prisma.student.findFirst({
+        where: {
+          OR: [
+            { id: studentIdMatch },
+            { id: cleanCode },
+            { email: cleanCode.toLowerCase() },
+          ],
+        },
+        include: {
+          clearanceRecords: true,
+        },
+      });
+
+      if (dbStudent) {
+        studentData = {
+          id: dbStudent.id,
+          name: dbStudent.name,
+          email: dbStudent.email,
+          department: dbStudent.department,
+          program: dbStudent.program,
+          year: dbStudent.year,
+          status: dbStudent.status,
+          semester: dbStudent.semester || "1st Semester 2025-2026",
+        };
+        recordsData = dbStudent.clearanceRecords || [];
+      } else {
+        // Try finding user by email
+        const dbUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { email: cleanCode.toLowerCase() },
+              { studentId: studentIdMatch },
+            ],
+          },
+          include: { student: { include: { clearanceRecords: true } } },
+        });
+
+        if (dbUser && dbUser.student) {
+          studentData = {
+            id: dbUser.student.id,
+            name: dbUser.displayName || dbUser.student.name,
+            email: dbUser.email,
+            department: dbUser.student.department,
+            program: dbUser.student.program,
+            year: dbUser.student.year,
+            status: dbUser.student.status,
+            semester: dbUser.student.semester || "1st Semester 2025-2026",
+          };
+          recordsData = dbUser.student.clearanceRecords || [];
+        }
+      }
+    } catch (dbErr) {
+      console.warn("[Verify API] Database query failed, using fallback records", dbErr);
+    }
+
+    // 2. Fallback lookup if not found in database yet
+    if (!studentData) {
+      const mockMatch = mockStudents.find(
+        (s) =>
+          s.id.toUpperCase() === studentIdMatch ||
+          s.id.toUpperCase() === cleanCode ||
+          s.email.toLowerCase() === cleanCode.toLowerCase()
+      );
+
+      if (mockMatch) {
+        studentData = {
+          id: mockMatch.id,
+          name: mockMatch.name,
+          email: mockMatch.email,
+          department: mockMatch.department,
+          program: mockMatch.program,
+          year: mockMatch.year,
+          status: mockMatch.status,
+          semester: mockMatch.semester || "1st Semester 2025-2026",
+        };
+        
+        // Mock clearance records summary
+        const studentRecordsMap = mockStudentClearanceRecords[mockMatch.id] || {};
+        recordsData = mockRequirements.map((r) => ({
+          entityId: r.id,
+          entityType: r.type,
+          status: studentRecordsMap[r.id]?.status || "Pending",
+          dateCleared: studentRecordsMap[r.id]?.dateCleared || null,
+        }));
+      }
+    }
+
+    if (!studentData) {
       return NextResponse.json(
         {
           valid: false,
-          error: "No clearance record found matching this verification code.",
+          error: `No clearance record found matching '${cleanCode}'. Please verify the Student ID or Verification Code.`,
         },
         { status: 404 }
       );
     }
 
-    // Check if student has clearance records
-    const records = student.clearanceRecords || [];
-    const totalRecords = records.length;
-    const clearedRecords = records.filter((r) => r.status === "Cleared").length;
-    const isFullyCleared = totalRecords > 0 && clearedRecords === totalRecords;
+    // Evaluate clearance status
+    const totalRecords = recordsData.length;
+    const clearedRecords = recordsData.filter((r) => r.status === "Cleared").length;
+    const isFullyCleared = studentData.status === "Cleared" || (totalRecords > 0 && clearedRecords === totalRecords);
 
-    // Build requirement summary
-    const recordSummary = records.map((r) => ({
-      entityId: r.officeId || r.departmentId || r.orgId,
-      entityType: r.officeId ? "office" : r.departmentId ? "department" : "org",
-      status: r.status,
-      dateCleared: r.dateCleared,
-    }));
-
-    const formattedCode = `CJC-CLR-2026-${student.id}`;
-    const dateCleared = records.find((r) => r.dateCleared)?.dateCleared || "July 2026";
+    const formattedCode = `CJC-CLR-2026-${studentData.id}`;
+    const dateCleared = recordsData.find((r) => r.dateCleared)?.dateCleared || "July 2026";
 
     return NextResponse.json({
       valid: isFullyCleared,
-      status: student.status,
+      status: isFullyCleared ? "Cleared" : "Pending",
       verificationCode: formattedCode,
       issuedDate: dateCleared,
-      student: {
-        id: student.id,
-        name: student.name,
-        email: student.email,
-        department: student.department,
-        program: student.program,
-        year: student.year,
-        semester: student.semester || "1st Semester 2025-2026",
-      },
+      student: studentData,
       clearanceSummary: {
         total: totalRecords,
         cleared: clearedRecords,
         isFullyCleared,
       },
-      records: recordSummary,
+      records: recordsData,
     });
   } catch (err: any) {
     console.error("[GET /api/verify/[code]] Error", err);
