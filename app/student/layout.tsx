@@ -53,7 +53,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   }, [pathname]);
 
   const handleLogout = () => {
-    const devKeys = ["dev-role-override", "dev-entityId-override", "role", "officeId", "departmentId", "orgId", "activeStudentId", "avatarUrl"];
+    const devKeys = ["dev-role-override", "dev-entityId-override", "role", "officeId", "departmentId", "orgId", "activeStudentId", "avatarUrl", "activeStudentProfileComplete", "mock_isProfileComplete"];
     devKeys.forEach((key) => {
       localStorage.removeItem(key);
       document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`;

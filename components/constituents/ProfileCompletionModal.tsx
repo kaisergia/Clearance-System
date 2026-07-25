@@ -104,17 +104,17 @@ export default function ProfileCompletionModal({ isOpen }: ProfileCompletionModa
         throw new Error(data.error || "Failed to save profile.");
       }
 
-      if (data.fallback) {
-        // DB is offline - save to localStorage fallback pattern
-        localStorage.setItem("mock_isProfileComplete", "true");
-        localStorage.setItem("activeStudentProfileComplete", "true");
+      // Always persist completion flag in localStorage to prevent modal loop after page reload
+      localStorage.setItem("activeStudentProfileComplete", "true");
+      localStorage.setItem("mock_isProfileComplete", "true");
+      if (studentId.trim()) {
+        localStorage.setItem("activeStudentId", studentId.trim());
+        document.cookie = `activeStudentId=${studentId.trim()}; path=/; max-age=86400`;
+      }
 
+      if (data.fallback) {
         const oldStudentId = localStorage.getItem("activeStudentId") || "2021-0492";
         const newStudentId = studentId.trim();
-
-        // Update active student details in localStorage
-        localStorage.setItem("activeStudentId", newStudentId);
-        document.cookie = `activeStudentId=${newStudentId}; path=/; max-age=86400`;
 
         const storedStudents = localStorage.getItem("students");
         if (storedStudents) {
