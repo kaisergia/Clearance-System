@@ -125,7 +125,6 @@ export const authOptions: NextAuthOptions = {
           studentId: dbStudent.id,
           googleId: user.id,
           avatarUrl: user.image ?? null,
-          isProfileComplete: false,
         },
       });
 
@@ -152,7 +151,7 @@ export const authOptions: NextAuthOptions = {
               dbUser.studentId ??
               null;
             token.avatarUrl = dbUser.avatarUrl;
-            token.isProfileComplete = dbUser.isProfileComplete;
+            token.isProfileComplete = (dbUser as any).isProfileComplete ?? false;
           }
         } catch (dbErr) {
           console.warn("[NextAuth JWT] Database offline, running in mock/local fallback mode:", dbErr);

@@ -24,7 +24,6 @@ export async function POST(req: Request) {
     try {
       const user = await prisma.user.findUnique({
         where: { email: session.user.email },
-        include: { studentProfile: true },
       });
 
       if (!user) {
@@ -127,29 +126,9 @@ export async function POST(req: Request) {
           organizationNamesString = selectedOrgs.map((o) => o.name).join(", ");
         }
 
-        // 2. Upsert StudentProfile
-        await tx.studentProfile.upsert({
-          where: { userId: user.id },
-          create: {
-            userId: user.id,
-            college,
-            program,
-            yearLevel,
-            organization: organizationNamesString,
-          },
-          update: {
-            college,
-            program,
-            yearLevel,
-            organization: organizationNamesString,
-          },
-        });
 
-        // 3. Set isProfileComplete = true on User
-        await tx.user.update({
-          where: { id: user.id },
-          data: { isProfileComplete: true },
-        });
+
+
 
         // 4. Handle enrolled clubs / organization memberships
         if (Array.isArray(enrolledClubs)) {

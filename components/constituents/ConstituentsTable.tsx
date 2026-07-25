@@ -15,9 +15,8 @@ interface ConstituentsTableProps {
   selectedIds: string[];
   onSelectStudent: (id: string, checked: boolean) => void;
   onSelectAllChange: (checked: boolean) => void;
-  onToggleStatus: (id: string) => void;
+  onToggleStatus: (studentId: string, currentStatus: string) => void;
   onBulkStatusChange: (status: "Cleared" | "Pending") => void;
-  onViewDetails?: (student: TableStudent) => void;
   isAllSelected: boolean;
   isSysAdmin?: boolean;
   basePath?: string;
@@ -31,7 +30,6 @@ export function ConstituentsTable({
   onSelectAllChange,
   onToggleStatus,
   onBulkStatusChange,
-  onViewDetails,
   isAllSelected,
   isSysAdmin = false,
   basePath = "/head-office/constituents",
@@ -132,14 +130,14 @@ export function ConstituentsTable({
                     <td className="py-4 px-6 text-center">
                       {student.status === "Cleared" ? (
                         <button
-                          onClick={() => onToggleStatus(student.id)}
+                          onClick={() => onToggleStatus(student.id, student.status)}
                           className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-red-50 text-coral-red hover:bg-coral-red hover:text-white border border-coral-red active:scale-95 shadow-sm"
                         >
                           Mark Uncleared
                         </button>
                       ) : (
                         <button
-                          onClick={() => onToggleStatus(student.id)}
+                          onClick={() => onToggleStatus(student.id, student.status)}
                           className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-green-50 text-green-600 hover:bg-green-600 hover:text-white border border-green-600 active:scale-95 shadow-sm"
                         >
                           Mark Cleared

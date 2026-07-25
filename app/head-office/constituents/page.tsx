@@ -298,7 +298,6 @@ export default function ConstituentsPage() {
         onSelectAllChange={handleSelectAllChange}
         onToggleStatus={handleToggleStatus}
         onBulkStatusChange={triggerBulkStatusChange}
-        onViewDetails={setSelectedStudentForDetails}
         isAllSelected={isAllSelected}
         onViewDetails={handleOpenStatusModal}
       />
