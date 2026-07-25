@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements, mockDepartments, defaultDepartmentRequirements } from "@/mock/mockData";
-import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X, Award, ShieldCheck, QrCode } from "lucide-react";
 import * as clearanceService from "@/services/clearanceService";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
+import { CertificateModal } from "@/components/clearance/CertificateModal";
 
 interface ClearanceItem {
   id: number;
@@ -742,6 +743,7 @@ export function ClearanceStatusView({
   const [deptReqs, setDeptReqs] = useState<Record<number, any[]>>({});
   const [triggerSync, setTriggerSync] = useState(0);
   const [viewMode, setViewMode] = useState<"office" | "all">("office");
+  const [showCertModal, setShowCertModal] = useState(false);
 
   useEffect(() => {
     const handleSync = () => {
@@ -980,6 +982,38 @@ export function ClearanceStatusView({
         )}
       </section>
 
+      {/* Official Certificate Banner */}
+      {student && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-lowest border border-brand-red/20 rounded-xl p-4 shadow-sm my-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-brand-red/10 text-brand-red flex items-center justify-center font-bold shrink-0">
+              <Award size={22} />
+            </div>
+            <div>
+              <h3 className="font-bold text-on-surface text-sm flex items-center gap-2">
+                Official Certificate of Clearance
+                {student.status === "Cleared" && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
+                    100% Cleared
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-secondary mt-0.5">
+                Generate Cor Jesu College official certificate & QR verification code.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowCertModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-red hover:bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+          >
+            <Award size={16} />
+            View Official Certificate
+          </button>
+        </div>
+      )}
+
       {/* Student info card — shown to office/dept/org viewers */}
       {isOfficeView && (
         <div className="flex items-center gap-4 bg-surface-container-lowest border border-surface-container-high rounded-xl p-4 shadow-sm">
@@ -1144,6 +1178,21 @@ export function ClearanceStatusView({
             </div>
           )}
         </div>
+      )}
+
+      {student && (
+        <CertificateModal
+          isOpen={showCertModal}
+          onClose={() => setShowCertModal(false)}
+          student={{
+            id: student.id,
+            name: student.name,
+            department: student.department || "CCIS",
+            program: student.program || "BSIT",
+            year: student.year || "4th Year",
+            semester: student.semester || "1st Semester 2025-2026",
+          }}
+        />
       )}
     </div>
   );
