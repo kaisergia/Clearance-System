@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
+import { PROGRAM_MAP } from "@/lib/constants";
 
 export default function OrgDashboard() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -54,7 +55,10 @@ export default function OrgDashboard() {
           } else if (currentOrg.type === "LGU") {
             list = allStudents.filter((s) => s.department === currentOrg.department);
           } else if (currentOrg.type === "AcademicClub") {
-            list = allStudents.filter((s) => s.program === currentOrg.program);
+            list = allStudents.filter((s) => {
+              const studentProg = PROGRAM_MAP[s.program] || s.program;
+              return studentProg === currentOrg.program;
+            });
           } else if (currentOrg.type === "NonAcademicClub") {
             const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
             list = allStudents.filter((s) => memberIds.includes(s.id));
