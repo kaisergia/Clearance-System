@@ -7,6 +7,7 @@ import * as clearanceService from "@/services/clearanceService";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
+import { PROGRAM_MAP } from "@/lib/constants";
 
 export default function OrgConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -57,7 +58,10 @@ export default function OrgConstituentsPage() {
             list = allStudents.filter((s) => s.department === currentOrg.department);
             setDepartment(currentOrg.department || "All Departments"); // Lock department
           } else if (currentOrg.type === "AcademicClub") {
-            list = allStudents.filter((s) => s.program === currentOrg.program);
+            list = allStudents.filter((s) => {
+              const studentProg = PROGRAM_MAP[s.program] || s.program;
+              return studentProg === currentOrg.program;
+            });
             setDepartment(currentOrg.department || "All Departments"); // Lock department
             setProgram(currentOrg.program || "All Programs"); // Lock program
           } else if (currentOrg.type === "NonAcademicClub") {
@@ -145,7 +149,11 @@ export default function OrgConstituentsPage() {
       student.id.includes(search);
     const matchesYear = yearLevel === "All Years" || student.year === yearLevel;
     const matchesDept = department === "All Departments" || student.department === department;
-    const matchesProg = program === "All Programs" || student.program === program;
+    const studentProgCode = PROGRAM_MAP[student.program] || student.program;
+    const matchesProg =
+      program === "All Programs" ||
+      student.program === program ||
+      studentProgCode === program;
 
     return matchesSearch && matchesYear && matchesDept && matchesProg;
   });

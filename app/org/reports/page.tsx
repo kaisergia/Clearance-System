@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import * as clearanceService from "@/services/clearanceService";
+import { PROGRAM_MAP } from "@/lib/constants";
 
 // Types
 interface Student {
@@ -351,7 +352,10 @@ export default function OrgReportsPage() {
       } else if (org.type === "LGU") {
         list = termFilteredStudents.filter((s) => s.department === org.department);
       } else if (org.type === "AcademicClub") {
-        list = termFilteredStudents.filter((s) => s.program === org.program);
+        list = termFilteredStudents.filter((s) => {
+          const studentProg = PROGRAM_MAP[s.program] || s.program;
+          return studentProg === org.program;
+        });
       } else if (org.type === "NonAcademicClub") {
         const memberIds = await clearanceService.getOrgMemberIds(org.id);
         list = termFilteredStudents.filter((s) => memberIds.includes(s.id));
