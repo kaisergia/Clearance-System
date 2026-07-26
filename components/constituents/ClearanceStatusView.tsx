@@ -76,7 +76,7 @@ function ClearanceItemRow({
 
   // Track completed tasks locally for MANUAL tasks
   const [completedTasks, setCompletedTasks] = useState<number[]>(item.completedTasks || []);
-  
+
   // Local submission states
   const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Record<string, File>>({});
@@ -302,7 +302,7 @@ function ClearanceItemRow({
       {/* Content */}
       <div className="flex-1 pb-4">
         <div className="rounded-xl px-3 py-2 -mt-2 border border-surface-container-low hover:border-surface-container-high hover:bg-surface-container-low/50 transition-all duration-150">
-          <div 
+          <div
             onClick={() => setExpanded(!expanded)}
             className="flex items-start justify-between cursor-pointer"
           >
@@ -329,7 +329,7 @@ function ClearanceItemRow({
             <div className="mt-3 pt-3 border-t border-surface-container-high space-y-4 animate-fadeIn">
               <div className="space-y-3">
                 <span className="text-[11px] font-bold text-secondary uppercase tracking-wider block">Requirements Checklist</span>
-                
+
                 {tasks.length === 0 ? (
                   <p className="text-xs text-secondary italic">No requirements configured for this office.</p>
                 ) : (
@@ -390,16 +390,18 @@ function ClearanceItemRow({
                                       </button>
                                     )}
                                   </div>
-                                  {(() => { const urls = parseFileUrls(sub?.uploadedFileUrls); return urls.length > 0 && (
-                                    <a
-                                      href={urls[0]}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 border border-primary/20 px-3 py-1.5 rounded-lg inline-flex max-w-full hover:bg-primary/10"
-                                    >
-                                      <FileText size={12} /> View submitted document
-                                    </a>
-                                  ); })()}
+                                  {(() => {
+                                    const urls = parseFileUrls(sub?.uploadedFileUrls); return urls.length > 0 && (
+                                      <a
+                                        href={urls[0]}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 border border-primary/20 px-3 py-1.5 rounded-lg inline-flex max-w-full hover:bg-primary/10"
+                                      >
+                                        <FileText size={12} /> View submitted document
+                                      </a>
+                                    );
+                                  })()}
                                 </div>
                               ) : (
                                 // No submission OR rejected
@@ -473,7 +475,7 @@ function ClearanceItemRow({
                                   {task.type === "SURVEY" && (
                                     <div className="space-y-3 bg-surface-container-lowest/60 p-3 rounded-lg border border-surface-container-high">
                                       {(() => {
-                                        const questions = task.surveyQuestions 
+                                        const questions = task.surveyQuestions
                                           ? (typeof task.surveyQuestions === 'string' ? JSON.parse(task.surveyQuestions) : task.surveyQuestions)
                                           : [];
                                         return questions.map((q: any) => (
@@ -561,15 +563,14 @@ function ClearanceItemRow({
                             // EVALUATOR VIEW
                             <div className="space-y-2 pt-2 border-t border-dashed border-surface-container-high text-xs">
                               {task.type === "MANUAL" || !task.type ? (
-                                <div 
+                                <div
                                   className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-surface-container-high/50 select-none"
                                   onClick={() => handleOfficeManualToggle(idx)}
                                 >
-                                  <div className={`w-4 h-4 rounded-[4px] flex items-center justify-center border transition-colors shrink-0 ${
-                                    completedTasks.includes(idx) 
-                                      ? "bg-primary border-primary text-white" 
+                                  <div className={`w-4 h-4 rounded-[4px] flex items-center justify-center border transition-colors shrink-0 ${completedTasks.includes(idx)
+                                      ? "bg-primary border-primary text-white"
                                       : "border-outline-variant bg-surface-container-lowest text-transparent"
-                                  }`}>
+                                    }`}>
                                     <Check size={12} strokeWidth={4} />
                                   </div>
                                   <span className={`text-xs block ${completedTasks.includes(idx) ? "text-secondary line-through font-medium" : "text-on-surface font-semibold"}`}>
@@ -580,30 +581,31 @@ function ClearanceItemRow({
                                 <div className="space-y-3 bg-surface p-3 rounded-lg border border-surface-container-high">
                                   <div className="flex justify-between items-center text-[10px] text-secondary border-b border-surface-container-high pb-1.5">
                                     <span>Submitted {new Date(sub.submittedAt).toLocaleDateString()}</span>
-                                    <span className={`font-bold uppercase tracking-wider ${
-                                      subStatus === "approved" ? "text-green-600" :
-                                      subStatus === "rejected" ? "text-red-600" : "text-blue-600"
-                                    }`}>
+                                    <span className={`font-bold uppercase tracking-wider ${subStatus === "approved" ? "text-green-600" :
+                                        subStatus === "rejected" ? "text-red-600" : "text-blue-600"
+                                      }`}>
                                       {subStatus}
                                     </span>
                                   </div>
 
                                   {/* Display submissions info */}
-                                  {task.type === "DOCUMENT_UPLOAD" && (() => { const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
-                                    <div>
-                                      {urls.map((url, fIdx) => (
-                                        <a
-                                          key={fIdx}
-                                          href={url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1.5 text-primary hover:underline font-bold"
-                                        >
-                                          <FileText size={14} /> Download Student Document
-                                        </a>
-                                      ))}
-                                    </div>
-                                  ); })()}
+                                  {task.type === "DOCUMENT_UPLOAD" && (() => {
+                                    const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
+                                      <div>
+                                        {urls.map((url, fIdx) => (
+                                          <a
+                                            key={fIdx}
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1.5 text-primary hover:underline font-bold"
+                                          >
+                                            <FileText size={14} /> Download Student Document
+                                          </a>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
 
                                   {task.type === "PAYMENT_PROOF" && (
                                     <div className="space-y-2">
@@ -611,21 +613,23 @@ function ClearanceItemRow({
                                         <span className="font-semibold text-secondary">OR/Reference No:</span>
                                         <span className="font-bold text-on-surface">{sub.paymentReference}</span>
                                       </div>
-                                       {(() => { const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
-                                        <div>
-                                           {urls.map((url, fIdx) => (
-                                             <a
-                                               key={fIdx}
-                                               href={url}
-                                               target="_blank"
-                                               rel="noopener noreferrer"
-                                               className="flex items-center gap-1.5 text-primary hover:underline font-bold"
-                                             >
-                                               <FileText size={14} /> Download Receipt File
-                                             </a>
-                                           ))}
-                                         </div>
-                                       ); })()}
+                                      {(() => {
+                                        const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
+                                          <div>
+                                            {urls.map((url, fIdx) => (
+                                              <a
+                                                key={fIdx}
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1.5 text-primary hover:underline font-bold"
+                                              >
+                                                <FileText size={14} /> Download Receipt File
+                                              </a>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   )}
 
@@ -785,7 +789,7 @@ export function ClearanceStatusView({
         ?.split("=")[1];
       resolvedId = params.get("studentId") || localStorage.getItem("activeStudentId") || cookieStudentId || "";
     }
-    
+
     if (!resolvedId) return;
 
     const loadData = async () => {
@@ -797,7 +801,7 @@ export function ClearanceStatusView({
         setRequirements(mergedReqs);
       } catch (err) {
         console.error("Failed to load student requirements from DB, falling back to mock", err);
-        
+
         // Fetch student in catch block as fallback to resolve currentStudent scope
         const currentStudent = await clearanceService.getStudentById(resolvedId);
         if (currentStudent) setStudent(currentStudent);
@@ -811,15 +815,25 @@ export function ClearanceStatusView({
           .map((m) => mockOrgs.find((o) => o.id === m.orgId))
           .filter(Boolean);
 
-        const dynamicOrgs = studentOrgs.map((org: any) => ({
-          id: org.id,
-          name: "Org Membership Clearance",
-          responsible: org.name,
-          type: "org",
-          status: "Pending",
-          dateCleared: null,
-          remarks: "",
-        }));
+        const dynamicOrgs = studentOrgs.map((org: any) => {
+          let displayName = "Organization Clearance";
+          if (org.type === "LGU") {
+            displayName = "LGU Clearance";
+          } else if (org.type === "Gov") {
+            displayName = "Student Government Clearance";
+          } else if (org.type === "AcademicClub" || org.type === "NonAcademicClub") {
+            displayName = "Club Clearance";
+          }
+          return {
+            id: org.id,
+            name: displayName,
+            responsible: org.name,
+            type: "org",
+            status: "Pending",
+            dateCleared: null,
+            remarks: "",
+          };
+        });
 
         const studentDept = mockDepartments.find((d: any) => d.abbreviation === activeStudent.department);
         const dynamicDepts = studentDept ? [{
@@ -843,21 +857,21 @@ export function ClearanceStatusView({
   const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
     setRequirements(prev => {
       const updatedReqs = prev.map(req => req.id === reqId ? { ...req, status: newStatus, ...data } : req);
-      
+
       // Persist to localStorage
       if (student) {
         const storedRecords = localStorage.getItem("studentClearanceRecords");
         if (storedRecords) {
           const records = JSON.parse(storedRecords);
           const studentRecords = records[student.id] || [];
-          
+
           const req = updatedReqs.find(r => r.id === reqId);
           if (req) {
             const isOffice = req.type === "office";
-            const existingIdx = studentRecords.findIndex((r: any) => 
+            const existingIdx = studentRecords.findIndex((r: any) =>
               (isOffice && r.officeId === reqId) || (!isOffice && r.orgId === reqId)
             );
-            
+
             if (existingIdx >= 0) {
               studentRecords[existingIdx].status = newStatus;
               if (data?.remarks !== undefined) studentRecords[existingIdx].remarks = data.remarks;
@@ -874,16 +888,16 @@ export function ClearanceStatusView({
                 completedTasks: data?.completedTasks
               });
             }
-            
+
             records[student.id] = studentRecords;
             localStorage.setItem("studentClearanceRecords", JSON.stringify(records));
-            
+
             // Dispatch a custom event to notify other components (like admin table) that clearance data changed
             window.dispatchEvent(new Event("clearanceRecordsUpdated"));
           }
         }
       }
-      
+
       return updatedReqs;
     });
   };
@@ -901,31 +915,52 @@ export function ClearanceStatusView({
   let orgsClubs = requirements.filter((req) => req.type === "org");
   let departments = requirements.filter((req) => req.type === "department");
 
-  const isOfficeView = !!(viewingOfficeId || viewingOrgId || viewingDeptId || (currentUserRole && currentUserRole !== "admin" && currentUserRole !== "student"));
+  // Load viewer context synchronously based on pathname or props to prevent useEffect lag
+  let activeRole: string | null = null;
+  let activeEntityId: number | null = null;
+
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname;
+    if (path.startsWith("/org")) {
+      activeRole = "org";
+      const orgId = localStorage.getItem("orgId");
+      if (orgId) activeEntityId = Number(orgId);
+    } else if (path.startsWith("/department")) {
+      activeRole = "department";
+      const deptId = localStorage.getItem("departmentId");
+      if (deptId) activeEntityId = Number(deptId);
+    } else if (path.startsWith("/head-office")) {
+      activeRole = "head-office";
+      const officeId = localStorage.getItem("officeId");
+      if (officeId) activeEntityId = Number(officeId);
+    }
+  }
+
+  // Override viewer context with props if explicitly passed
+  if (viewingOfficeId) {
+    activeRole = "head-office";
+    activeEntityId = viewingOfficeId;
+  } else if (viewingOrgId) {
+    activeRole = "org";
+    activeEntityId = viewingOrgId;
+  } else if (viewingDeptId) {
+    activeRole = "department";
+    activeEntityId = viewingDeptId;
+  }
+
+  const isOfficeView = !!activeRole;
 
   if (isOfficeView && viewMode === "office") {
-    if (viewingOfficeId) {
-      headOffices = headOffices.filter(req => req.id === viewingOfficeId);
+    if (activeRole === "head-office" && activeEntityId) {
+      headOffices = headOffices.filter(req => req.id === activeEntityId);
       orgsClubs = [];
       departments = [];
-    } else if (viewingOrgId) {
-      orgsClubs = orgsClubs.filter(req => req.id === viewingOrgId);
+    } else if (activeRole === "org" && activeEntityId) {
+      orgsClubs = orgsClubs.filter(req => req.id === activeEntityId);
       headOffices = [];
       departments = [];
-    } else if (viewingDeptId) {
-      departments = departments.filter(req => req.id === viewingDeptId);
-      headOffices = [];
-      orgsClubs = [];
-    } else if (currentUserRole === "head-office" && currentEntityId) {
-      headOffices = headOffices.filter(req => req.id === currentEntityId);
-      orgsClubs = [];
-      departments = [];
-    } else if (currentUserRole === "org" && currentEntityId) {
-      orgsClubs = orgsClubs.filter(req => req.id === currentEntityId);
-      headOffices = [];
-      departments = [];
-    } else if (currentUserRole === "department" && currentEntityId) {
-      departments = departments.filter(req => req.id === currentEntityId);
+    } else if (activeRole === "department" && activeEntityId) {
+      departments = departments.filter(req => req.id === activeEntityId);
       headOffices = [];
       orgsClubs = [];
     }
@@ -939,6 +974,13 @@ export function ClearanceStatusView({
       r.appliesTo.includes(student.department) ||
       r.appliesTo.includes(student.year)
     );
+  };
+
+  const getTabLabel = () => {
+    if (activeRole === "head-office") return "Office Requirements";
+    if (activeRole === "department") return "Department Requirements";
+    if (activeRole === "org") return "Organization Requirements";
+    return "Office Requirements";
   };
 
   return (
@@ -1000,21 +1042,19 @@ export function ClearanceStatusView({
         <div className="flex border-b border-surface-container-high mb-2 gap-2">
           <button
             onClick={() => setViewMode("office")}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
-              viewMode === "office"
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${viewMode === "office"
                 ? "border-brand-red text-brand-red font-bold"
                 : "border-transparent text-secondary hover:text-on-surface"
-            }`}
+              }`}
           >
-            Office Requirements
+            {getTabLabel()}
           </button>
           <button
             onClick={() => setViewMode("all")}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
-              viewMode === "all"
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${viewMode === "all"
                 ? "border-brand-red text-brand-red font-bold"
                 : "border-transparent text-secondary hover:text-on-surface"
-            }`}
+              }`}
           >
             Overall Progress / All Signatories
           </button>

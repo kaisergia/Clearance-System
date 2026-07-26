@@ -9,6 +9,11 @@ function AuthSync({ children }: { children: React.ReactNode }) {
   const [hasDevOverride, setHasDevOverride] = useState(false);
 
   useEffect(() => {
+    // Safety timeout: Ensure mobile/LAN devices never get stuck on 'Loading clearance portal…'
+    const safetyTimer = setTimeout(() => {
+      setDevReady(true);
+    }, 1500);
+
     // Sync developer override cookies to localStorage
     const cookiesObj = Object.fromEntries(
       document.cookie.split("; ").map(c => {
@@ -83,6 +88,7 @@ function AuthSync({ children }: { children: React.ReactNode }) {
     }
 
     setDevReady(true);
+    return () => clearTimeout(safetyTimer);
   }, [status, session]);
 
   // Show spinner only when there's no dev override and the real session is still being resolved

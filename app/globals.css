@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --primary: #b51b15;
+  --primary-container: #d9372a;
+}
+
 /* Custom styles extracted from Stitch export */
 .custom-ring:focus {
   outline: none;

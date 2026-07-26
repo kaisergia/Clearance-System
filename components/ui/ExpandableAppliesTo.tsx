@@ -76,6 +76,10 @@ export function ExpandableAppliesTo({ appliesTo }: ExpandableAppliesToProps) {
     );
   };
 
+  if (depts.length === 0 && progs.length === 0 && years.length === 0) {
+    return null;
+  }
+
   return (
     <div className="space-y-1.5 mt-2 p-3 bg-surface-container-low/40 rounded-lg border border-outline-variant/30 max-w-xl">
       {renderGroup("Departments", depts, expandDept, setExpandDept)}

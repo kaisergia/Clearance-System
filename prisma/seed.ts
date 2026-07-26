@@ -41,9 +41,10 @@ async function main() {
   for (const o of mockOffices) {
     await prisma.office.upsert({
       where:  { id: o.id },
-      update: { name: o.name, head: o.head, email: o.email },
+      update: { name: o.name, head: o.head, email: o.email, logoUrl: (o as any).logoUrl ?? null, themeColor: (o as any).themeColor ?? null },
       create: { id: o.id, name: o.name, head: o.head, email: o.email,
-                pending: o.pending, approved: o.approved, rejected: o.rejected },
+                pending: o.pending, approved: o.approved, rejected: o.rejected,
+                logoUrl: (o as any).logoUrl ?? null, themeColor: (o as any).themeColor ?? null },
     });
   }
 
@@ -52,10 +53,11 @@ async function main() {
   for (const d of mockDepartments) {
     await prisma.department.upsert({
       where:  { id: d.id },
-      update: { name: d.name, abbreviation: d.abbreviation, head: d.head, email: d.email },
+      update: { name: d.name, abbreviation: d.abbreviation, head: d.head, email: d.email, logoUrl: (d as any).logoUrl ?? null, themeColor: (d as any).themeColor ?? null },
       create: { id: d.id, name: d.name, abbreviation: d.abbreviation,
                 head: d.head, email: d.email,
-                pending: d.pending, approved: d.approved, rejected: d.rejected },
+                pending: d.pending, approved: d.approved, rejected: d.rejected,
+                logoUrl: (d as any).logoUrl ?? null, themeColor: (d as any).themeColor ?? null },
     });
   }
 
@@ -64,7 +66,7 @@ async function main() {
   for (const o of mockOrgs) {
     await prisma.org.upsert({
       where:  { id: o.id },
-      update: { name: o.name, type: o.type, category: o.category },
+      update: { name: o.name, type: o.type, category: o.category, logoUrl: (o as any).logoUrl ?? null, themeColor: (o as any).themeColor ?? null },
       create: {
         id:          o.id,
         name:        o.name,
@@ -76,6 +78,8 @@ async function main() {
         status:      o.status ?? "Active",
         dateAdded:   (o as any).dateAdded ?? null,
         memberCount: (o as any).memberCount ?? 0,
+        logoUrl:     (o as any).logoUrl ?? null,
+        themeColor:  (o as any).themeColor ?? null,
       },
     });
   }
@@ -231,6 +235,65 @@ async function main() {
         studentId:    u.studentId,
       },
     });
+  }
+
+  // ── 11. Announcements ──────────────────────────────────────────────────────
+  console.log("  → Announcements");
+  const sampleAnnouncements = [
+    {
+      id: 1,
+      title: "1st Semester 2025-2026 Student Clearance Deadline Notice",
+      content: "All graduating and continuing students are advised to complete their clearance requirements before the semester deadline. Please ensure all office, department, and organization deficiencies are settled promptly.",
+      priority: "high" as const,
+      isSystemWide: true,
+      showOnLandingPage: true,
+      isActive: true,
+    },
+    {
+      id: 2,
+      title: "Registrar Office — Document & Transcript Submissions",
+      content: "Students with pending document submissions (Form 137/138, Honorable Dismissal, or Birth Certificates) must submit physical copies to Window 2 at the Registrar's Office.",
+      priority: "normal" as const,
+      isSystemWide: false,
+      showOnLandingPage: true,
+      isActive: true,
+      officeId: 1,
+    },
+    {
+      id: 3,
+      title: "CCIS Departmental Clearance & Project Submissions",
+      content: "All BS Computer Science and BS Information Technology students are requested to complete their CCIS department evaluation and capstone clearance.",
+      priority: "normal" as const,
+      isSystemWide: false,
+      showOnLandingPage: true,
+      isActive: true,
+      departmentId: 1,
+    },
+  ];
+
+  for (const a of sampleAnnouncements) {
+    await prisma.announcement.upsert({
+      where: { id: a.id },
+      update: {
+        title: a.title,
+        content: a.content,
+        priority: a.priority,
+        isSystemWide: a.isSystemWide,
+        showOnLandingPage: a.showOnLandingPage,
+        isActive: a.isActive,
+      },
+      create: a,
+    });
+  }
+
+  // Resync PostgreSQL sequences for autoincrement tables after seeding explicit IDs
+  try {
+    await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Office"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Office"));`);
+    await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Department"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Department"));`);
+    await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Org"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Org"));`);
+    await prisma.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Announcement"', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "Announcement"));`);
+  } catch (err) {
+    // Ignore error if database is MySQL (XAMPP), as MySQL handles AUTO_INCREMENT sequence automatically
   }
 
   console.log("✅  Seed complete!");

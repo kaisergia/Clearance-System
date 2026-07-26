@@ -25,72 +25,23 @@ interface Requirement {
 
 // DEPARTMENTS, DEPT_PROGRAMS, YEAR_LEVELS are imported from @/lib/constants
 
-function ExpandableAppliesTo({ appliesTo }: { appliesTo: string[] }) {
-  const [expandDept, setExpandDept] = useState(false);
-  const [expandProg, setExpandProg] = useState(false);
-  const [expandYear, setExpandYear] = useState(false);
+import { ExpandableAppliesTo } from "@/components/ui/ExpandableAppliesTo";
 
-  const depts = appliesTo.filter((item) => item === "All Departments" || DEPARTMENTS.includes(item));
-  const allProgs = Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()));
-  const progs = appliesTo.filter((item) => item === "All Programs" || allProgs.includes(item));
-  const years = appliesTo.filter((item) => item === "All Year Levels" || YEAR_LEVELS.includes(item));
+const TYPE_LABELS: Record<string, string> = {
+  MANUAL: "Manual Clearance",
+  DOCUMENT_UPLOAD: "Document Upload",
+  PAYMENT_PROOF: "Payment Proof",
+  SURVEY: "Survey Questionnaire",
+  ACKNOWLEDGMENT: "Acknowledgment",
+};
 
-  const renderGroup = (
-    label: string,
-    items: string[],
-    isExpanded: boolean,
-    setExpanded: (v: boolean) => void,
-    limit = 3
-  ) => {
-    if (items.length === 0) return null;
-    const visibleItems = isExpanded ? items : items.slice(0, limit);
-    const hasMore = items.length > limit;
-
-    return (
-      <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 items-start py-0.5">
-        <span className="text-[10px] font-bold text-secondary min-w-[85px] select-none pt-0.5 uppercase tracking-wider">
-          {label}:
-        </span>
-        <div className="flex flex-wrap gap-1 flex-1">
-          {visibleItems.map((item, idx) => (
-            <span
-              key={idx}
-              className="inline-flex items-center px-2 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-secondary border border-outline-variant/30"
-            >
-              {item}
-            </span>
-          ))}
-          {hasMore && !isExpanded && (
-            <button
-              type="button"
-              onClick={() => setExpanded(true)}
-              className="inline-flex items-center px-1.5 py-0.5 bg-primary-container/10 text-primary border border-primary-container/20 rounded font-bold text-[10px] hover:bg-primary-container/20 transition-all cursor-pointer"
-            >
-              +{items.length - limit} more
-            </button>
-          )}
-          {isExpanded && (
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              className="inline-flex items-center px-1.5 py-0.5 bg-outline-variant/10 text-secondary border border-outline-variant/20 rounded font-bold text-[10px] hover:bg-outline-variant/20 transition-all cursor-pointer"
-            >
-              Show less
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-1.5 mt-2 p-3 bg-surface-container-low/40 rounded-lg border border-outline-variant/30 max-w-xl">
-      {renderGroup("Departments", depts, expandDept, setExpandDept)}
-      {renderGroup("Programs", progs, expandProg, setExpandProg)}
-      {renderGroup("Year Levels", years, expandYear, setExpandYear)}
-    </div>
-  );
-}
+const TYPE_BADGES: Record<string, string> = {
+  MANUAL: "bg-gray-100 text-gray-700 border-gray-200",
+  DOCUMENT_UPLOAD: "bg-blue-50 text-blue-700 border-blue-200",
+  PAYMENT_PROOF: "bg-amber-50 text-amber-800 border-amber-200",
+  SURVEY: "bg-purple-50 text-purple-700 border-purple-200",
+  ACKNOWLEDGMENT: "bg-teal-50 text-teal-700 border-teal-200",
+};
 
 export default function ClearanceRequirementsPage() {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -359,14 +310,21 @@ export default function ClearanceRequirementsPage() {
                 key={req.id}
                 className="grid grid-cols-[3fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-5 items-center hover:bg-surface-bright/50 transition-colors group"
               >
-                {/* Name & Description */}
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-body-md text-base font-bold text-on-surface">
-                    {req.name}
-                  </span>
-                  <span className="font-body-sm text-sm text-secondary">
-                    {req.description}
-                  </span>
+                {/* Name, Type & Description */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-body-md text-base font-bold text-on-surface">
+                      {req.name}
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${TYPE_BADGES[req.type || "MANUAL"] ?? TYPE_BADGES.MANUAL}`}>
+                      {TYPE_LABELS[req.type || "MANUAL"] ?? "Manual Clearance"}
+                    </span>
+                  </div>
+                  {req.description && (
+                    <span className="font-body-sm text-sm text-secondary">
+                      {req.description}
+                    </span>
+                  )}
                   {req.appliesTo && req.appliesTo.length > 0 && (
                     <ExpandableAppliesTo appliesTo={req.appliesTo} />
                   )}

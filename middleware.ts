@@ -34,10 +34,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // If visiting root, redirect to login
-  if (pathname === "/") {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
 
   // If visiting a protected route without a role, redirect to login
   const isProtectedRoute =

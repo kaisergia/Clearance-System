@@ -1,4 +1,4 @@
-import OrganizationsPage from "@/components/organizations/OrganizationsPage";
+import OrganizationsPage from "@/components/admin/OrganizationsPage";
 
 export default function AcademicClubsPage() {
   return (
