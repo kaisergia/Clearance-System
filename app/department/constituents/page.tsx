@@ -6,7 +6,7 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import * as clearanceService from "@/services/clearanceService";
-import ClearanceStatus from "@/components/ui/ClearanceStatus";
+import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 
 export default function ConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -50,15 +50,31 @@ export default function ConstituentsPage() {
         if (currentDepartment) setActiveDepartment(currentDepartment);
       }
 
+      const deptReqs = departmentId ? await clearanceService.getDepartmentRequirements(Number(departmentId)) : [];
+      const liveReqs = deptReqs.filter((r: any) => r.status === "Live");
+
+      const isApplicable = (req: any, student: any) => {
+        if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) return true;
+        return (
+          req.appliesTo.includes(student.program) ||
+          req.appliesTo.includes(student.department) ||
+          req.appliesTo.includes(student.year)
+        );
+      };
+
       const allStudents = await clearanceService.getStudents();
       const mappedStudents = [];
       for (const student of allStudents) {
         if (!currentDepartment || student.department === currentDepartment.abbreviation) {
+          const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
+          const hasRequirements = studentApplicable.length > 0;
+
           const records = await clearanceService.getStudentClearanceRecords(student.id);
           const departmentRec = records.find((r: any) => r.departmentId === Number(departmentId));
           mappedStudents.push({
             ...student,
-            status: departmentRec?.status || "Pending",
+            status: hasRequirements ? (departmentRec?.status || "Pending") : "Cleared",
+            hasRequirements,
           });
         }
       }
@@ -314,13 +330,13 @@ export default function ConstituentsPage() {
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
               <div className="flex flex-col">
                 <h3 className="font-title-md text-base font-bold text-on-surface">
-                  Clearance Status Checklist
+                  Student Clearance Details
                 </h3>
                 <span className="text-xs text-secondary mt-0.5">
                   Viewing details for <span className="font-bold text-on-surface">{selectedStudentForStatus.name} ({selectedStudentForStatus.id})</span>
@@ -336,9 +352,9 @@ export default function ConstituentsPage() {
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto pr-1">
-              <ClearanceStatus 
-                requirements={statusRequirements} 
-                studentId={selectedStudentForStatus.id} 
+              <ClearanceStatusView 
+                targetStudentId={selectedStudentForStatus.id} 
+                isSysAdminView={true}
                 viewingDeptId={activeDepartment?.id}
               />
             </div>

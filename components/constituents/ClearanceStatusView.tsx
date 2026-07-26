@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements, mockDepartments, defaultDepartmentRequirements } from "@/mock/mockData";
 import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X } from "lucide-react";
 import * as clearanceService from "@/services/clearanceService";
+import ClearanceStatus from "@/components/ui/ClearanceStatus";
 
 interface ClearanceItem {
   id: number;
@@ -75,7 +76,7 @@ function ClearanceItemRow({
 
   // Track completed tasks locally for MANUAL tasks
   const [completedTasks, setCompletedTasks] = useState<number[]>(item.completedTasks || []);
-  
+
   // Local submission states
   const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Record<string, File>>({});
@@ -301,7 +302,7 @@ function ClearanceItemRow({
       {/* Content */}
       <div className="flex-1 pb-4">
         <div className="rounded-xl px-3 py-2 -mt-2 border border-surface-container-low hover:border-surface-container-high hover:bg-surface-container-low/50 transition-all duration-150">
-          <div 
+          <div
             onClick={() => setExpanded(!expanded)}
             className="flex items-start justify-between cursor-pointer"
           >
@@ -328,7 +329,7 @@ function ClearanceItemRow({
             <div className="mt-3 pt-3 border-t border-surface-container-high space-y-4 animate-fadeIn">
               <div className="space-y-3">
                 <span className="text-[11px] font-bold text-secondary uppercase tracking-wider block">Requirements Checklist</span>
-                
+
                 {tasks.length === 0 ? (
                   <p className="text-xs text-secondary italic">No requirements configured for this office.</p>
                 ) : (
@@ -389,16 +390,18 @@ function ClearanceItemRow({
                                       </button>
                                     )}
                                   </div>
-                                  {(() => { const urls = parseFileUrls(sub?.uploadedFileUrls); return urls.length > 0 && (
-                                    <a
-                                      href={urls[0]}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 border border-primary/20 px-3 py-1.5 rounded-lg inline-flex max-w-full hover:bg-primary/10"
-                                    >
-                                      <FileText size={12} /> View submitted document
-                                    </a>
-                                  ); })()}
+                                  {(() => {
+                                    const urls = parseFileUrls(sub?.uploadedFileUrls); return urls.length > 0 && (
+                                      <a
+                                        href={urls[0]}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 border border-primary/20 px-3 py-1.5 rounded-lg inline-flex max-w-full hover:bg-primary/10"
+                                      >
+                                        <FileText size={12} /> View submitted document
+                                      </a>
+                                    );
+                                  })()}
                                 </div>
                               ) : (
                                 // No submission OR rejected
@@ -472,7 +475,7 @@ function ClearanceItemRow({
                                   {task.type === "SURVEY" && (
                                     <div className="space-y-3 bg-surface-container-lowest/60 p-3 rounded-lg border border-surface-container-high">
                                       {(() => {
-                                        const questions = task.surveyQuestions 
+                                        const questions = task.surveyQuestions
                                           ? (typeof task.surveyQuestions === 'string' ? JSON.parse(task.surveyQuestions) : task.surveyQuestions)
                                           : [];
                                         return questions.map((q: any) => (
@@ -560,15 +563,14 @@ function ClearanceItemRow({
                             // EVALUATOR VIEW
                             <div className="space-y-2 pt-2 border-t border-dashed border-surface-container-high text-xs">
                               {task.type === "MANUAL" || !task.type ? (
-                                <div 
+                                <div
                                   className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-surface-container-high/50 select-none"
                                   onClick={() => handleOfficeManualToggle(idx)}
                                 >
-                                  <div className={`w-4 h-4 rounded-[4px] flex items-center justify-center border transition-colors shrink-0 ${
-                                    completedTasks.includes(idx) 
-                                      ? "bg-primary border-primary text-white" 
+                                  <div className={`w-4 h-4 rounded-[4px] flex items-center justify-center border transition-colors shrink-0 ${completedTasks.includes(idx)
+                                      ? "bg-primary border-primary text-white"
                                       : "border-outline-variant bg-surface-container-lowest text-transparent"
-                                  }`}>
+                                    }`}>
                                     <Check size={12} strokeWidth={4} />
                                   </div>
                                   <span className={`text-xs block ${completedTasks.includes(idx) ? "text-secondary line-through font-medium" : "text-on-surface font-semibold"}`}>
@@ -579,30 +581,31 @@ function ClearanceItemRow({
                                 <div className="space-y-3 bg-surface p-3 rounded-lg border border-surface-container-high">
                                   <div className="flex justify-between items-center text-[10px] text-secondary border-b border-surface-container-high pb-1.5">
                                     <span>Submitted {new Date(sub.submittedAt).toLocaleDateString()}</span>
-                                    <span className={`font-bold uppercase tracking-wider ${
-                                      subStatus === "approved" ? "text-green-600" :
-                                      subStatus === "rejected" ? "text-red-600" : "text-blue-600"
-                                    }`}>
+                                    <span className={`font-bold uppercase tracking-wider ${subStatus === "approved" ? "text-green-600" :
+                                        subStatus === "rejected" ? "text-red-600" : "text-blue-600"
+                                      }`}>
                                       {subStatus}
                                     </span>
                                   </div>
 
                                   {/* Display submissions info */}
-                                  {task.type === "DOCUMENT_UPLOAD" && (() => { const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
-                                    <div>
-                                      {urls.map((url, fIdx) => (
-                                        <a
-                                          key={fIdx}
-                                          href={url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1.5 text-primary hover:underline font-bold"
-                                        >
-                                          <FileText size={14} /> Download Student Document
-                                        </a>
-                                      ))}
-                                    </div>
-                                  ); })()}
+                                  {task.type === "DOCUMENT_UPLOAD" && (() => {
+                                    const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
+                                      <div>
+                                        {urls.map((url, fIdx) => (
+                                          <a
+                                            key={fIdx}
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1.5 text-primary hover:underline font-bold"
+                                          >
+                                            <FileText size={14} /> Download Student Document
+                                          </a>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
 
                                   {task.type === "PAYMENT_PROOF" && (
                                     <div className="space-y-2">
@@ -610,21 +613,23 @@ function ClearanceItemRow({
                                         <span className="font-semibold text-secondary">OR/Reference No:</span>
                                         <span className="font-bold text-on-surface">{sub.paymentReference}</span>
                                       </div>
-                                       {(() => { const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
-                                        <div>
-                                           {urls.map((url, fIdx) => (
-                                             <a
-                                               key={fIdx}
-                                               href={url}
-                                               target="_blank"
-                                               rel="noopener noreferrer"
-                                               className="flex items-center gap-1.5 text-primary hover:underline font-bold"
-                                             >
-                                               <FileText size={14} /> Download Receipt File
-                                             </a>
-                                           ))}
-                                         </div>
-                                       ); })()}
+                                      {(() => {
+                                        const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
+                                          <div>
+                                            {urls.map((url, fIdx) => (
+                                              <a
+                                                key={fIdx}
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1.5 text-primary hover:underline font-bold"
+                                              >
+                                                <FileText size={14} /> Download Receipt File
+                                              </a>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   )}
 
@@ -740,6 +745,7 @@ export function ClearanceStatusView({
   const [orgReqs, setOrgReqs] = useState<Record<number, any[]>>({});
   const [deptReqs, setDeptReqs] = useState<Record<number, any[]>>({});
   const [triggerSync, setTriggerSync] = useState(0);
+  const [viewMode, setViewMode] = useState<"office" | "all">("office");
 
   useEffect(() => {
     const handleSync = () => {
@@ -774,59 +780,98 @@ export function ClearanceStatusView({
     setDeptReqs(storedDeptReqs ? JSON.parse(storedDeptReqs) : defaultDepartmentRequirements);
 
     // Load student profile from DB (not localStorage)
-    const initStudent = async () => {
-      let resolvedId = targetStudentId;
-      if (!resolvedId) {
-        const params = new URLSearchParams(window.location.search);
-        const cookieStudentId = document.cookie
-          .split("; ")
-          .find(c => c.startsWith("activeStudentId="))
-          ?.split("=")[1];
-        resolvedId = params.get("studentId") || localStorage.getItem("activeStudentId") || cookieStudentId || "";
-      }
-      
-      if (!resolvedId) {
-        const profile = await clearanceService.getStudentProfile();
-        if (profile) {
-          resolvedId = profile.id;
-          setStudent(profile);
-        }
-      } else {
+    let resolvedId = targetStudentId;
+    if (!resolvedId) {
+      const params = new URLSearchParams(window.location.search);
+      const cookieStudentId = document.cookie
+        .split("; ")
+        .find(c => c.startsWith("activeStudentId="))
+        ?.split("=")[1];
+      resolvedId = params.get("studentId") || localStorage.getItem("activeStudentId") || cookieStudentId || "";
+    }
+
+    if (!resolvedId) return;
+
+    const loadData = async () => {
+      try {
         const currentStudent = await clearanceService.getStudentById(resolvedId);
         if (currentStudent) setStudent(currentStudent);
-      }
 
-      if (!resolvedId) return;
-
-      try {
         const mergedReqs = await clearanceService.getStudentRequirements(resolvedId);
         setRequirements(mergedReqs);
       } catch (err) {
-        console.error("Failed to load student requirements", err);
+        console.error("Failed to load student requirements from DB, falling back to mock", err);
+
+        // Fetch student in catch block as fallback to resolve currentStudent scope
+        const currentStudent = await clearanceService.getStudentById(resolvedId);
+        if (currentStudent) setStudent(currentStudent);
+        const activeStudent = currentStudent || student;
+        if (!activeStudent) return;
+
+        // Fallback mock logic
+        const baseOffices = mockRequirements.filter((r: any) => r.type === "office");
+        const studentOrgs = mockOrgMembers
+          .filter((m) => m.studentId === activeStudent.id)
+          .map((m) => mockOrgs.find((o) => o.id === m.orgId))
+          .filter(Boolean);
+
+        const dynamicOrgs = studentOrgs.map((org: any) => {
+          let displayName = "Organization Clearance";
+          if (org.type === "LGU") {
+            displayName = "LGU Clearance";
+          } else if (org.type === "Gov") {
+            displayName = "Student Government Clearance";
+          } else if (org.type === "AcademicClub" || org.type === "NonAcademicClub") {
+            displayName = "Club Clearance";
+          }
+          return {
+            id: org.id,
+            name: displayName,
+            responsible: org.name,
+            type: "org",
+            status: "Pending",
+            dateCleared: null,
+            remarks: "",
+          };
+        });
+
+        const studentDept = mockDepartments.find((d: any) => d.abbreviation === activeStudent.department);
+        const dynamicDepts = studentDept ? [{
+          id: studentDept.id,
+          name: "Department Clearance",
+          responsible: studentDept.name,
+          type: "department",
+          status: "Pending",
+          dateCleared: null,
+          remarks: "",
+        }] : [];
+
+        const combinedReqs = [...baseOffices, ...dynamicOrgs, ...dynamicDepts];
+        setRequirements(combinedReqs as any);
       }
     };
 
-    initStudent();
+    loadData();
   }, [targetStudentId, triggerSync]);
 
   const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
     setRequirements(prev => {
       const updatedReqs = prev.map(req => req.id === reqId ? { ...req, status: newStatus, ...data } : req);
-      
+
       // Persist to localStorage
       if (student) {
         const storedRecords = localStorage.getItem("studentClearanceRecords");
         if (storedRecords) {
           const records = JSON.parse(storedRecords);
           const studentRecords = records[student.id] || [];
-          
+
           const req = updatedReqs.find(r => r.id === reqId);
           if (req) {
             const isOffice = req.type === "office";
-            const existingIdx = studentRecords.findIndex((r: any) => 
+            const existingIdx = studentRecords.findIndex((r: any) =>
               (isOffice && r.officeId === reqId) || (!isOffice && r.orgId === reqId)
             );
-            
+
             if (existingIdx >= 0) {
               studentRecords[existingIdx].status = newStatus;
               if (data?.remarks !== undefined) studentRecords[existingIdx].remarks = data.remarks;
@@ -843,16 +888,16 @@ export function ClearanceStatusView({
                 completedTasks: data?.completedTasks
               });
             }
-            
+
             records[student.id] = studentRecords;
             localStorage.setItem("studentClearanceRecords", JSON.stringify(records));
-            
+
             // Dispatch a custom event to notify other components (like admin table) that clearance data changed
             window.dispatchEvent(new Event("clearanceRecordsUpdated"));
           }
         }
       }
-      
+
       return updatedReqs;
     });
   };
@@ -870,32 +915,55 @@ export function ClearanceStatusView({
   let orgsClubs = requirements.filter((req) => req.type === "org");
   let departments = requirements.filter((req) => req.type === "department");
 
-  // Explicit props take highest precedence (used when an office/dept/org views a student's detail).
-  // Falls back to the localStorage role for dev-bypass sessions.
+  // Load viewer context synchronously based on pathname or props to prevent useEffect lag
+  let activeRole: string | null = null;
+  let activeEntityId: number | null = null;
+
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname;
+    if (path.startsWith("/org")) {
+      activeRole = "org";
+      const orgId = localStorage.getItem("orgId");
+      if (orgId) activeEntityId = Number(orgId);
+    } else if (path.startsWith("/department")) {
+      activeRole = "department";
+      const deptId = localStorage.getItem("departmentId");
+      if (deptId) activeEntityId = Number(deptId);
+    } else if (path.startsWith("/head-office")) {
+      activeRole = "head-office";
+      const officeId = localStorage.getItem("officeId");
+      if (officeId) activeEntityId = Number(officeId);
+    }
+  }
+
+  // Override viewer context with props if explicitly passed
   if (viewingOfficeId) {
-    headOffices = headOffices.filter(req => req.id === viewingOfficeId);
-    orgsClubs = [];
-    departments = [];
+    activeRole = "head-office";
+    activeEntityId = viewingOfficeId;
   } else if (viewingOrgId) {
-    orgsClubs = orgsClubs.filter(req => req.id === viewingOrgId);
-    headOffices = [];
-    departments = [];
+    activeRole = "org";
+    activeEntityId = viewingOrgId;
   } else if (viewingDeptId) {
-    departments = departments.filter(req => req.id === viewingDeptId);
-    headOffices = [];
-    orgsClubs = [];
-  } else if (currentUserRole === "head-office" && currentEntityId) {
-    headOffices = headOffices.filter(req => req.id === currentEntityId);
-    orgsClubs = [];
-    departments = [];
-  } else if (currentUserRole === "org" && currentEntityId) {
-    orgsClubs = orgsClubs.filter(req => req.id === currentEntityId);
-    headOffices = [];
-    departments = [];
-  } else if (currentUserRole === "department" && currentEntityId) {
-    departments = departments.filter(req => req.id === currentEntityId);
-    headOffices = [];
-    orgsClubs = [];
+    activeRole = "department";
+    activeEntityId = viewingDeptId;
+  }
+
+  const isOfficeView = !!activeRole;
+
+  if (isOfficeView && viewMode === "office") {
+    if (activeRole === "head-office" && activeEntityId) {
+      headOffices = headOffices.filter(req => req.id === activeEntityId);
+      orgsClubs = [];
+      departments = [];
+    } else if (activeRole === "org" && activeEntityId) {
+      orgsClubs = orgsClubs.filter(req => req.id === activeEntityId);
+      headOffices = [];
+      departments = [];
+    } else if (activeRole === "department" && activeEntityId) {
+      departments = departments.filter(req => req.id === activeEntityId);
+      headOffices = [];
+      orgsClubs = [];
+    }
   }
 
   // Helper function to check if a requirement applies to the current student
@@ -908,7 +976,12 @@ export function ClearanceStatusView({
     );
   };
 
-  const isOfficeView = !!(viewingOfficeId || viewingOrgId || viewingDeptId);
+  const getTabLabel = () => {
+    if (activeRole === "head-office") return "Office Requirements";
+    if (activeRole === "department") return "Department Requirements";
+    if (activeRole === "org") return "Organization Requirements";
+    return "Office Requirements";
+  };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
@@ -964,6 +1037,30 @@ export function ClearanceStatusView({
         </div>
       )}
 
+      {/* View Toggle Tabs — shown to office/dept/org viewers */}
+      {isOfficeView && (
+        <div className="flex border-b border-surface-container-high mb-2 gap-2">
+          <button
+            onClick={() => setViewMode("office")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${viewMode === "office"
+                ? "border-brand-red text-brand-red font-bold"
+                : "border-transparent text-secondary hover:text-on-surface"
+              }`}
+          >
+            {getTabLabel()}
+          </button>
+          <button
+            onClick={() => setViewMode("all")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all cursor-pointer ${viewMode === "all"
+                ? "border-brand-red text-brand-red font-bold"
+                : "border-transparent text-secondary hover:text-on-surface"
+              }`}
+          >
+            Overall Progress / All Signatories
+          </button>
+        </div>
+      )}
+
       {/* Document upload instructions — student-only */}
       {!isSysAdminView && !isOfficeView && (
         <div className="bg-primary-container/10 border border-primary-container/20 rounded-xl p-4 flex gap-3 text-on-surface">
@@ -979,98 +1076,104 @@ export function ClearanceStatusView({
         </div>
       )}
 
-      {/* Lists of Requirements */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Head Offices Section */}
-        {headOffices.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center px-1">
-              <h2 className="font-title-md text-base font-bold text-on-surface">Head Offices</h2>
-              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
-                {headOffices.length} Total
-              </span>
-            </div>
-            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
-              <div className="space-y-1">
-                {headOffices.map((item, i) => {
-                  const tasks = item.tasks || (officeReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
-                  return (
-                    <ClearanceItemRow
-                      key={item.id}
-                      item={item}
-                      isLast={i === headOffices.length - 1}
-                      isSysAdminView={isSysAdminView}
-                      studentId={student?.id || ""}
-                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
-                      tasks={tasks}
-                    />
-                  );
-                })}
+      {/* Lists of Requirements OR Clearance Status Progress Map */}
+      {isOfficeView && viewMode === "all" ? (
+        <div className="w-full">
+          <ClearanceStatus requirements={requirements} studentId={student.id} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Head Offices Section */}
+          {headOffices.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="font-title-md text-base font-bold text-on-surface">Head Offices</h2>
+                <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                  {headOffices.length} Total
+                </span>
+              </div>
+              <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+                <div className="space-y-1">
+                  {headOffices.map((item, i) => {
+                    const tasks = item.tasks || (officeReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
+                    return (
+                      <ClearanceItemRow
+                        key={item.id}
+                        item={item}
+                        isLast={i === headOffices.length - 1}
+                        isSysAdminView={isSysAdminView}
+                        studentId={student?.id || ""}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        tasks={tasks}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Departments Section */}
-        {departments.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center px-1">
-              <h2 className="font-title-md text-base font-bold text-on-surface">Departments</h2>
-              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
-                {departments.length} Total
-              </span>
-            </div>
-            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
-              <div className="space-y-1">
-                {departments.map((item, i) => {
-                  const tasks = item.tasks || (deptReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
-                  return (
-                    <ClearanceItemRow
-                      key={item.id}
-                      item={item}
-                      isLast={i === departments.length - 1}
-                      isSysAdminView={isSysAdminView}
-                      studentId={student?.id || ""}
-                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
-                      tasks={tasks}
-                    />
-                  );
-                })}
+          {/* Departments Section */}
+          {departments.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="font-title-md text-base font-bold text-on-surface">Departments</h2>
+                <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                  {departments.length} Total
+                </span>
+              </div>
+              <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+                <div className="space-y-1">
+                  {departments.map((item, i) => {
+                    const tasks = item.tasks || (deptReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
+                    return (
+                      <ClearanceItemRow
+                        key={item.id}
+                        item={item}
+                        isLast={i === departments.length - 1}
+                        isSysAdminView={isSysAdminView}
+                        studentId={student?.id || ""}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        tasks={tasks}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Orgs & Clubs Section */}
-        {orgsClubs.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center px-1">
-              <h2 className="font-title-md text-base font-bold text-on-surface">Orgs & Clubs</h2>
-              <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
-                {orgsClubs.length} Total
-              </span>
-            </div>
-            <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
-              <div className="space-y-1">
-                {orgsClubs.map((item, i) => {
-                  const tasks = item.tasks || (orgReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
-                  return (
-                    <ClearanceItemRow
-                      key={item.id}
-                      item={item}
-                      isLast={i === orgsClubs.length - 1}
-                      isSysAdminView={isSysAdminView}
-                      studentId={student?.id || ""}
-                      onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
-                      tasks={tasks}
-                    />
-                  );
-                })}
+          {/* Orgs & Clubs Section */}
+          {orgsClubs.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <h2 className="font-title-md text-base font-bold text-on-surface">Orgs & Clubs</h2>
+                <span className="px-2.5 py-0.5 text-[10px] font-bold rounded bg-surface-container-high text-secondary uppercase tracking-wider">
+                  {orgsClubs.length} Total
+                </span>
+              </div>
+              <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-5 shadow-sm">
+                <div className="space-y-1">
+                  {orgsClubs.map((item, i) => {
+                    const tasks = item.tasks || (orgReqs[item.id] || []).filter(r => r.status === "Live" && isApplicable(r)).map(r => ({ id: String(r.id), name: r.name, type: r.requiresUpload ? "DOCUMENT_UPLOAD" : "MANUAL" }));
+                    return (
+                      <ClearanceItemRow
+                        key={item.id}
+                        item={item}
+                        isLast={i === orgsClubs.length - 1}
+                        isSysAdminView={isSysAdminView}
+                        studentId={student?.id || ""}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        tasks={tasks}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

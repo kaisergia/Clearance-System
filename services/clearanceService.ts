@@ -46,6 +46,7 @@ export interface ClearanceItem {
   remarks?: string;
   uploadedFiles?: Record<number, string>;
   completedTasks?: number[];
+  tasks?: any[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ const isBrowser = typeof window !== "undefined";
 async function apiFetch<T>(path: string): Promise<T | null> {
   if (!isBrowser) return null;
   try {
-    const res = await fetch(path);
+    const res = await fetch(path, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {
@@ -201,10 +202,25 @@ export async function getStudentRequirements(studentId: string): Promise<Clearan
     return false;
   });
 
-  const dynamicOrgs = applicableOrgs.map((org: any) => ({
-    id: org.id, name: "Org Membership Clearance", responsible: org.name,
-    type: "org" as const, status: "Pending" as const, dateCleared: null, remarks: "",
-  }));
+  const dynamicOrgs = applicableOrgs.map((org: any) => {
+    let displayName = "Organization Clearance";
+    if (org.type === "LGU") {
+      displayName = "LGU Clearance";
+    } else if (org.type === "Gov") {
+      displayName = "Student Government Clearance";
+    } else if (org.type === "AcademicClub" || org.type === "NonAcademicClub") {
+      displayName = "Club Clearance";
+    }
+    return {
+      id: org.id,
+      name: displayName,
+      responsible: org.name,
+      type: "org" as const,
+      status: "Pending" as const,
+      dateCleared: null,
+      remarks: "",
+    };
+  });
 
   const studentDept = mockDepartments.find((d: any) => d.abbreviation === student.department);
   const dynamicDepts = studentDept ? [{

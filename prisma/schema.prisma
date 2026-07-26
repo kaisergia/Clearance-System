@@ -4,9 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -283,6 +282,7 @@ model Announcement {
   imageUrls         Json?     // string[]
   linkLabel         String?
   linkUrl           String?
+  appliesTo         Json?     // string[] - target audience filters
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

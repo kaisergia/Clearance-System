@@ -60,6 +60,7 @@ export async function PATCH(
         ...(body.officeId !== undefined && { officeId: body.officeId }),
         ...(body.departmentId !== undefined && { departmentId: body.departmentId }),
         ...(body.orgId !== undefined && { orgId: body.orgId }),
+        ...(body.appliesTo !== undefined && { appliesTo: body.appliesTo }),
       },
     });
 

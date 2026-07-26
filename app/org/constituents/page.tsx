@@ -6,7 +6,7 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
-import ClearanceStatus from "@/components/ui/ClearanceStatus";
+import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 
 export default function OrgConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -65,13 +65,29 @@ export default function OrgConstituentsPage() {
             list = allStudents.filter((s) => memberIds.includes(s.id));
           }
 
+          const orgReqs = await clearanceService.getOrgRequirements(currentOrg.id);
+          const liveReqs = orgReqs.filter((r: any) => r.status === "Live");
+
+          const isApplicable = (req: any, student: any) => {
+            if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) return true;
+            return (
+              req.appliesTo.includes(student.program) ||
+              req.appliesTo.includes(student.department) ||
+              req.appliesTo.includes(student.year)
+            );
+          };
+
           const mappedList = [];
           for (const student of list) {
+            const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
+            const hasRequirements = studentApplicable.length > 0;
+
             const records = await clearanceService.getStudentClearanceRecords(student.id);
             const orgRec = records.find((r: any) => r.orgId === currentOrg.id);
             mappedList.push({
               ...student,
-              status: orgRec?.status || "Pending",
+              status: hasRequirements ? (orgRec?.status || "Pending") : "Cleared",
+              hasRequirements,
             });
           }
 
@@ -329,13 +345,13 @@ export default function OrgConstituentsPage() {
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] animate-scale-up"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
               <div className="flex flex-col">
                 <h3 className="font-title-md text-base font-bold text-on-surface">
-                  Clearance Status Checklist
+                  Student Clearance Details
                 </h3>
                 <span className="text-xs text-secondary mt-0.5">
                   Viewing details for <span className="font-bold text-on-surface">{selectedStudentForStatus.name} ({selectedStudentForStatus.id})</span>
@@ -351,9 +367,9 @@ export default function OrgConstituentsPage() {
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto pr-1">
-              <ClearanceStatus 
-                requirements={statusRequirements} 
-                studentId={selectedStudentForStatus.id} 
+              <ClearanceStatusView 
+                targetStudentId={selectedStudentForStatus.id} 
+                isSysAdminView={true}
                 viewingOrgId={org?.id}
               />
             </div>

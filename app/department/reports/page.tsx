@@ -275,20 +275,9 @@ export default function ReportsPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  // Real students from DB — filtered by this department
-  const [dbStudents, setDbStudents] = useState<any[]>([]);
-  useEffect(() => {
-    const fetchStudents = async () => {
-      const all = await clearanceService.getStudents();
-      // Filter to only students in this department (abbreviation match)
-      if (activeDepartment) {
-        setDbStudents(all.filter((s: any) => s.department === activeDepartment.abbreviation));
-      } else {
-        setDbStudents(all);
-      }
-    };
-    fetchStudents();
-  }, [activeDepartment]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [records, setRecords] = useState<ClearanceRecord[]>([]);
+  const [deptRequirementsList, setDeptRequirementsList] = useState<Requirement[]>([]);
 
   // Mounted state for SSR safety (portal)
   const [mounted, setMounted] = useState(false);
@@ -424,50 +413,96 @@ export default function ReportsPage() {
     });
   };
 
-  // Fetch / get data for selected term
-  const mockTermKey = useMemo(() => {
-    if (MOCK_STUDENTS_BY_TERM[selectedTerm]) return selectedTerm;
-    
-    // Semantic fallback based on semester type
-    if (selectedTerm.includes("1st Semester") || selectedTerm.includes("Fall")) {
-      return "1st Semester 2025-2026";
-    }
-    if (selectedTerm.includes("2nd Semester") || selectedTerm.includes("Spring")) {
-      return "2nd Semester 2024-2025";
-    }
-    return "1st Semester 2024-2025";
-  }, [selectedTerm]);
-
-  // Use real DB students (mapped to the Student interface expected by charts/stats)
-  // TODO: Once a term-based clearance history API is available, replace MOCK_RECORDS_BY_TERM
-  const students = useMemo(() => {
-    if (!activeDepartment) return [];
-    return dbStudents.map((s: any) => ({
-      id: s.id,
-      name: s.name,
-      program: s.program,
-      department: s.department,
-      yearLevel: s.year,
-      status: (s.status === "Cleared" ? "cleared" : "uncleared") as "cleared" | "uncleared",
-      lastUpdated: new Date().toISOString().split("T")[0],
-    }));
-  }, [dbStudents, activeDepartment]);
-
-  const records = useMemo(() => {
-    const allRecords = MOCK_RECORDS_BY_TERM[mockTermKey] || [];
-    if (!activeDepartment) return [];
-    const deptStudentIds = new Set(students.map((s) => s.id));
-    return allRecords.filter((r) => deptStudentIds.has(r.studentId));
-  }, [mockTermKey, students, activeDepartment]);
-
-  // Trigger loading effect when term changes (to emulate backend connectivity)
+  // Trigger loading effect when term changes
   const handleTermChange = (term: string) => {
-    setIsLoading(true);
     setSelectedTerm(term);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
   };
+
+  useEffect(() => {
+    const loadDeptAndData = async () => {
+      setIsLoading(true);
+      const storedDepartmentId = localStorage.getItem("departmentId");
+      if (storedDepartmentId) {
+        const did = parseInt(storedDepartmentId, 10);
+        const currentDept = await clearanceService.getDepartmentById(did);
+        if (currentDept) setActiveDepartment(currentDept);
+
+        // Fetch department requirements
+        const reqs = await clearanceService.getDepartmentRequirements(did);
+        const mappedReqs = reqs.map((r: any) => ({
+          id: String(r.id),
+          name: r.name,
+          description: r.description || "",
+          isActive: r.status === "Live",
+        }));
+        setDeptRequirementsList(mappedReqs);
+
+        // Fetch all students
+        const fetchedStudents = await clearanceService.getStudents();
+        // Filter by department abbreviation and selected term
+        const filtered = fetchedStudents.filter(
+          (s: any) =>
+            s.semester === selectedTerm &&
+            (!currentDept || s.department === currentDept.abbreviation)
+        );
+
+        const mappedStudents: Student[] = [];
+        const gatheredRecords: ClearanceRecord[] = [];
+
+        for (const s of filtered) {
+          const studentRecs = await clearanceService.getStudentClearanceRecords(s.id);
+          const deptRec = studentRecs.find((r: any) => r.departmentId === did);
+
+          // Find the student's requirements specifically for this department
+          const studentDeptReqs = await clearanceService.getStudentRequirements(s.id);
+          const currentDeptReq = studentDeptReqs.find((r: any) => r.type === "department" && r.id === did);
+
+          mappedStudents.push({
+            id: s.id,
+            name: s.name,
+            program: s.program,
+            department: s.department,
+            yearLevel: s.year,
+            status: deptRec?.status === "Cleared" ? "cleared" : "uncleared",
+            lastUpdated: deptRec?.dateCleared || "2024-11-20", // fallback
+          });
+
+          // Map the individual requirement records
+          for (const req of reqs) {
+            let isCleared = false;
+            if (currentDeptReq) {
+              const task = currentDeptReq.tasks?.find((t: any) => t.id === String(req.id));
+              if (task) {
+                const subStatus = task.submission?.status;
+                const isTaskApproved = subStatus === "approved";
+                const completedTasks = deptRec?.completedTasks || [];
+                const taskIdx = reqs.findIndex((x: any) => x.id === req.id);
+                const isManualCompleted = (req.type === "MANUAL" || !req.type) && completedTasks.includes(taskIdx);
+                isCleared = isTaskApproved || isManualCompleted;
+              }
+            } else if (deptRec?.status === "Cleared") {
+              isCleared = true;
+            }
+
+            gatheredRecords.push({
+              studentId: s.id,
+              requirementId: String(req.id),
+              status: isCleared ? "cleared" : "uncleared",
+              remark: deptRec?.remarks || "",
+              dateAssigned: "2024-10-01",
+              dateResolved: deptRec?.dateCleared || undefined,
+            });
+          }
+        }
+
+        setStudents(mappedStudents);
+        setRecords(gatheredRecords);
+      }
+      setIsLoading(false);
+    };
+
+    loadDeptAndData();
+  }, [selectedTerm]);
 
   // Stats Calculations
   const stats = useMemo(() => {
@@ -551,14 +586,14 @@ export default function ReportsPage() {
 
   // Requirement Completion Table data
   const reqCompletionData = useMemo(() => {
-    return MOCK_REQUIREMENTS.map((req) => {
+    return deptRequirementsList.map((req) => {
       const assignedRecords = records.filter((r) => r.requirementId === req.id);
       const cleared = assignedRecords.filter((r) => r.status === "cleared").length;
       const total = assignedRecords.length;
       const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
       return { ...req, cleared, total, rate };
     });
-  }, [records]);
+  }, [deptRequirementsList, records]);
 
   // Export CSV Modal Trigger
   const handleExportCSV = () => {
@@ -583,7 +618,7 @@ export default function ReportsPage() {
 
   // Actual Excel XML Generator and Downloader with applied export filters
   const executeDownloadCSV = () => {
-    let list = MOCK_STUDENTS_BY_TERM[mockTermKey] || [];
+    let list = students;
 
     // Filter by selected departments (ignoring the "All Departments" selector)
     const activeDepts = exportDepts.filter((d) => d !== "All Departments");
@@ -624,10 +659,10 @@ export default function ReportsPage() {
     // XML Spreadsheet 2003 content with header bolding styles
     const xmlHeader = `<?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:department:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:department:department"
- xmlns:x="urn:schemas-microsoft-com:department:excel"
- xmlns:ss="urn:schemas-microsoft-com:department:spreadsheet"
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:html="http://www.w3.org/TR/REC-html40">
   <Styles>
     <Style ss:ID="headerStyle">

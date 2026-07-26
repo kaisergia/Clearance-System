@@ -8,6 +8,7 @@ export interface TableStudent {
   course?: string;
   year: string;
   status: string;
+  hasRequirements?: boolean;
 }
 
 interface ConstituentsTableProps {
@@ -102,12 +103,14 @@ export function ConstituentsTable({
                 >
                   {!isSysAdmin && (
                     <td className="py-4 px-6 text-left">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(student.id)}
-                        onChange={(e) => onSelectStudent(student.id, e.target.checked)}
-                        className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
-                      />
+                      {student.hasRequirements !== false && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(student.id)}
+                          onChange={(e) => onSelectStudent(student.id, e.target.checked)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                        />
+                      )}
                     </td>
                   )}
                   <td className="py-4 px-6 font-mono font-medium text-xs text-secondary">{student.id}</td>
@@ -128,7 +131,14 @@ export function ConstituentsTable({
                   </td>
                   {!isSysAdmin && (
                     <td className="py-4 px-6 text-center">
-                      {student.status === "Cleared" ? (
+                      {student.hasRequirements === false ? (
+                        <button
+                          disabled
+                          className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                        >
+                          No Requirements
+                        </button>
+                      ) : student.status === "Cleared" ? (
                         <button
                           onClick={() => onToggleStatus(student.id)}
                           className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-red-50 text-coral-red hover:bg-coral-red hover:text-white border border-coral-red active:scale-95 shadow-sm"

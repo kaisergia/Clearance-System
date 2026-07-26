@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "studentId is required for student scope" }, { status: 400 });
       }
 
-      // Resolve student's departmentId via mismatch logic: Student.department string -> Department.abbreviation / name
+      // Resolved student record
       const student = await prisma.student.findUnique({
         where: { id: studentId },
       });
@@ -99,25 +99,18 @@ export async function GET(request: NextRequest) {
         orConditions.push({ orgId: { in: studentOrgIds } });
       }
 
-      const where: any = {
-        isActive: true,
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: now } },
-        ],
-        AND: [
-          { OR: orConditions },
-        ],
-      };
-
-      if (cursor) {
-        where.id = { lt: parseInt(cursor, 10) };
-      }
-
       const items = await prisma.announcement.findMany({
-        where,
+        where: {
+          isActive: true,
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: now } },
+          ],
+          AND: [
+            { OR: orConditions },
+          ],
+        },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: limit + 1,
         include: {
           office: { select: { id: true, name: true, logoUrl: true, themeColor: true } },
           department: { select: { id: true, name: true, abbreviation: true, logoUrl: true, themeColor: true } },
@@ -125,14 +118,36 @@ export async function GET(request: NextRequest) {
         },
       });
 
+      // Filter in memory by appliesTo target audience criteria
+      const filtered = items.filter((item) => {
+        const appliesTo = (item.appliesTo as string[]) || [];
+        if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
+        return (
+          (student?.program && appliesTo.includes(student.program)) ||
+          (student?.department && appliesTo.includes(student.department)) ||
+          (student?.year && appliesTo.includes(student.year))
+        );
+      });
+
+      // Apply cursor pagination to the filtered list
+      let paginated = filtered;
       let nextCursor: number | null = null;
-      if (items.length > limit) {
-        const nextItem = items.pop();
+      
+      if (cursor) {
+        const cursorIndex = filtered.findIndex((i) => i.id === parseInt(cursor, 10));
+        if (cursorIndex !== -1) {
+          paginated = filtered.slice(cursorIndex + 1);
+        }
+      }
+      
+      if (paginated.length > limit) {
+        const nextItem = paginated[limit];
         nextCursor = nextItem?.id ?? null;
+        paginated = paginated.slice(0, limit);
       }
 
       return NextResponse.json({
-        announcements: items,
+        announcements: paginated,
         nextCursor,
       });
     }
@@ -190,6 +205,7 @@ export async function POST(request: NextRequest) {
       officeId,
       departmentId,
       orgId,
+      appliesTo = [],
     } = body;
 
     if (!title || !content) {
@@ -242,6 +258,7 @@ export async function POST(request: NextRequest) {
       officeId: validOfficeId,
       departmentId: validDepartmentId,
       orgId: validOrgId,
+      appliesTo: Array.isArray(appliesTo) ? appliesTo : [],
     };
 
     try {
