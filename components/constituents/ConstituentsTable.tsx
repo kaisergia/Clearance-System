@@ -22,7 +22,6 @@ interface ConstituentsTableProps {
   isAllSelected: boolean;
   isSysAdmin?: boolean;
   basePath?: string;
-  onViewDetails?: (student: TableStudent) => void;
 }
 
 export function ConstituentsTable({
@@ -36,7 +35,6 @@ export function ConstituentsTable({
   isAllSelected,
   isSysAdmin = false,
   basePath = "/head-office/constituents",
-  onViewDetails,
 }: ConstituentsTableProps) {
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm overflow-hidden">
