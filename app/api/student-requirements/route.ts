@@ -106,10 +106,21 @@ export async function GET(req: NextRequest) {
     const studentProgCode = PROGRAM_MAP[student.program] || student.program;
 
     const applicableOrgs = orgs.filter((org) => {
+      // 1. Student Government applies to all students
       if (org.type === "Gov") return true;
-      if (org.type === "LGU") return org.department === student.department;
-      if (org.type === "AcademicClub") return org.program === studentProgCode;
-      if (org.type === "NonAcademicClub") return memberOrgIds.has(org.id);
+
+      // 2. Department LGU applies to students in that department
+      if (org.type === "LGU" && org.department === student.department) return true;
+
+      // 3. Academic Club applies to students matching department or program
+      if (org.type === "AcademicClub") {
+        if (org.department && org.department === student.department) return true;
+        if (org.program && (org.program === studentProgCode || org.program === student.program)) return true;
+      }
+
+      // 4. Non-Academic / Interest Clubs apply if student is explicitly enrolled
+      if (memberOrgIds.has(org.id)) return true;
+
       return false;
     });
 

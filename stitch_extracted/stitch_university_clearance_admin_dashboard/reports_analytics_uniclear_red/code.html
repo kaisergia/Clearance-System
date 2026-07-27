@@ -1,0 +1,393 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>UniClear - Reports &amp; Analytics</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;family=Geist:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary": "#ffffff",
+                      "inverse-surface": "#2d3133",
+                      "inverse-on-surface": "#eff1f3",
+                      "on-tertiary-fixed-variant": "#38485d",
+                      "on-secondary-fixed-variant": "#3c475a",
+                      "on-secondary-fixed": "#111c2d",
+                      "primary-container": "#d9372a",
+                      "on-primary": "#ffffff",
+                      "primary": "#b51b15",
+                      "surface-container-high": "#e6e8ea",
+                      "on-background": "#191c1e",
+                      "on-surface": "#191c1e",
+                      "on-tertiary-container": "#fdfcff",
+                      "error": "#ba1a1a",
+                      "outline-variant": "#e4beb8",
+                      "surface-container-highest": "#e0e3e5",
+                      "tertiary-fixed-dim": "#b7c8e1",
+                      "on-secondary": "#ffffff",
+                      "on-secondary-container": "#586377",
+                      "surface-variant": "#e0e3e5",
+                      "secondary": "#545f73",
+                      "surface-dim": "#d8dadc",
+                      "secondary-container": "#d5e0f8",
+                      "tertiary-container": "#66768d",
+                      "surface-container-low": "#f2f4f6",
+                      "tertiary-fixed": "#d3e4fe",
+                      "surface-tint": "#b91e17",
+                      "on-surface-variant": "#5b403c",
+                      "on-error": "#ffffff",
+                      "secondary-fixed": "#d8e3fb",
+                      "tertiary": "#4d5d73",
+                      "on-error-container": "#93000a",
+                      "on-primary-container": "#fffbff",
+                      "primary-fixed": "#ffdad5",
+                      "surface-container": "#eceef0",
+                      "inverse-primary": "#ffb4a9",
+                      "outline": "#8f706b",
+                      "primary-fixed-dim": "#ffb4a9",
+                      "on-tertiary-fixed": "#0b1c30",
+                      "surface": "#f7f9fb",
+                      "surface-container-lowest": "#ffffff",
+                      "on-primary-fixed-variant": "#930004",
+                      "on-primary-fixed": "#410001",
+                      "surface-bright": "#f7f9fb",
+                      "error-container": "#ffdad6",
+                      "background": "#f7f9fb",
+                      "secondary-fixed-dim": "#bcc7de"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "2xl": "48px",
+                      "gutter": "24px",
+                      "lg": "24px",
+                      "sm": "8px",
+                      "margin-desktop": "32px",
+                      "xl": "32px",
+                      "margin-mobile": "16px",
+                      "base": "4px",
+                      "md": "16px",
+                      "xs": "4px"
+              },
+              "fontFamily": {
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Geist"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Hanken Grotesk"
+                      ],
+                      "title-md": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-lg-mobile": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-lg": [
+                              "Hanken Grotesk"
+                      ]
+              },
+              "fontSize": {
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "title-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md h-screen flex overflow-hidden">
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-screen py-md bg-surface-container-lowest dark:bg-inverse-surface text-primary dark:text-inverse-primary font-body-md text-body-md fixed left-0 top-0 h-full w-64 border-r border-surface-container-high dark:border-outline-variant shadow-sm z-40">
+<div class="px-lg mb-xl mt-sm flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-lg overflow-hidden">
+<img alt="University Admin Avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a university system administrator in a brightly lit modern office setting. Light mode aesthetic with clean white surroundings and subtle corporate elements. The mood is confident and efficient." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWSIjhyfotc-15Pemuui1J4O6ftBTs4YGFVVvLyKaWrh66c54HYCiuskuexKwif9f3602F0zDJ2OoOhHlJMsYRJ6W2whhV6ueu-kmVtVnItOgJpwjrLtRudusJo6WPWTsa7vclTAngxj4RwEVFXjfqt42vWby4wTMQBKxIwz2Srl9Ydq7CJ20tEwR6OPEm5PWlePBp9jctlf6IvSbjYzZ2sTLje8pFWR5ZaVTTvyRfIGHnCPgvolNvJGiQp0mUmrW9OU2JwIYFiyyJ">
+</div>
+<div>
+<h1 class="font-display-lg text-title-md text-primary dark:text-inverse-primary tracking-tight">UniClear Admin</h1>
+<p class="font-body-sm text-body-sm text-secondary">System Administrator</p>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto px-md space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors duration-200 Active: scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="">Dashboard</span>
+</a><div class="group">
+  <button class="w-full flex items-center justify-between px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors duration-200">
+    <div class="flex items-center gap-3">
+      <span class="material-symbols-outlined">group</span>
+      <span class="">User Management</span>
+    </div>
+    <span class="material-symbols-outlined text-sm transition-transform group-hover:rotate-180">expand_more</span>
+  </button>
+  <div class="hidden group-hover:block pl-10 mt-1 space-y-1">
+    <a href="#" class="block py-2 text-body-sm text-secondary hover:text-primary transition-colors">Organizations/Clubs</a>
+    <a href="#" class="block py-2 text-body-sm text-secondary hover:text-primary transition-colors">Head Offices</a>
+  </div>
+</div>
+
+
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors duration-200 Active: scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined">school</span>
+<span class="">Manage Students</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors duration-200 Active: scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined">fact_check</span>
+<span class="">Clearance Requirements</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 border-primary bg-primary-container/5 text-primary font-bold dark:text-inverse-primary Active: scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined icon-fill">assessment</span>
+<span class="">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors duration-200 Active: scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="">Settings</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col md:ml-64 w-full h-screen overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center px-lg h-16 w-full bg-surface-container-lowest dark:bg-inverse-surface border-b border-surface-container-high dark:border-outline-variant shadow-sm z-30 flex-shrink-0 transition-all duration-200 ease-in-out">
+<div class="flex items-center gap-4 w-1/3">
+<h2 class="font-headline-lg text-title-md text-on-surface md:hidden">UniClear Dashboard</h2>
+</div>
+<div class="flex-1 flex justify-center max-w-md hidden md:flex">
+<!-- Search Bar -->
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-surface-container-high rounded-full font-body-sm text-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Search reports, students..." type="text">
+</div>
+</div>
+<div class="flex items-center justify-end gap-2 w-1/3 text-on-surface-variant dark:text-surface-variant">
+<button class="p-2 rounded-full hover:text-primary dark:hover:text-inverse-primary hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:text-primary dark:hover:text-inverse-primary hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Canvas -->
+<div class="flex-1 overflow-y-auto p-margin-mobile md:p-margin-desktop bg-background">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-xl gap-4">
+<div>
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface tracking-tight">Reports &amp; Analytics</h2>
+<p class="font-body-md text-body-md text-secondary mt-1">Overview of student clearance progress and institutional compliance.</p>
+</div>
+<button class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-on-primary px-6 py-2.5 rounded-lg font-label-md text-label-md transition-colors shadow-sm hover:shadow-md">
+<span class="material-symbols-outlined text-sm">download</span>
+                    Download Full Report
+                </button>
+</div>
+<!-- Bento Grid Content -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Summary Metric 1 -->
+<div class="col-span-1 md:col-span-3 bg-surface-container-lowest rounded-xl p-lg border border-surface-container-high shadow-sm flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-primary-container/10 rounded-lg text-primary">
+<span class="material-symbols-outlined">how_to_reg</span>
+</div>
+<span class="bg-surface-container-low text-secondary font-label-md text-label-md px-2 py-1 rounded-md">This Term</span>
+</div>
+<div>
+<h3 class="font-body-sm text-body-sm text-secondary mb-1">Total Cleared</h3>
+<p class="font-display-lg text-display-lg text-on-surface">12,450</p>
+<p class="font-body-sm text-body-sm text-primary flex items-center gap-1 mt-2">
+<span class="material-symbols-outlined text-[16px]">trending_up</span> +8.4% from last week
+                        </p>
+</div>
+</div>
+<!-- Summary Metric 2 -->
+<div class="col-span-1 md:col-span-3 bg-surface-container-lowest rounded-xl p-lg border border-surface-container-high shadow-sm flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-error-container/50 rounded-lg text-error">
+<span class="material-symbols-outlined">pending_actions</span>
+</div>
+<span class="bg-surface-container-low text-secondary font-label-md text-label-md px-2 py-1 rounded-md">Active</span>
+</div>
+<div>
+<h3 class="font-body-sm text-body-sm text-secondary mb-1">Pending Clearances</h3>
+<p class="font-display-lg text-display-lg text-on-surface">3,204</p>
+<p class="font-body-sm text-body-sm text-secondary flex items-center gap-1 mt-2">
+<span class="material-symbols-outlined text-[16px]">schedule</span> 15% of student body
+                        </p>
+</div>
+</div>
+<!-- Main Chart Area -->
+<div class="col-span-1 md:col-span-6 bg-surface-container-lowest rounded-xl p-lg border border-surface-container-high shadow-sm flex flex-col min-h-[300px]">
+<h3 class="font-title-md text-title-md text-on-surface mb-6">Clearance Rate by Department</h3>
+<div class="flex-1 relative w-full rounded-lg overflow-hidden bg-surface-container-low border border-surface-container-high flex items-end p-4 gap-2">
+<!-- Abstract representation of a bar chart using divs -->
+<div class="w-1/6 bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[80%] transition-colors relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">80%</div>
+</div>
+<div class="w-1/6 bg-primary/40 hover:bg-primary/50 rounded-t-sm h-[40%] transition-colors relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">40%</div>
+</div>
+<div class="w-1/6 bg-primary hover:bg-primary/90 rounded-t-sm h-[95%] transition-colors relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">95%</div>
+</div>
+<div class="w-1/6 bg-primary/60 hover:bg-primary/70 rounded-t-sm h-[65%] transition-colors relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">65%</div>
+</div>
+<div class="w-1/6 bg-primary/30 hover:bg-primary/40 rounded-t-sm h-[20%] transition-colors relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">20%</div>
+</div>
+<div class="w-1/6 bg-primary/80 hover:bg-primary/90 rounded-t-sm h-[85%] transition-colors relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">85%</div>
+</div>
+</div>
+<div class="flex justify-between mt-2 text-xs text-secondary px-2">
+<span class="">ENG</span><span class="">SCI</span><span class="">ARTS</span><span class="">BUS</span><span class="">MED</span><span class="">LAW</span>
+</div>
+</div>
+<!-- Recent Reports Table -->
+<div class="col-span-1 md:col-span-12 bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm overflow-hidden">
+<div class="p-lg border-b border-surface-container-high flex justify-between items-center">
+<h3 class="font-title-md text-title-md text-on-surface">Recent Report Generations</h3>
+<button class="text-primary font-label-md text-label-md hover:underline">View All</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface text-secondary font-label-md text-label-md uppercase tracking-wider">
+<th class="p-4 font-medium">Report Name</th>
+<th class="p-4 font-medium">Generated By</th>
+<th class="p-4 font-medium">Date</th>
+<th class="p-4 font-medium">Status</th>
+<th class="p-4 font-medium text-right">Action</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm divide-y divide-surface-container-low">
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="p-4 flex items-center gap-3 text-on-surface font-medium">
+<span class="material-symbols-outlined text-secondary">description</span>
+                                        College of Engineering Clearance Q1
+                                    </td>
+<td class="p-4 text-secondary">Dr. Smith</td>
+<td class="p-4 text-secondary">Oct 24, 2023</td>
+<td class="p-4">
+<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-container/10 text-primary">
+                                            Completed
+                                        </span>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">download</span></button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="p-4 flex items-center gap-3 text-on-surface font-medium">
+<span class="material-symbols-outlined text-secondary">description</span>
+                                        University Wide Deficiencies
+                                    </td>
+<td class="p-4 text-secondary">Admin System</td>
+<td class="p-4 text-secondary">Oct 23, 2023</td>
+<td class="p-4">
+<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-surface-container-high text-secondary">
+                                            Archived
+                                        </span>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">download</span></button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="p-4 flex items-center gap-3 text-on-surface font-medium">
+<span class="material-symbols-outlined text-secondary">description</span>
+                                        Library Fees Outstanding
+                                    </td>
+<td class="p-4 text-secondary">J. Doe</td>
+<td class="p-4 text-secondary">Oct 22, 2023</td>
+<td class="p-4">
+<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-container/10 text-primary">
+                                            Completed
+                                        </span>
+</td>
+<td class="p-4 text-right">
+<button class="text-secondary hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">download</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+
+
+</body></html>

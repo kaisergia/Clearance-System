@@ -8,6 +8,8 @@ import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFil
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 
+import { PROGRAM_MAP } from "@/lib/constants";
+
 export default function OrgConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
   const availableTerms = getAvailableTerms();
@@ -49,19 +51,27 @@ export default function OrgConstituentsPage() {
           setOrg(currentOrg);
 
           const allStudents = await clearanceService.getStudents();
+          const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
+
+          const matchesProgram = (studentProg: string, orgProg: string | null) => {
+            if (!orgProg) return false;
+            if (studentProg === orgProg) return true;
+            if (PROGRAM_MAP[studentProg] === orgProg) return true;
+            if (PROGRAM_MAP[orgProg] === studentProg) return true;
+            return false;
+          };
+
           // Fetch students based on org type/scope logic
           let list: any[] = [];
           if (currentOrg.type === "Gov") {
             list = allStudents;
           } else if (currentOrg.type === "LGU") {
-            list = allStudents.filter((s) => s.department === currentOrg.department);
+            list = allStudents.filter((s) => s.department === currentOrg.department || memberIds.includes(s.id));
             setDepartment(currentOrg.department || "All Departments"); // Lock department
           } else if (currentOrg.type === "AcademicClub") {
-            list = allStudents.filter((s) => s.program === currentOrg.program);
+            list = allStudents.filter((s) => matchesProgram(s.program, currentOrg.program) || memberIds.includes(s.id));
             setDepartment(currentOrg.department || "All Departments"); // Lock department
-            setProgram(currentOrg.program || "All Programs"); // Lock program
           } else if (currentOrg.type === "NonAcademicClub") {
-            const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
             list = allStudents.filter((s) => memberIds.includes(s.id));
           }
 

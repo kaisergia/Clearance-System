@@ -25,16 +25,24 @@ export interface AnnouncementItem {
 const PRIORITY_LABELS: Record<string, string> = {
   urgent: "Urgent",
   high: "Important",
-  normal: "New",
+  normal: "General",
   low: "Notice",
 };
 
 const PRIORITY_BADGE: Record<string, string> = {
   urgent: "bg-red-100 text-red-700 border-red-200",
   high: "bg-amber-100 text-amber-700 border-amber-200",
-  normal: "bg-red-50 text-primary border-red-100",
+  normal: "bg-slate-100 text-slate-700 border-slate-200",
   low: "bg-gray-100 text-gray-600 border-gray-200",
 };
+
+function isWithin24Hours(dateString: string) {
+  if (!dateString) return false;
+  const created = new Date(dateString).getTime();
+  if (isNaN(created)) return false;
+  const now = Date.now();
+  return now - created >= 0 && now - created <= 24 * 60 * 60 * 1000;
+}
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -398,6 +406,11 @@ export default function StudentBulletinPage() {
                   {/* Header row: priority + postedBy + date */}
                   <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                     <div className="flex items-center gap-2">
+                      {isWithin24Hours(item.createdAt) && (
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500 text-white shadow-xs animate-pulse">
+                          NEW
+                        </span>
+                      )}
                       <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${PRIORITY_BADGE[item.priority] ?? PRIORITY_BADGE.normal}`}>
                         {PRIORITY_LABELS[item.priority] ?? "Notice"}
                       </span>

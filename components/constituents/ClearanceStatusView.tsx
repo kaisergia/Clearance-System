@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements, mockDepartments, defaultDepartmentRequirements } from "@/mock/mockData";
-import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X, Award, ShieldCheck, QrCode } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X, Award, ShieldCheck, QrCode, Lock, Ticket } from "lucide-react";
 import * as clearanceService from "@/services/clearanceService";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 import { CertificateModal } from "@/components/clearance/CertificateModal";
@@ -972,47 +973,98 @@ export function ClearanceStatusView({
           </p>
         </div>
         {isSysAdminView && !isOfficeView && (
-          <a
-            href="/admin/user-management/students"
+          <Link
+            href="/admin/user-management?tab=users"
             className="flex items-center justify-center gap-2 text-sm font-bold text-secondary hover:text-primary transition-colors bg-surface-container-lowest border border-surface-container-high hover:border-primary/30 px-4 py-2 rounded-lg shadow-sm whitespace-nowrap"
           >
             <ChevronDown size={16} className="rotate-90" />
             Back to Constituents
-          </a>
+          </Link>
         )}
       </section>
 
-      {/* Official Certificate Banner */}
-      {student && (
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-lowest border border-brand-red/20 rounded-xl p-4 shadow-sm my-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-red/10 text-brand-red flex items-center justify-center font-bold shrink-0">
-              <Award size={22} />
+      {/* Official Clearance Slip Banner with Progress Bar & Locked State */}
+      {student && (() => {
+        const allReqItems = [...headOffices, ...departments, ...orgsClubs];
+        const totalItemsCount = allReqItems.length;
+        const clearedItemsCount = allReqItems.filter((i) => i.status === "Cleared").length;
+        const progressPercent = totalItemsCount > 0 ? Math.round((clearedItemsCount / totalItemsCount) * 100) : 0;
+        
+        // Fix: isFullyCleared MUST depend strictly on clearing all items when totalItemsCount > 0
+        const isFullyCleared = totalItemsCount > 0 ? clearedItemsCount === totalItemsCount : student.status === "Cleared";
+
+        return (
+          <div className="bg-surface-container-lowest border border-surface-container-high rounded-2xl p-5 shadow-sm my-3 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition-colors ${
+                  isFullyCleared 
+                    ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" 
+                    : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                }`}>
+                  {isFullyCleared ? <Ticket size={24} /> : <Lock size={22} />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-on-surface text-base flex items-center gap-2">
+                    Official Clearance Slip
+                    {isFullyCleared ? (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider border border-emerald-300">
+                        100% Cleared • Unlocked
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase tracking-wider border border-amber-300">
+                        In Progress ({progressPercent}%)
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-secondary mt-0.5">
+                    {isFullyCleared 
+                      ? (isOfficeView || isSysAdminView 
+                          ? `Student ${student.name} has completed all requirements. Official clearance slip is unlocked.`
+                          : "Your digital clearance slip is unlocked! Present it on your mobile device for staff scanning.")
+                      : (isOfficeView || isSysAdminView
+                          ? `Student clearance in progress (${clearedItemsCount}/${totalItemsCount} cleared). Slip remains locked until 100% completion.`
+                          : `Complete all requirements (${clearedItemsCount}/${totalItemsCount} cleared) to unlock your digital clearance pass.`)}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => isFullyCleared && setShowCertModal(true)}
+                disabled={!isFullyCleared}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 font-bold text-xs rounded-xl shadow-sm transition-all whitespace-nowrap ${
+                  isFullyCleared
+                    ? "bg-gradient-to-r from-[#881337] to-red-700 hover:from-red-800 hover:to-rose-800 text-white cursor-pointer active:scale-95 shadow-red-950/20"
+                    : "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-75 shadow-none"
+                }`}
+              >
+                {isFullyCleared ? <QrCode size={16} /> : <Lock size={15} />}
+                <span>{isFullyCleared ? "View Clearance Slip" : "Slip Locked (Incomplete)"}</span>
+              </button>
             </div>
-            <div>
-              <h3 className="font-bold text-on-surface text-sm flex items-center gap-2">
-                Official Certificate of Clearance
-                {student.status === "Cleared" && (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
-                    100% Cleared
-                  </span>
-                )}
-              </h3>
-              <p className="text-xs text-secondary mt-0.5">
-                Generate Cor Jesu College official certificate & QR verification code.
-              </p>
+
+            {/* Progress Bar Container */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="text-secondary text-[11px] uppercase tracking-wider font-bold">Clearance Progression</span>
+                <span className={`font-mono text-xs ${isFullyCleared ? "text-emerald-700 font-extrabold" : "text-slate-700"}`}>
+                  {clearedItemsCount} of {totalItemsCount} Cleared ({progressPercent}%)
+                </span>
+              </div>
+              <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200 p-0.5">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isFullyCleared
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm"
+                      : "bg-gradient-to-r from-amber-400 to-orange-500"
+                  }`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
             </div>
           </div>
-
-          <button
-            onClick={() => setShowCertModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-red hover:bg-primary text-white text-xs font-bold rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 whitespace-nowrap"
-          >
-            <Award size={16} />
-            View Official Certificate
-          </button>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Student info card — shown to office/dept/org viewers */}
       {isOfficeView && (

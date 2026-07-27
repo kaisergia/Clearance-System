@@ -21,6 +21,7 @@ interface ConstituentsTableProps {
   isSysAdmin?: boolean;
   basePath?: string;
   onViewDetails?: (student: TableStudent) => void;
+  onResetPassword?: (student: TableStudent) => void;
 }
 
 export function ConstituentsTable({
@@ -34,6 +35,7 @@ export function ConstituentsTable({
   isSysAdmin = false,
   basePath = "/head-office/constituents",
   onViewDetails,
+  onResetPassword,
 }: ConstituentsTableProps) {
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm overflow-hidden">
@@ -128,21 +130,32 @@ export function ConstituentsTable({
                   </td>
                   {!isSysAdmin && (
                     <td className="py-4 px-6 text-center">
-                      {student.status === "Cleared" ? (
-                        <button
-                          onClick={() => onToggleStatus(student.id, student.status)}
-                          className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-red-50 text-coral-red hover:bg-coral-red hover:text-white border border-coral-red active:scale-95 shadow-sm"
-                        >
-                          Mark Uncleared
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => onToggleStatus(student.id, student.status)}
-                          className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-green-50 text-green-600 hover:bg-green-600 hover:text-white border border-green-600 active:scale-95 shadow-sm"
-                        >
-                          Mark Cleared
-                        </button>
-                      )}
+                      <div className="flex items-center justify-center gap-2">
+                        {student.status === "Cleared" ? (
+                          <button
+                            onClick={() => onToggleStatus(student.id, student.status)}
+                            className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-red-50 text-coral-red hover:bg-coral-red hover:text-white border border-coral-red active:scale-95 shadow-sm"
+                          >
+                            Mark Uncleared
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => onToggleStatus(student.id, student.status)}
+                            className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-green-50 text-green-600 hover:bg-green-600 hover:text-white border border-green-600 active:scale-95 shadow-sm"
+                          >
+                            Mark Cleared
+                          </button>
+                        )}
+                        {onResetPassword && (
+                          <button
+                            onClick={() => onResetPassword(student)}
+                            className="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-gray-200"
+                            title="Reset Credentials / Sync Password"
+                          >
+                            <span className="material-symbols-outlined text-base">sync</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                   <td className="py-4 px-6 text-center">

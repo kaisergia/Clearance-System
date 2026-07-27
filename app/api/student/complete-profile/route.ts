@@ -35,86 +35,56 @@ export async function POST(req: Request) {
         const studentIdInput = studentId.trim();
         const oldStudentId = user.studentId;
 
-        // 1. Update Student record & handle student ID changes
+        // 1. Check if student record exists under studentIdInput or oldStudentId
+        const targetId = studentIdInput;
+
+        // Clean up old Student record if student ID was changed
         if (oldStudentId && oldStudentId !== studentIdInput) {
-          // Check if studentIdInput is already used by another student
-          const existingStudent = await tx.student.findUnique({ where: { id: studentIdInput } });
-          if (existingStudent && existingStudent.email !== user.email) {
-            throw new Error("Student ID is already registered to another student.");
-          }
-
-          // Clean up any orphaned records for studentIdInput to prevent unique constraint failures
-          await tx.clearanceRecord.deleteMany({ where: { studentId: studentIdInput } });
-          await tx.orgMember.deleteMany({ where: { studentId: studentIdInput } });
-          await tx.requirementSubmission.deleteMany({ where: { studentId: studentIdInput } });
-          await tx.user.updateMany({
-            where: { studentId: studentIdInput },
-            data: { studentId: null }
-          });
-
           const oldStudent = await tx.student.findUnique({ where: { id: oldStudentId } });
-          
           if (oldStudent) {
-            // Temporarily rename email of old student to bypass unique constraint
-            await tx.student.update({
-              where: { id: oldStudentId },
-              data: { email: oldStudent.email + "-temp" },
-            });
-
-            // Create new Student record with the user-supplied student ID
-            await tx.student.create({
-              data: {
-                id: studentIdInput,
-                name: oldStudent.name,
-                email: oldStudent.email,
-                department: college,
-                program,
-                year: yearString,
-                status: oldStudent.status,
-                semester: oldStudent.semester,
-              },
-            });
-
-            // Update ClearanceRecords to link to the new studentId
-            await tx.clearanceRecord.updateMany({
-              where: { studentId: oldStudentId },
-              data: { studentId: studentIdInput },
-            });
-
-            // Update OrgMembers to link to the new studentId
-            await tx.orgMember.updateMany({
-              where: { studentId: oldStudentId },
-              data: { studentId: studentIdInput },
-            });
-
-            // Update RequirementSubmissions to link to the new studentId
-            await tx.requirementSubmission.updateMany({
-              where: { studentId: oldStudentId },
-              data: { studentId: studentIdInput },
-            });
-
-            // Update User records to point to the new studentId
-            await tx.user.updateMany({
-              where: { studentId: oldStudentId },
-              data: { studentId: studentIdInput },
-            });
-
-            // Delete old Student record
+            // Relink clearance records & org members to targetId
+            await tx.clearanceRecord.updateMany({ where: { studentId: oldStudentId }, data: { studentId: targetId } });
+            await tx.orgMember.updateMany({ where: { studentId: oldStudentId }, data: { studentId: targetId } });
+            await tx.requirementSubmission.updateMany({ where: { studentId: oldStudentId }, data: { studentId: targetId } });
             await tx.student.delete({ where: { id: oldStudentId } });
           }
-        } else if (oldStudentId) {
-          // If ID hasn't changed, just update the department/program/year level
+        }
+
+        // 2. Upsert Student record in DB
+        const existingStudent = await tx.student.findUnique({ where: { id: targetId } });
+        if (existingStudent) {
           await tx.student.update({
-            where: { id: oldStudentId },
+            where: { id: targetId },
             data: {
+              name: user.displayName || session.user.name || existingStudent.name,
+              email: user.email,
               department: college,
               program,
               year: yearString,
             },
           });
+        } else {
+          await tx.student.create({
+            data: {
+              id: targetId,
+              name: user.displayName || session.user.name || "Student User",
+              email: user.email,
+              department: college,
+              program,
+              year: yearString,
+              status: "Pending",
+              semester: "1st Semester 2025-2026",
+            },
+          });
         }
 
-        const activeStudentId = oldStudentId && oldStudentId !== studentIdInput ? studentIdInput : oldStudentId || studentIdInput;
+        // 3. Always link User to targetId in database
+        await tx.user.update({
+          where: { id: user.id },
+          data: { studentId: targetId },
+        });
+
+        const activeStudentId = targetId;
 
         // Query names of selected organizations to save to StudentProfile.organization
         let organizationNamesString = null;

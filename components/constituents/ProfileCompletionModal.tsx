@@ -162,6 +162,17 @@ export default function ProfileCompletionModal({ isOpen }: ProfileCompletionModa
           }
         }
 
+        // Save selected enrolledClubs to local orgMembers roster
+        if (Array.isArray(enrolledClubs)) {
+          const storedOrgMembers = localStorage.getItem("orgMembers");
+          let currentOrgMembers = storedOrgMembers ? JSON.parse(storedOrgMembers) : [];
+          currentOrgMembers = currentOrgMembers.filter((m: any) => m.studentId !== newStudentId && m.studentId !== oldStudentId);
+          for (const clubId of enrolledClubs) {
+            currentOrgMembers.push({ orgId: clubId, studentId: newStudentId });
+          }
+          localStorage.setItem("orgMembers", JSON.stringify(currentOrgMembers));
+        }
+
         // Save local memberships
         const mockOrgMembersList = enrolledClubs.map((orgId) => ({
           orgId,
@@ -188,32 +199,32 @@ export default function ProfileCompletionModal({ isOpen }: ProfileCompletionModa
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl shadow-lg w-full max-w-lg p-6 md:p-8 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 space-y-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200 font-sans">
         {/* Header Section */}
-        <div className="pb-4 border-b border-surface-container-high flex items-center gap-3 mb-6">
-          <div className="p-2.5 bg-brand-red/10 text-brand-red rounded-lg">
+        <div className="pb-4 border-b border-gray-100 flex items-center gap-3 mb-2">
+          <div className="p-2.5 bg-red-50 text-[#b51b15] rounded-xl">
             <GraduationCap className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="font-headline-lg text-lg font-bold text-on-surface">
-              Complete Your Profile
+            <h2 className="text-lg font-bold text-gray-900">
+              Complete Your Student Profile
             </h2>
-            <p className="text-secondary text-xs mt-0.5 leading-tight">
-              Please provide your student details to set up your clearance dashboard.
+            <p className="text-gray-500 text-xs mt-0.5 leading-tight">
+              Please fill in your student details to activate your clearance dashboard.
             </p>
           </div>
         </div>
 
         {submitError && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold">
             {submitError}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           {/* Student ID */}
-          <div className="space-y-1.5">
-            <label htmlFor="studentId" className="block text-xs font-bold text-secondary uppercase tracking-wide">
+          <div>
+            <label htmlFor="studentId" className="block font-bold text-gray-800 text-xs mb-1.5">
               Student ID
             </label>
             <input
@@ -223,16 +234,16 @@ export default function ProfileCompletionModal({ isOpen }: ProfileCompletionModa
               onChange={(e) => setStudentId(e.target.value)}
               disabled={isSubmitting}
               placeholder="e.g., 2021-0001-5"
-              className={`w-full px-3 py-2 rounded-lg border bg-surface-container-lowest text-on-surface font-body-sm text-sm outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all ${
-                errors.studentId ? "border-red-500 ring-1 ring-red-500" : "border-surface-container-high"
+              className={`w-full h-11 px-4 bg-white border border-gray-300 rounded-xl font-medium text-gray-900 outline-none focus:border-[#b51b15] ${
+                errors.studentId ? "border-red-500" : ""
               }`}
             />
-            {errors.studentId && <p className="text-red-500 text-xs font-semibold mt-1">{errors.studentId}</p>}
+            {errors.studentId && <p className="text-red-500 text-[11px] font-semibold mt-1">{errors.studentId}</p>}
           </div>
 
-          {/* Department / College Dropdown */}
-          <div className="space-y-1.5">
-            <label htmlFor="college" className="block text-xs font-bold text-secondary uppercase tracking-wide">
+          {/* Department */}
+          <div>
+            <label htmlFor="college" className="block font-bold text-gray-800 text-xs mb-1.5">
               Department
             </label>
             <select
@@ -240,8 +251,8 @@ export default function ProfileCompletionModal({ isOpen }: ProfileCompletionModa
               value={college}
               onChange={(e) => setCollege(e.target.value)}
               disabled={isSubmitting}
-              className={`w-full px-3 py-2 rounded-lg border bg-surface-container-lowest text-on-surface font-body-sm text-sm outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all ${
-                errors.college ? "border-red-500 ring-1 ring-red-500" : "border-surface-container-high"
+              className={`w-full h-11 px-4 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none ${
+                errors.college ? "border-red-500" : ""
               }`}
             >
               <option value="">Select Department</option>
@@ -251,70 +262,71 @@ export default function ProfileCompletionModal({ isOpen }: ProfileCompletionModa
                 </option>
               ))}
             </select>
-            {errors.college && <p className="text-red-500 text-xs font-semibold mt-1">{errors.college}</p>}
+            {errors.college && <p className="text-red-500 text-[11px] font-semibold mt-1">{errors.college}</p>}
           </div>
 
-          {/* Course Dropdown */}
-          <div className="space-y-1.5">
-            <label htmlFor="program" className="block text-xs font-bold text-secondary uppercase tracking-wide">
-              Course / Program
-            </label>
-            <select
-              id="program"
-              value={program}
-              onChange={(e) => setProgram(e.target.value)}
-              disabled={!college || isSubmitting}
-              className={`w-full px-3 py-2 rounded-lg border bg-surface-container-lowest text-on-surface font-body-sm text-sm outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all ${
-                errors.program ? "border-red-500 ring-1 ring-red-500" : "border-surface-container-high"
-              } ${!college ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              <option value="">Select Course</option>
-              {college &&
-                DEPT_PROGRAMS[college]?.map((prog) => (
-                  <option key={prog} value={prog}>
-                    {prog}
-                  </option>
-                ))}
-            </select>
-            {errors.program && <p className="text-red-500 text-xs font-semibold mt-1">{errors.program}</p>}
+          {/* Course & Year Level Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="program" className="block font-bold text-gray-800 text-xs mb-1.5">
+                Course
+              </label>
+              <select
+                id="program"
+                value={program}
+                onChange={(e) => setProgram(e.target.value)}
+                disabled={!college || isSubmitting}
+                className={`w-full h-11 px-3 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none text-xs ${
+                  errors.program ? "border-red-500" : ""
+                } ${!college ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <option value="">Select Course</option>
+                {college &&
+                  DEPT_PROGRAMS[college]?.map((prog) => (
+                    <option key={prog} value={prog}>
+                      {prog}
+                    </option>
+                  ))}
+              </select>
+              {errors.program && <p className="text-red-500 text-[11px] font-semibold mt-1">{errors.program}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="yearLevel" className="block font-bold text-gray-800 text-xs mb-1.5">
+                Year Level
+              </label>
+              <select
+                id="yearLevel"
+                value={yearLevel}
+                onChange={(e) => setYearLevel(Number(e.target.value))}
+                disabled={isSubmitting}
+                className={`w-full h-11 px-3 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none text-xs ${
+                  errors.yearLevel ? "border-red-500" : ""
+                }`}
+              >
+                <option value="">Select Year Level</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+              </select>
+              {errors.yearLevel && <p className="text-red-500 text-[11px] font-semibold mt-1">{errors.yearLevel}</p>}
+            </div>
           </div>
 
-          {/* Year Level Dropdown */}
-          <div className="space-y-1.5">
-            <label htmlFor="yearLevel" className="block text-xs font-bold text-secondary uppercase tracking-wide">
-              Year Level
+          {/* Enrolled Clubs (Optional) */}
+          <div>
+            <label className="block font-bold text-gray-800 text-xs mb-1.5">
+              Enrolled Clubs <span className="text-gray-400 font-normal">(Optional)</span>
             </label>
-            <select
-              id="yearLevel"
-              value={yearLevel}
-              onChange={(e) => setYearLevel(Number(e.target.value))}
-              disabled={isSubmitting}
-              className={`w-full px-3 py-2 rounded-lg border bg-surface-container-lowest text-on-surface font-body-sm text-sm outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all ${
-                errors.yearLevel ? "border-red-500 ring-1 ring-red-500" : "border-surface-container-high"
-              }`}
-            >
-              <option value="">Select Year Level</option>
-              <option value="1">1st Year</option>
-              <option value="2">2nd Year</option>
-              <option value="3">3rd Year</option>
-              <option value="4">4th Year</option>
-            </select>
-            {errors.yearLevel && <p className="text-red-500 text-xs font-semibold mt-1">{errors.yearLevel}</p>}
-          </div>
-
-          {/* Organizations / Enrolled Clubs (Optional) */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-secondary uppercase tracking-wide">
-              Organizations / Enrolled Clubs (Optional)
-            </label>
-            <div className="border border-surface-container-high bg-surface-container-lowest rounded-xl p-3 space-y-1.5 max-h-40 overflow-y-auto shadow-inner">
+            <div className="border border-gray-200 rounded-xl p-3.5 bg-gray-50/50 space-y-2.5 max-h-40 overflow-y-auto">
               {clubsList.length === 0 ? (
-                <p className="text-secondary text-xs">No clubs available.</p>
+                <p className="text-gray-400 text-xs">No clubs available.</p>
               ) : (
                 clubsList.map((club) => (
                   <label
                     key={club.id}
-                    className="flex items-center justify-between p-1.5 hover:bg-surface-container-low rounded-lg cursor-pointer transition-colors"
+                    className="flex items-center justify-between cursor-pointer select-none"
                   >
                     <div className="flex items-center gap-2.5">
                       <input
@@ -322,15 +334,11 @@ export default function ProfileCompletionModal({ isOpen }: ProfileCompletionModa
                         checked={enrolledClubs.includes(club.id)}
                         onChange={() => handleClubToggle(club.id)}
                         disabled={isSubmitting}
-                        className="rounded border-surface-container-high text-brand-red focus:ring-brand-red h-4 w-4 cursor-pointer"
+                        className="w-4 h-4 rounded text-[#b51b15] focus:ring-[#b51b15] border-gray-300 cursor-pointer"
                       />
-                      <span className="font-body-md text-sm text-on-surface">{club.name}</span>
+                      <span className="text-xs font-semibold text-gray-800">{club.name}</span>
                     </div>
-                    <span className={`text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border ${
-                      club.type === "AcademicClub"
-                        ? "bg-brand-red/10 text-brand-red border-brand-red/20"
-                        : "bg-surface-container-high text-secondary border-surface-container-high"
-                    }`}>
+                    <span className="text-[10px] text-gray-400 font-medium">
                       {club.type === "AcademicClub" ? "academic" : "non-academic"}
                     </span>
                   </label>
@@ -339,12 +347,12 @@ export default function ProfileCompletionModal({ isOpen }: ProfileCompletionModa
             </div>
           </div>
 
-          {/* Submit Button */}
+          {/* Action Buttons */}
           <div className="pt-2">
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-red hover:bg-primary text-white text-sm font-bold rounded-lg shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+              className="w-full h-12 flex items-center justify-center gap-2 px-5 bg-[#c82333] hover:bg-[#a71d2a] text-white text-xs font-bold rounded-2xl shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
             >
               {isSubmitting ? (
                 <>

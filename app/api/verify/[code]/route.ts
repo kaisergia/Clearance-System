@@ -5,10 +5,11 @@ import { mockRequirements, mockStudentClearanceRecords } from "@/mock/mockData";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { code: string } }
+  { params }: { params: Promise<{ code: string }> | { code: string } }
 ) {
   try {
-    const rawCode = params.code || "";
+    const resolvedParams = await Promise.resolve(params);
+    const rawCode = decodeURIComponent(resolvedParams.code || "");
     const cleanCode = rawCode.trim().toUpperCase();
 
     // Extract student ID from code formats: CJC-CLR-2026-2021-0492, CJC-2021-0492, or direct 2021-0492
@@ -27,9 +28,9 @@ export async function GET(
       const dbStudent = await prisma.student.findFirst({
         where: {
           OR: [
-            { id: studentIdMatch },
-            { id: cleanCode },
-            { email: cleanCode.toLowerCase() },
+            { id: { equals: studentIdMatch, mode: "insensitive" } },
+            { id: { equals: cleanCode, mode: "insensitive" } },
+            { email: { equals: cleanCode.toLowerCase(), mode: "insensitive" } },
           ],
         },
         include: {
@@ -50,12 +51,12 @@ export async function GET(
         };
         recordsData = dbStudent.clearanceRecords || [];
       } else {
-        // Try finding user by email
+        // Try finding user by email or studentId
         const dbUser = await prisma.user.findFirst({
           where: {
             OR: [
-              { email: cleanCode.toLowerCase() },
-              { studentId: studentIdMatch },
+              { email: { equals: cleanCode.toLowerCase(), mode: "insensitive" } },
+              { studentId: { equals: studentIdMatch, mode: "insensitive" } },
             ],
           },
           include: { student: { include: { clearanceRecords: true } } },

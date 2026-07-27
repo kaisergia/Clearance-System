@@ -7,7 +7,8 @@ import { ShieldCheck, ShieldAlert, Award, Calendar, Building2, CheckCircle2, XCi
 
 export default function VerificationResultPage() {
   const params = useParams();
-  const code = (params?.code as string) || "";
+  const rawParam = params?.code;
+  const code = Array.isArray(rawParam) ? rawParam[0] : (rawParam as string) || "";
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
@@ -21,7 +22,7 @@ export default function VerificationResultPage() {
         const res = await fetch(`/api/verify/${encodeURIComponent(code)}`);
         const json = await res.json();
         if (!res.ok) {
-          setError(json.error || "Invalid or unverified clearance certificate code.");
+          setError(json.error || "Invalid or unverified clearance slip code.");
           setData(null);
         } else {
           setData(json);
@@ -61,7 +62,7 @@ export default function VerificationResultPage() {
             <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
               <ShieldAlert className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900">Invalid or Unverified Certificate</h2>
+            <h2 className="text-xl font-bold text-slate-900">Invalid or Unverified Clearance Slip</h2>
             <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
               {error || "The verification code provided does not match an official cleared student record."}
             </p>

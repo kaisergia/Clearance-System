@@ -139,6 +139,7 @@ export const authOptions: NextAuthOptions = {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { email: lookupEmail as string },
+            include: { student: true },
           });
 
           if (dbUser) {
@@ -151,7 +152,7 @@ export const authOptions: NextAuthOptions = {
               dbUser.studentId ??
               null;
             token.avatarUrl = dbUser.avatarUrl;
-            token.isProfileComplete = (dbUser as any).isProfileComplete ?? false;
+            token.isProfileComplete = Boolean(dbUser.studentId && dbUser.student?.department && dbUser.student?.program);
           }
         } catch (dbErr) {
           console.warn("[NextAuth JWT] Database offline, running in mock/local fallback mode:", dbErr);

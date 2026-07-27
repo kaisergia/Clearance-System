@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useOffices } from "@/components/contexts/OfficesContext";
 import { useDepartments } from "@/components/contexts/DepartmentsContext";
 import { mockStudents, mockOfficeHeads } from "@/mock/mockStudents";
@@ -170,12 +170,12 @@ function AddDepartmentForm({ onCancel, onAdd }: { onCancel: () => void; onAdd: (
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
-  const { offices, addOffice } = useOffices();
+  const { offices, addOffice, openAddOfficeModal, setOpenAddOfficeModal } = useOffices();
   const { departments, addDepartment } = useDepartments();
 
   const [expandedSection, setExpandedSection] = useState<string | null>("Offices");
-  const [openAddOfficeModal, setOpenAddOfficeModal] = useState(false);
   const [openAddDepartmentModal, setOpenAddDepartmentModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -202,11 +202,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navItems = [
     { label: "Dashboard", icon: "dashboard", href: "/admin/dashboard" },
+    { label: "User Management", icon: "manage_accounts", href: "/admin/user-management" },
+    { label: "Head Offices", icon: "corporate_fare", href: "/admin/offices" },
     { label: "Announcements", icon: "campaign", href: "/admin/announcements" },
     { label: "Reports", icon: "assessment", href: "/admin/reports" },
     { label: "Audit Logs", icon: "history", href: "/admin/activity-logs" },
     { label: "Settings", icon: "settings", href: "/admin/settings" },
   ];
+
+  const [userMgmtOpen, setUserMgmtOpen] = useState(true);
+  const [officesSubOpen, setOfficesSubOpen] = useState(false);
+  const [deptsSubOpen, setDeptsSubOpen] = useState(false);
 
   return (
     <div className="bg-background text-on-background font-body-md min-h-screen flex">
@@ -248,22 +254,42 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }`}
       >
         <nav className="px-4 space-y-1">
-          {navItems.map((item) => {
-            const active = isPathActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${
-                  active ? "bg-primary-fixed text-primary font-bold" : "text-secondary hover:bg-surface-container-high"
-                }`}
-              >
-                <span className="material-symbols-outlined text-xl">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          <Link
+            href="/admin/dashboard"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${
+              pathname === "/admin/dashboard" ? "bg-primary-fixed text-primary font-bold" : "text-secondary hover:bg-surface-container-high"
+            }`}
+          >
+            <span className="material-symbols-outlined text-xl">dashboard</span>
+            <span>Dashboard</span>
+          </Link>
+          <Link
+            href="/admin/user-management"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${
+              pathname.startsWith("/admin/user-management") || pathname.startsWith("/admin/offices") ? "bg-primary-fixed text-primary font-bold" : "text-secondary hover:bg-surface-container-high"
+            }`}
+          >
+            <span className="material-symbols-outlined text-xl">group</span>
+            <span>User Management</span>
+          </Link>
+          <Link
+            href="/admin/announcements"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm text-secondary hover:bg-surface-container-high"
+          >
+            <span className="material-symbols-outlined text-xl">campaign</span>
+            <span>Announcements</span>
+          </Link>
+          <Link
+            href="/admin/reports"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm text-secondary hover:bg-surface-container-high"
+          >
+            <span className="material-symbols-outlined text-xl">assessment</span>
+            <span>Reports</span>
+          </Link>
           <div className="pt-4 mt-2 border-t border-outline-variant px-4 flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-700">System Admin</span>
             <button
@@ -295,27 +321,143 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </div>
 
-        <nav className="flex-1 w-full space-y-1">
-          <ul className="flex flex-col gap-1 w-full">
-            {navItems.map((item) => {
-              const active = isPathActive(item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 transition-all duration-150 border-l-4 ${
-                      active
-                        ? "bg-primary-fixed text-primary border-primary font-bold"
-                        : "text-secondary hover:bg-surface-container-high border-transparent"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined">{item.icon}</span>
-                    <span className="font-body-md text-body-md">{item.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        <nav className="flex-1 w-full px-2 space-y-1">
+          {/* Dashboard */}
+          <Link
+            href="/admin/dashboard"
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all border-l-4 ${
+              pathname === "/admin/dashboard"
+                ? "bg-primary-fixed text-primary border-primary font-bold"
+                : "text-secondary hover:bg-surface-container-high border-transparent"
+            }`}
+          >
+            <span className="material-symbols-outlined">dashboard</span>
+            <span className="font-body-md text-body-md">Dashboard</span>
+          </Link>
+
+          {/* User Management Collapsible Accordion Menu */}
+          <div className="space-y-1">
+            <button
+              onClick={() => setUserMgmtOpen(!userMgmtOpen)}
+              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all border-l-4 cursor-pointer ${
+                pathname.startsWith("/admin/user-management") || pathname.startsWith("/admin/offices")
+                  ? "bg-primary-container/10 text-primary border-primary font-bold"
+                  : "text-secondary hover:bg-surface-container-high border-transparent"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>group</span>
+                <span className="font-body-md text-body-md">User Management</span>
+              </div>
+              <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${userMgmtOpen ? "rotate-180" : ""}`}>
+                expand_more
+              </span>
+            </button>
+
+            {userMgmtOpen && (
+              <div className="pl-6 space-y-1 pt-1">
+                <Link
+                  href="/admin/user-management?tab=users"
+                  className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                    pathname.startsWith("/admin/user-management") && (!searchParams.get("tab") || searchParams.get("tab") === "users")
+                      ? "bg-primary-fixed text-primary font-bold"
+                      : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">manage_accounts</span>
+                  <span>Manage Constituents</span>
+                </Link>
+
+                <Link
+                  href="/admin/user-management?tab=offices"
+                  className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                    pathname === "/admin/offices" || searchParams.get("tab") === "offices"
+                      ? "bg-primary-fixed text-primary font-bold"
+                      : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">corporate_fare</span>
+                  <span>Offices</span>
+                </Link>
+
+                <Link
+                  href="/admin/user-management?tab=departments"
+                  className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                    searchParams.get("tab") === "departments"
+                      ? "bg-primary-fixed text-primary font-bold"
+                      : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">domain</span>
+                  <span>Departments</span>
+                </Link>
+
+                <Link
+                  href="/admin/user-management?tab=orgs"
+                  className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                    searchParams.get("tab") === "orgs"
+                      ? "bg-primary-fixed text-primary font-bold"
+                      : "text-secondary hover:text-primary hover:bg-surface-container-low"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">groups</span>
+                  <span>Organizations / Clubs</span>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Announcements */}
+          <Link
+            href="/admin/announcements"
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all border-l-4 ${
+              pathname === "/admin/announcements"
+                ? "bg-primary-fixed text-primary border-primary font-bold"
+                : "text-secondary hover:bg-surface-container-high border-transparent"
+            }`}
+          >
+            <span className="material-symbols-outlined">campaign</span>
+            <span className="font-body-md text-body-md">Announcements</span>
+          </Link>
+
+          {/* Reports */}
+          <Link
+            href="/admin/reports"
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all border-l-4 ${
+              pathname === "/admin/reports"
+                ? "bg-primary-fixed text-primary border-primary font-bold"
+                : "text-secondary hover:bg-surface-container-high border-transparent"
+            }`}
+          >
+            <span className="material-symbols-outlined">assessment</span>
+            <span className="font-body-md text-body-md">Reports</span>
+          </Link>
+
+          {/* Audit Logs */}
+          <Link
+            href="/admin/activity-logs"
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all border-l-4 ${
+              pathname === "/admin/activity-logs"
+                ? "bg-primary-fixed text-primary border-primary font-bold"
+                : "text-secondary hover:bg-surface-container-high border-transparent"
+            }`}
+          >
+            <span className="material-symbols-outlined">history</span>
+            <span className="font-body-md text-body-md">Audit Logs</span>
+          </Link>
+
+          {/* Settings */}
+          <Link
+            href="/admin/settings"
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all border-l-4 ${
+              pathname === "/admin/settings"
+                ? "bg-primary-fixed text-primary border-primary font-bold"
+                : "text-secondary hover:bg-surface-container-high border-transparent"
+            }`}
+          >
+            <span className="material-symbols-outlined">settings</span>
+            <span className="font-body-md text-body-md">Settings</span>
+          </Link>
         </nav>
 
         {/* Profile Footer */}

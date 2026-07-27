@@ -99,6 +99,7 @@ const initStorage = () => {
     localStorage.setItem("students", JSON.stringify(mockStudents));
     localStorage.setItem("studentClearanceRecords", JSON.stringify(mockStudentClearanceRecords));
     localStorage.setItem("requirements", JSON.stringify(mockRequirements));
+    localStorage.setItem("orgMembers", JSON.stringify(mockOrgMembers));
     localStorage.setItem("clearance_initialized", "true");
     sanitizeExistingStudentRecords().then(() => { isInitializing = false; });
   }
@@ -189,16 +190,29 @@ export async function getStudentRequirements(studentId: string): Promise<Clearan
   const reqsList = storedReqs ? JSON.parse(storedReqs) : mockRequirements;
   const baseOffices = reqsList.filter((r: any) => r.type === "office");
 
+  const storedMembersStr = isBrowser ? localStorage.getItem("orgMembers") : null;
+  const currentMembers = storedMembersStr ? JSON.parse(storedMembersStr) : mockOrgMembers;
+  const studentMemberOrgIds = new Set(
+    currentMembers.filter((m: any) => m.studentId === student.id).map((m: any) => m.orgId)
+  );
+
   const applicableOrgs = mockOrgs.filter((org) => {
+    // 1. Student Government applies to all students
     if (org.type === "Gov") return true;
-    if (org.type === "LGU") return org.department === student.department;
+
+    // 2. Department LGU applies to students in that department
+    if (org.type === "LGU" && org.department === student.department) return true;
+
+    // 3. Academic Club applies to students matching department or program
     if (org.type === "AcademicClub") {
       const studentProgCode = PROGRAM_MAP[student.program] || student.program;
-      return org.program === studentProgCode;
+      if (org.department && org.department === student.department) return true;
+      if (org.program && (org.program === studentProgCode || org.program === student.program)) return true;
     }
-    if (org.type === "NonAcademicClub") {
-      return mockOrgMembers.some((m) => m.orgId === org.id && m.studentId === student.id);
-    }
+
+    // 4. Non-Academic / Interest Clubs apply if student is explicitly enrolled
+    if (studentMemberOrgIds.has(org.id)) return true;
+
     return false;
   });
 
@@ -477,4 +491,59 @@ export async function getStudentOrgMemberships(studentId: string): Promise<any[]
     .map((m: any) => mockOrgs.find((o: any) => o.id === m.orgId))
     .filter(Boolean);
   return memberOrgs.map((org: any) => ({ org }));
+}
+
+/**
+ * Returns all users from the DB.
+ */
+export async function getUsers(): Promise<any[]> {
+  const dbResult = await apiFetch<any[]>("/api/users");
+  if (dbResult) return dbResult;
+  return [];
+}
+
+/**
+ * Creates a new user in the DB.
+ */
+export async function createUser(data: any): Promise<any> {
+  const res = await fetch("/api/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to create user");
+  }
+  return res.json();
+}
+
+/**
+ * Updates a user in the DB.
+ */
+export async function updateUser(id: string | number, data: any): Promise<any> {
+  const res = await fetch(`/api/users/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to update user");
+  }
+  return res.json();
+}
+
+/**
+ * Deletes a user from the DB.
+ */
+export async function deleteUser(id: string | number): Promise<any> {
+  const res = await fetch(`/api/users/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to delete user");
+  }
+  return res.json();
 }

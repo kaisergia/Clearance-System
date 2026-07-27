@@ -34,6 +34,20 @@ export default function ConstituentsPage() {
 
   const [selectedStudentForStatus, setSelectedStudentForStatus] = useState<any>(null);
   const [statusRequirements, setStatusRequirements] = useState<any[]>([]);
+  const [resetConfirmStudent, setResetConfirmStudent] = useState<any | null>(null);
+  const [resetSuccessToast, setResetSuccessToast] = useState<string | null>(null);
+
+  const handleResetPassword = (student: any) => {
+    setResetConfirmStudent(student);
+  };
+
+  const confirmResetPassword = () => {
+    if (!resetConfirmStudent) return;
+    const tempPassword = `CJC@${Math.floor(1000 + Math.random() * 9000)}`;
+    setResetSuccessToast(`Password for ${resetConfirmStudent.name} (${resetConfirmStudent.id}) reset to: ${tempPassword}`);
+    setResetConfirmStudent(null);
+    setTimeout(() => setResetSuccessToast(null), 5000);
+  };
 
   const handleOpenStatusModal = async (student: any) => {
     const mergedReqs = await clearanceService.getStudentRequirements(student.id);
@@ -243,6 +257,46 @@ export default function ConstituentsPage() {
         </div>
       </section>
 
+      {/* Toast Notification */}
+      {resetSuccessToast && (
+        <div className="fixed top-20 right-6 z-[9999] bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fadeIn border border-gray-700 text-xs font-semibold">
+          <span className="material-symbols-outlined text-emerald-400 text-base">check_circle</span>
+          <span>{resetSuccessToast}</span>
+          <button onClick={() => setResetSuccessToast(null)} className="ml-2 text-gray-400 hover:text-white">
+            <span className="material-symbols-outlined text-sm">close</span>
+          </button>
+        </div>
+      )}
+
+      {/* Password Reset Confirmation Modal */}
+      {resetConfirmStudent && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in p-4">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-amber-600">
+              <span className="material-symbols-outlined text-2xl">sync</span>
+              <h3 className="font-bold text-base text-on-surface">Reset Student Password</h3>
+            </div>
+            <p className="text-xs text-secondary leading-relaxed">
+              Are you sure you want to reset credentials for <strong>{resetConfirmStudent.name}</strong> ({resetConfirmStudent.id})? A new temporary password will be generated.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setResetConfirmStudent(null)}
+                className="flex-1 py-2 rounded-xl border border-outline-variant font-bold text-secondary text-xs hover:bg-surface-container-low"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmResetPassword}
+                className="flex-1 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md active:scale-95"
+              >
+                Reset Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConstituentsFilterBar
         search={search}
         setSearch={setSearch}
@@ -269,6 +323,7 @@ export default function ConstituentsPage() {
         isAllSelected={isAllSelected}
         basePath="/department/constituents"
         onViewDetails={handleOpenStatusModal}
+        onResetPassword={handleResetPassword}
       />
 
       {showConfirmModal && (

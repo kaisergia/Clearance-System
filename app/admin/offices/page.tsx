@@ -12,18 +12,26 @@ const PALETTE = [
 ];
 
 export default function OfficesPage() {
-  const { offices, deleteOffice } = useOffices();
+  const { offices, deleteOffice, setOpenAddOfficeModal } = useOffices();
 
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-md mb-lg">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-md mb-lg">
         <div>
-          <h2 className="font-headline-lg text-headline-lg text-on-surface">Head Offices</h2>
+          <h2 className="font-headline-lg text-headline-lg text-on-surface font-bold">Head Offices</h2>
           <p className="font-body-md text-body-md text-secondary mt-1">
-            Manage departmental clearance centers and assign administrative roles.
+            Manage institutional clearance centers and administrative offices.
           </p>
         </div>
+
+        <button
+          onClick={() => setOpenAddOfficeModal(true)}
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-red hover:bg-primary text-white font-bold text-sm rounded-xl shadow-sm hover:shadow transition-all cursor-pointer whitespace-nowrap active:scale-95"
+        >
+          <span className="material-symbols-outlined text-lg">add</span>
+          Add Office
+        </button>
       </div>
 
       {/* Summary Cards */}
