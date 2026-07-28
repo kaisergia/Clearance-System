@@ -23,10 +23,21 @@ export function ExpandableAppliesTo({ appliesTo }: ExpandableAppliesToProps) {
   const [expandProg, setExpandProg] = useState(false);
   const [expandYear, setExpandYear] = useState(false);
 
-  const depts = appliesTo.filter((item) => item === "All Departments" || DEPARTMENTS.includes(item));
+  let depts = appliesTo.filter((item) => item === "All Departments" || DEPARTMENTS.includes(item));
+  if (depts.includes("All Departments")) {
+    depts = ["All Departments"];
+  }
+
   const allProgs = Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()));
-  const progs = appliesTo.filter((item) => item === "All Programs" || allProgs.includes(item));
-  const years = appliesTo.filter((item) => item === "All Year Levels" || YEAR_LEVELS.includes(item));
+  let progs = appliesTo.filter((item) => item === "All Programs" || allProgs.includes(item));
+  if (progs.includes("All Programs")) {
+    progs = ["All Programs"];
+  }
+
+  let years = appliesTo.filter((item) => item === "All Year Levels" || YEAR_LEVELS.includes(item));
+  if (years.includes("All Year Levels")) {
+    years = ["All Year Levels"];
+  }
 
   const renderGroup = (
     label: string,
@@ -59,7 +70,7 @@ export function ExpandableAppliesTo({ appliesTo }: ExpandableAppliesToProps) {
               onClick={() => setExpanded(true)}
               className="inline-flex items-center px-1.5 py-0.5 bg-primary-container/10 text-primary border border-primary-container/20 rounded font-bold text-[10px] hover:bg-primary-container/20 transition-all cursor-pointer"
             >
-              +{items.length - limit} more
+              view all
             </button>
           )}
           {isExpanded && (

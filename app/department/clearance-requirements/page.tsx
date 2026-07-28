@@ -69,6 +69,7 @@ export default function ClearanceRequirementsPage() {
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [selectedProgs, setSelectedProgs] = useState<string[]>([]);
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -110,6 +111,7 @@ export default function ClearanceRequirementsPage() {
     setSelectedDepts(activeDepartment ? [activeDepartment.abbreviation] : []);
     setSelectedProgs([]);
     setSelectedYears([]);
+    setSelectedStudents([]);
     setDeadline("");
     setRequiresUpload(false);
     setReqType("MANUAL");
@@ -143,6 +145,7 @@ export default function ClearanceRequirementsPage() {
     const depts: string[] = [];
     const progs: string[] = [];
     const years: string[] = [];
+    const studentsList: string[] = [];
 
     const ALL_PROGRAMS = Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()));
 
@@ -153,12 +156,15 @@ export default function ClearanceRequirementsPage() {
         progs.push(item);
       } else if (item === "All Year Levels" || YEAR_LEVELS.includes(item)) {
         years.push(item);
+      } else if (item !== "All Students") {
+        studentsList.push(item);
       }
     });
 
     setSelectedDepts(activeDepartment ? [activeDepartment.abbreviation] : depts);
     setSelectedProgs(progs);
     setSelectedYears(years);
+    setSelectedStudents(studentsList);
     setDeadline(req.deadline || "");
 
     setIsModalOpen(true);
@@ -192,6 +198,7 @@ export default function ClearanceRequirementsPage() {
     if (selectedDepts.length > 0) appliesTo.push(...selectedDepts);
     if (selectedProgs.length > 0) appliesTo.push(...selectedProgs);
     if (selectedYears.length > 0) appliesTo.push(...selectedYears);
+    if (selectedStudents.length > 0) appliesTo.push(...selectedStudents);
 
     if (editingReqId) {
       setRequirements((prev) => {
@@ -485,6 +492,8 @@ export default function ClearanceRequirementsPage() {
                   setSelectedProgs={setSelectedProgs}
                   selectedYears={selectedYears}
                   setSelectedYears={setSelectedYears}
+                  selectedStudents={selectedStudents}
+                  setSelectedStudents={setSelectedStudents}
                   isExclusiveDept={true}
                 />
 
