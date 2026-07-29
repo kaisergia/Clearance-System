@@ -201,10 +201,9 @@ export default function ClearanceRequirementsPage() {
     if (selectedStudents.length > 0) appliesTo.push(...selectedStudents);
 
     if (editingReqId) {
-      setRequirements((prev) => {
-        const updated = prev.map((r) =>
-          r.id === editingReqId
-            ? {
+      const updated = requirements.map((r) =>
+        r.id === editingReqId
+          ? {
               ...r,
               name: reqName,
               description: reqDescription,
@@ -217,11 +216,10 @@ export default function ClearanceRequirementsPage() {
               surveyQuestions: reqType === "SURVEY" ? surveyQuestions : undefined,
               acknowledgmentText: reqType === "ACKNOWLEDGMENT" ? acknowledgmentText : undefined,
             }
-            : r
-        );
-        saveRequirements(updated);
-        return updated;
-      });
+          : r
+      );
+      setRequirements(updated);
+      saveRequirements(updated);
       setEditingReqId(null);
     } else {
       const newReq: Requirement = {
@@ -243,32 +241,26 @@ export default function ClearanceRequirementsPage() {
         surveyQuestions: reqType === "SURVEY" ? surveyQuestions : undefined,
         acknowledgmentText: reqType === "ACKNOWLEDGMENT" ? acknowledgmentText : undefined,
       };
-      setRequirements((prev) => {
-        const updated = [newReq, ...prev];
-        saveRequirements(updated);
-        return updated;
-      });
+      const updated = [newReq, ...requirements];
+      setRequirements(updated);
+      saveRequirements(updated);
     }
     setIsModalOpen(false);
     setShowConfirm(false);
   };
 
   const handleDeleteRequirement = (id: string) => {
-    setRequirements((prev) => {
-      const updated = prev.filter((r) => r.id !== id);
-      saveRequirements(updated);
-      return updated;
-    });
+    const updated = requirements.filter((r) => r.id !== id);
+    setRequirements(updated);
+    saveRequirements(updated);
   };
 
   const handleToggleStatus = (id: string) => {
-    setRequirements((prev) => {
-      const updated = prev.map((r) =>
-        r.id === id ? { ...r, status: (r.status === "Live" ? "Draft" : "Live") as "Live" | "Draft" } : r
-      );
-      saveRequirements(updated);
-      return updated;
-    });
+    const updated = requirements.map((r) =>
+      r.id === id ? { ...r, status: (r.status === "Live" ? "Draft" : "Live") as "Live" | "Draft" } : r
+    );
+    setRequirements(updated);
+    saveRequirements(updated);
   };
 
   return (

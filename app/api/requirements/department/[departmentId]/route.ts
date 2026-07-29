@@ -34,36 +34,38 @@ export async function POST(
     const departmentId = Number(resolvedParams.departmentId);
     const { requirements } = await req.json();
 
-    await prisma.departmentRequirement.deleteMany({ where: { departmentId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.departmentRequirement.deleteMany({ where: { departmentId } });
 
-    if (requirements?.length > 0) {
-      await prisma.departmentRequirement.createMany({
-        data: requirements.map((r: any) => ({
-          // No `id` — let MySQL auto-generate to avoid PK conflicts
-          departmentId,
-          name:           r.name,
-          description:    r.description || "",
-          linkName:       r.linkName || null,
-          linkUrl:        r.linkUrl || null,
-          addedDate:      r.addedDate || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-          status:         r.status || "Draft",
-          appliesTo:      r.appliesTo || ["All Students"],
-          deadline:       r.deadline || null,
-          type:               r.type || "MANUAL",
-          surveyQuestions:    r.surveyQuestions || null,
-          acknowledgmentText: r.acknowledgmentText || null,
-        })),
-        skipDuplicates: true,
+      if (requirements?.length > 0) {
+        await tx.departmentRequirement.createMany({
+          data: requirements.map((r: any) => ({
+            // No `id` — let MySQL auto-generate to avoid PK conflicts
+            departmentId,
+            name:           r.name,
+            description:    r.description || "",
+            linkName:       r.linkName || null,
+            linkUrl:        r.linkUrl || null,
+            addedDate:      r.addedDate || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            status:         r.status || "Draft",
+            appliesTo:      r.appliesTo || ["All Students"],
+            deadline:       r.deadline || null,
+            type:               r.type || "MANUAL",
+            surveyQuestions:    r.surveyQuestions || null,
+            acknowledgmentText: r.acknowledgmentText || null,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      // 1. Reset all clearance records for this department to Pending since requirements changed
+      await tx.clearanceRecord.updateMany({
+        where: { departmentId },
+        data: {
+          status: "Pending",
+          dateCleared: null,
+        },
       });
-    }
-
-    // 1. Reset all clearance records for this department to Pending since requirements changed
-    await prisma.clearanceRecord.updateMany({
-      where: { departmentId },
-      data: {
-        status: "Pending",
-        dateCleared: null,
-      },
     });
 
     // 2. Reset the affected students' overall status to Pending
