@@ -9,6 +9,7 @@ import { ConstituentActionsToolbar } from "@/components/constituents/Constituent
 import * as clearanceService from "@/services/clearanceService";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 import { mockStudents } from "@/mock/mockStudents";
+import { mockRequirements } from "@/mock/mockData";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
 
@@ -55,14 +56,30 @@ export default function ConstituentsPage() {
       setCurrentOfficeId(Number(officeId));
     }
 
+    const officeReqs = officeId ? await clearanceService.getOfficeRequirements(Number(officeId)) : [];
+    const liveReqs = officeReqs.filter((r: any) => r.status === "Live");
+
+    const isApplicable = (req: any, student: any) => {
+      if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) return true;
+      return (
+        req.appliesTo.includes(student.program) ||
+        req.appliesTo.includes(student.department) ||
+        req.appliesTo.includes(student.year)
+      );
+    };
+
     const allStudents = await clearanceService.getStudents();
     const mappedStudents = [];
     for (const student of allStudents) {
+      const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
+      const hasRequirements = studentApplicable.length > 0;
+
       const records = await clearanceService.getStudentClearanceRecords(student.id);
       const officeRec = records.find((r: any) => r.officeId === Number(officeId));
       mappedStudents.push({
         ...student,
-        status: officeRec?.status || "Pending",
+        status: hasRequirements ? (officeRec?.status || "Pending") : "Cleared",
+        hasRequirements,
       });
     }
     setConstituents(mappedStudents);

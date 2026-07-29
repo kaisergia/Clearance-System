@@ -9,7 +9,6 @@ import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
 import { ConstituentActionsToolbar } from "@/components/constituents/ConstituentActionsToolbar";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
-
 import { PROGRAM_MAP } from "@/lib/constants";
 
 export default function OrgConstituentsPage() {
@@ -76,13 +75,29 @@ export default function OrgConstituentsPage() {
           list = allStudents.filter((s) => memberIds.includes(s.id));
         }
 
+        const orgReqs = await clearanceService.getOrgRequirements(currentOrg.id);
+        const liveReqs = orgReqs.filter((r: any) => r.status === "Live");
+
+        const isApplicable = (req: any, student: any) => {
+          if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) return true;
+          return (
+            req.appliesTo.includes(student.program) ||
+            req.appliesTo.includes(student.department) ||
+            req.appliesTo.includes(student.year)
+          );
+        };
+
         const mappedList = [];
         for (const student of list) {
+          const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
+          const hasRequirements = studentApplicable.length > 0;
+
           const records = await clearanceService.getStudentClearanceRecords(student.id);
           const orgRec = records.find((r: any) => r.orgId === currentOrg.id);
           mappedList.push({
             ...student,
-            status: orgRec?.status || "Pending",
+            status: hasRequirements ? (orgRec?.status || "Pending") : "Cleared",
+            hasRequirements,
           });
         }
 
@@ -154,7 +169,11 @@ export default function OrgConstituentsPage() {
       student.id.includes(search);
     const matchesYear = yearLevel === "All Years" || student.year === yearLevel;
     const matchesDept = department === "All Departments" || student.department === department;
-    const matchesProg = program === "All Programs" || student.program === program;
+    const studentProgCode = PROGRAM_MAP[student.program] || student.program;
+    const matchesProg =
+      program === "All Programs" ||
+      student.program === program ||
+      studentProgCode === program;
 
     return matchesSearch && matchesYear && matchesDept && matchesProg;
   });

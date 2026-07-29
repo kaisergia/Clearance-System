@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Trash2, Edit2, X, Megaphone, Globe, Building2, Image as ImageIcon, Link as LinkIcon, Upload, Check } from "lucide-react";
 import Image from "next/image";
 import { compressImage } from "@/lib/imageUtils";
+import { AppliesToSelector } from "@/components/ui/AppliesToSelector";
+import { ExpandableAppliesTo } from "@/components/ui/ExpandableAppliesTo";
 
 type Priority = "low" | "normal" | "high" | "urgent";
 
@@ -25,6 +27,7 @@ interface Announcement {
   officeId: number | null;
   departmentId: number | null;
   orgId: number | null;
+  appliesTo?: string[] | null;
 }
 
 interface Entity { id: number; name: string; }
@@ -61,6 +64,10 @@ function AnnouncementForm({
   offices,
   departments,
   orgs,
+  isExclusiveDept = false,
+  isExclusiveProg = false,
+  lockedDept = null,
+  lockedProg = null,
   onSave,
   onClose,
 }: {
@@ -70,6 +77,10 @@ function AnnouncementForm({
   offices: Entity[];
   departments: Entity[];
   orgs: Entity[];
+  isExclusiveDept?: boolean;
+  isExclusiveProg?: boolean;
+  lockedDept?: string | null;
+  lockedProg?: string | null;
   onSave: (data: any) => Promise<void>;
   onClose: () => void;
 }) {
@@ -103,6 +114,39 @@ function AnnouncementForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
+  const [selectedProgs, setSelectedProgs] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (initial?.appliesTo && Array.isArray(initial.appliesTo)) {
+      const deptsArr: string[] = [];
+      const progsArr: string[] = [];
+      const yearsArr: string[] = [];
+      
+      const DEPARTMENTS_LIST = ["CCIS", "COE", "CEDAS", "CHS", "CABE", "All Departments"];
+      const YEAR_LEVELS_LIST = ["1st Year", "2nd Year", "3rd Year", "4th Year", "All Year Levels"];
+      
+      initial.appliesTo.forEach((item: string) => {
+        if (DEPARTMENTS_LIST.includes(item)) {
+          deptsArr.push(item);
+        } else if (YEAR_LEVELS_LIST.includes(item)) {
+          yearsArr.push(item);
+        } else {
+          progsArr.push(item);
+        }
+      });
+      
+      setSelectedDepts(deptsArr);
+      setSelectedProgs(progsArr);
+      setSelectedYears(yearsArr);
+    } else {
+      setSelectedDepts(isExclusiveDept && lockedDept ? [lockedDept] : []);
+      setSelectedProgs(isExclusiveProg && lockedProg ? [lockedProg] : []);
+      setSelectedYears([]);
+    }
+  }, [initial, isExclusiveDept, isExclusiveProg, lockedDept, lockedProg]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -156,6 +200,12 @@ function AnnouncementForm({
     }
     setSaving(true);
     setError("");
+
+    const appliesTo: string[] = [];
+    if (selectedDepts.length > 0) appliesTo.push(...selectedDepts);
+    if (selectedProgs.length > 0) appliesTo.push(...selectedProgs);
+    if (selectedYears.length > 0) appliesTo.push(...selectedYears);
+
     try {
       await onSave({
         title: title.trim(),
@@ -172,6 +222,7 @@ function AnnouncementForm({
         officeId: officeId ? parseInt(officeId, 10) : null,
         departmentId: departmentId ? parseInt(departmentId, 10) : null,
         orgId: orgId ? parseInt(orgId, 10) : null,
+        appliesTo: appliesTo.length > 0 ? appliesTo : ["All Students"],
       });
       onClose();
     } catch (e: any) {
@@ -221,6 +272,20 @@ function AnnouncementForm({
               onChange={(e) => setContent(e.target.value)}
               className={`${inputCls} min-h-[120px] resize-y`}
               placeholder="Write the full announcement here…"
+            />
+          </div>
+
+          {/* Target Audience Filters */}
+          <div className="bg-gray-50/50 border border-gray-100 rounded-xl p-4">
+            <AppliesToSelector
+              selectedDepts={selectedDepts}
+              setSelectedDepts={setSelectedDepts}
+              selectedProgs={selectedProgs}
+              setSelectedProgs={setSelectedProgs}
+              selectedYears={selectedYears}
+              setSelectedYears={setSelectedYears}
+              isExclusiveDept={isExclusiveDept}
+              isExclusiveProg={isExclusiveProg}
             />
           </div>
 
@@ -421,17 +486,60 @@ export function AnnouncementManager({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
 
+  const [isExclusiveDept, setIsExclusiveDept] = useState(false);
+  const [isExclusiveProg, setIsExclusiveProg] = useState(false);
+  const [lockedDept, setLockedDept] = useState<string | null>(null);
+  const [lockedProg, setLockedProg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchExclusivity = async () => {
+      if (!entityId) return;
+      try {
+        if (role === "department") {
+          const res = await fetch(`/api/departments/${entityId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.abbreviation) {
+              setIsExclusiveDept(true);
+              setLockedDept(data.abbreviation);
+            }
+          }
+        } else if (role === "org") {
+          const res = await fetch(`/api/orgs/${entityId}`);
+          if (res.ok) {
+            const data = await res.json();
+            const excDept = data?.type === "LGU" || data?.type === "AcademicClub";
+            const excProg = data?.type === "AcademicClub";
+            setIsExclusiveDept(!!excDept);
+            setIsExclusiveProg(!!excProg);
+            if (data?.department) setLockedDept(data.department);
+            if (data?.program) setLockedProg(data.program);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load exclusivity info:", err);
+      }
+    };
+
+    fetchExclusivity();
+  }, [role, entityId]);
+
   const load = useCallback(async () => {
+    if (role !== "admin" && !entityId) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      let url = "/api/announcements";
+      let url = "";
       if (role === "admin") {
         url = "/api/announcements?scope=all";
-      } else if (role === "head_office" && entityId) {
+      } else if (role === "head_office") {
         url = `/api/announcements?officeId=${entityId}`;
-      } else if (role === "department" && entityId) {
+      } else if (role === "department") {
         url = `/api/announcements?departmentId=${entityId}`;
-      } else if (role === "org" && entityId) {
+      } else if (role === "org") {
         url = `/api/announcements?orgId=${entityId}`;
       }
 
@@ -448,6 +556,7 @@ export function AnnouncementManager({
       const orgData = orgRes && orgRes.ok ? await orgRes.json() : [];
 
       const list = Array.isArray(annData) ? annData : (annData.announcements ?? []);
+      console.log("[AnnouncementManager] load() - role:", role, "entityId:", entityId, "url:", url, "fetched list length:", list.length);
       setAnnouncements(list);
       setOffices(Array.isArray(offData) ? offData : []);
       setDepartments(Array.isArray(deptData) ? deptData : []);
@@ -745,6 +854,12 @@ export function AnnouncementManager({
                     )}
                   </div>
 
+                  {a.appliesTo && Array.isArray(a.appliesTo) && a.appliesTo.length > 0 && (
+                    <div className="mb-2">
+                      <ExpandableAppliesTo appliesTo={a.appliesTo} />
+                    </div>
+                  )}
+
                   <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed mb-2">{a.content}</p>
 
                   {/* Attached image preview icons */}
@@ -838,6 +953,10 @@ export function AnnouncementManager({
           offices={offices}
           departments={departments}
           orgs={orgs}
+          isExclusiveDept={isExclusiveDept}
+          isExclusiveProg={isExclusiveProg}
+          lockedDept={lockedDept}
+          lockedProg={lockedProg}
           onSave={editing ? handleUpdate : handleCreate}
           onClose={() => { setShowForm(false); setEditing(null); }}
         />

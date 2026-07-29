@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import * as clearanceService from "@/services/clearanceService";
 
-const DEPARTMENTS = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
+const DEFAULT_DEPARTMENTS = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
 
-const DEPT_PROGRAMS: Record<string, string[]> = {
+const DEFAULT_DEPT_PROGRAMS: Record<string, string[]> = {
   CCIS: ["BS Computer Science", "BS Information Technology"],
   COE: ["BS Civil Engineering", "BS Mechanical Engineering", "BS Electrical Engineering"],
   CEDAS: ["BS Data Science", "BS Applied Mathematics"],
@@ -12,7 +13,37 @@ const DEPT_PROGRAMS: Record<string, string[]> = {
   CABE: ["BS Business Administration", "BS Accountancy", "BS Hospitality Management"],
 };
 
-const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+const DEFAULT_YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "6th Year"];
+
+const PROGRAM_MAP: Record<string, string> = {
+  "BS Computer Science": "BSCS",
+  "BS Information Technology": "BSIT",
+  "BS Business Administration": "BSBA",
+  "BS Accountancy": "BSA",
+  "BS Civil Engineering": "BSCE",
+  "BS Mechanical Engineering": "BSME",
+  "BS Electrical Engineering": "BSEE",
+  "BS Data Science": "BSDS",
+  "BS Applied Mathematics": "BSAM",
+  "BS Nursing": "BSN",
+  "BS Pharmacy": "BSP",
+  "BS Medical Technology": "BSMT",
+  "BS Hospitality Management": "BSHM",
+};
+
+const normalizeProg = (p: string) => {
+  if (PROGRAM_MAP[p]) return PROGRAM_MAP[p];
+  // Dynamically generate program abbreviation from uppercase letters (e.g. BS Agriculture -> BSA)
+  const uppercaseChars = p.match(/[A-Z]/g);
+  if (uppercaseChars && uppercaseChars.length > 0) {
+    return uppercaseChars.join("");
+  }
+  return p;
+};
+
+const matchProg = (p1: string, p2: string) => {
+  return normalizeProg(p1) === normalizeProg(p2);
+};
 
 interface AppliesToSelectorProps {
   selectedDepts: string[];
@@ -21,6 +52,8 @@ interface AppliesToSelectorProps {
   setSelectedProgs: React.Dispatch<React.SetStateAction<string[]>>;
   selectedYears: string[];
   setSelectedYears: React.Dispatch<React.SetStateAction<string[]>>;
+  selectedStudents?: string[];
+  setSelectedStudents?: React.Dispatch<React.SetStateAction<string[]>>;
   isExclusiveDept?: boolean;
   isExclusiveProg?: boolean;
 }
@@ -32,6 +65,8 @@ export function AppliesToSelector({
   setSelectedProgs,
   selectedYears,
   setSelectedYears,
+  selectedStudents = [],
+  setSelectedStudents,
   isExclusiveDept = false,
   isExclusiveProg = false,
 }: AppliesToSelectorProps) {
@@ -39,21 +74,64 @@ export function AppliesToSelector({
   const [deptPopoverOpen, setDeptPopoverOpen] = useState(false);
   const [progPopoverOpen, setProgPopoverOpen] = useState(false);
   const [yearPopoverOpen, setYearPopoverOpen] = useState(false);
+  const [studentPopoverOpen, setStudentPopoverOpen] = useState(false);
 
   // Popover Search Fields
   const [deptSearch, setDeptSearch] = useState("");
   const [progSearch, setProgSearch] = useState("");
   const [yearSearch, setYearSearch] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
 
   // Truncation Toggles
   const [expandDepts, setExpandDepts] = useState(false);
   const [expandProgs, setExpandProgs] = useState(false);
   const [expandYears, setExpandYears] = useState(false);
+  const [expandStudents, setExpandStudents] = useState(false);
+
+  // Student Records Data
+  const [students, setStudents] = useState<any[]>([]);
+
+  // Dynamically derive departments, year levels, and program mappings from students list
+  const departmentsList = useMemo(() => {
+    const derived = Array.from(new Set(students.map((s) => s.department))).filter(Boolean);
+    const combined = Array.from(new Set([...DEFAULT_DEPARTMENTS, ...derived]));
+    return combined.sort();
+  }, [students]);
+
+  const yearLevelsList = useMemo(() => {
+    const derived = Array.from(new Set(students.map((s) => s.year))).filter(Boolean);
+    const combined = Array.from(new Set([...DEFAULT_YEAR_LEVELS, ...derived]));
+    return combined.sort();
+  }, [students]);
+
+  const deptProgramsMap = useMemo(() => {
+    const map = { ...DEFAULT_DEPT_PROGRAMS };
+    students.forEach((s) => {
+      if (!s.department || !s.program) return;
+      if (!map[s.department]) {
+        map[map[s.department] ? s.department : s.department] = [];
+      }
+      // Check if program exists in the list
+      const list = map[s.department] || [];
+      if (!list.includes(s.program)) {
+        list.push(s.program);
+        map[s.department] = list;
+      }
+    });
+    return map;
+  }, [students]);
 
   // References for click-outside detection
   const deptRef = useRef<HTMLDivElement>(null);
   const progRef = useRef<HTMLDivElement>(null);
   const yearRef = useRef<HTMLDivElement>(null);
+  const studentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    clearanceService.getStudents().then((data) => {
+      if (data) setStudents(data);
+    });
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -65,6 +143,9 @@ export function AppliesToSelector({
       }
       if (yearRef.current && !yearRef.current.contains(event.target as Node)) {
         setYearPopoverOpen(false);
+      }
+      if (studentRef.current && !studentRef.current.contains(event.target as Node)) {
+        setStudentPopoverOpen(false);
       }
     }
 
@@ -84,18 +165,18 @@ export function AppliesToSelector({
           setSelectedProgs([]);
           return [];
         } else {
-          return ["All Departments", ...DEPARTMENTS];
+          return ["All Departments", ...departmentsList];
         }
       } else {
         const isCurrentlyChecked = prev.includes(dept);
         let next: string[];
         if (isCurrentlyChecked) {
           next = prev.filter((d) => d !== dept && d !== "All Departments");
-          const dependentPrograms = DEPT_PROGRAMS[dept] || [];
+          const dependentPrograms = deptProgramsMap[dept] || [];
           setSelectedProgs((curr) => curr.filter((p) => !dependentPrograms.includes(p)));
         } else {
           const temp = [...prev, dept];
-          const allSpecificSelected = DEPARTMENTS.every((d) => temp.includes(d));
+          const allSpecificSelected = departmentsList.every((d) => temp.includes(d));
           next = allSpecificSelected ? ["All Departments", ...temp] : temp;
         }
         return next;
@@ -108,9 +189,9 @@ export function AppliesToSelector({
       return [selectedProgs[0]];
     }
     if (selectedDepts.includes("All Departments")) {
-      return Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()));
+      return Array.from(new Set(Object.values(deptProgramsMap).flat()));
     }
-    return selectedDepts.flatMap((d) => DEPT_PROGRAMS[d] || []);
+    return selectedDepts.flatMap((d) => deptProgramsMap[d] || []);
   };
 
   const toggleProg = (prog: string) => {
@@ -147,7 +228,7 @@ export function AppliesToSelector({
         if (isCurrentlyChecked) {
           return [];
         } else {
-          return ["All Year Levels", ...YEAR_LEVELS];
+          return ["All Year Levels", ...yearLevelsList];
         }
       } else {
         const isCurrentlyChecked = prev.includes(year);
@@ -156,7 +237,7 @@ export function AppliesToSelector({
           next = prev.filter((y) => y !== year && y !== "All Year Levels");
         } else {
           const temp = [...prev, year];
-          const allSpecificSelected = YEAR_LEVELS.every((y) => temp.includes(y));
+          const allSpecificSelected = yearLevelsList.every((y) => temp.includes(y));
           next = allSpecificSelected ? ["All Year Levels", ...temp] : temp;
         }
         return next;
@@ -164,12 +245,60 @@ export function AppliesToSelector({
     });
   };
 
+  const toggleStudent = (studentId: string) => {
+    if (!setSelectedStudents) return;
+    setSelectedStudents((prev) => {
+      const isCurrentlyChecked = prev.includes(studentId);
+      if (isCurrentlyChecked) {
+        return prev.filter((id) => id !== studentId);
+      } else {
+        return [...prev, studentId];
+      }
+    });
+  };
+
+  const getFilteredStudents = () => {
+    return students.filter((s) => {
+      const hasDeptFilter = selectedDepts.length > 0 && !selectedDepts.includes("All Departments");
+      if (hasDeptFilter && !selectedDepts.includes(s.department)) {
+        return false;
+      }
+
+      const hasProgFilter = selectedProgs.length > 0 && !selectedProgs.includes("All Programs");
+      if (hasProgFilter && !selectedProgs.some((p) => matchProg(p, s.program))) {
+        return false;
+      }
+
+      const hasYearFilter = selectedYears.length > 0 && !selectedYears.includes("All Year Levels");
+      if (hasYearFilter && !selectedYears.includes(s.year)) {
+        return false;
+      }
+
+      return true;
+    });
+  };
+
+  useEffect(() => {
+    if (!setSelectedStudents || !selectedStudents || selectedStudents.length === 0) return;
+
+    const matchingStudents = getFilteredStudents();
+    const matchingIds = new Set(matchingStudents.map((s) => s.id));
+
+    setSelectedStudents((prev) => {
+      const next = prev.filter((id) => matchingIds.has(id));
+      if (next.length !== prev.length) {
+        return next;
+      }
+      return prev;
+    });
+  }, [selectedDepts, selectedProgs, selectedYears, students]);
+
   return (
     <div className="space-y-4">
       <h3 className="font-label-md text-sm font-bold text-on-surface uppercase tracking-wider">
         Applies To
       </h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 ${setSelectedStudents ? "md:grid-cols-4" : "md:grid-cols-3"} gap-4`}>
         {/* Department Dropdown */}
         <div className="space-y-2 relative" ref={deptRef}>
           <label className="font-label-sm text-xs font-semibold text-secondary block">
@@ -183,9 +312,8 @@ export function AppliesToSelector({
               setProgPopoverOpen(false);
               setYearPopoverOpen(false);
             }}
-            className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${
-              isExclusiveDept ? "bg-surface-container/30 cursor-not-allowed opacity-85" : "cursor-pointer"
-            }`}
+            className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${isExclusiveDept ? "bg-surface-container/30 cursor-not-allowed opacity-85" : "cursor-pointer"
+              }`}
           >
             <span className="truncate">
               {selectedDepts.length === 0
@@ -219,7 +347,7 @@ export function AppliesToSelector({
               <div className="flex justify-between items-center text-[11px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
                 <button
                   type="button"
-                  onClick={() => setSelectedDepts(["All Departments", ...DEPARTMENTS])}
+                  onClick={() => setSelectedDepts(["All Departments", ...departmentsList])}
                   className="hover:underline"
                 >
                   Select All
@@ -237,7 +365,7 @@ export function AppliesToSelector({
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
-                {["All Departments", ...DEPARTMENTS]
+                {["All Departments", ...departmentsList]
                   .filter((d) =>
                     d.toLowerCase().includes(deptSearch.toLowerCase())
                   )
@@ -273,11 +401,10 @@ export function AppliesToSelector({
               setDeptPopoverOpen(false);
               setYearPopoverOpen(false);
             }}
-            className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant font-body-sm text-sm text-left flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${
-              selectedDepts.length === 0 || isExclusiveProg
+            className={`w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant font-body-sm text-sm text-left flex items-center justify-between shadow-sm focus:border-primary focus:ring-1 focus:ring-primary ${selectedDepts.length === 0 || isExclusiveProg
                 ? "bg-surface-container/30 text-secondary/50 cursor-not-allowed opacity-85"
                 : "bg-surface-container-lowest text-on-surface cursor-pointer"
-            }`}
+              }`}
           >
             <span className="truncate">
               {selectedDepts.length === 0
@@ -315,8 +442,8 @@ export function AppliesToSelector({
                   type="button"
                   onClick={() => {
                     const allFilteredProgs = selectedDepts.includes("All Departments")
-                      ? ["All Programs", ...Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()))]
-                      : ["All Programs", ...selectedDepts.flatMap((d) => DEPT_PROGRAMS[d] || [])];
+                      ? ["All Programs", ...Array.from(new Set(Object.values(deptProgramsMap).flat()))]
+                      : ["All Programs", ...selectedDepts.flatMap((d) => deptProgramsMap[d] || [])];
                     setSelectedProgs(allFilteredProgs);
                   }}
                   className="hover:underline"
@@ -336,8 +463,8 @@ export function AppliesToSelector({
                 {Array.from(
                   new Set(
                     selectedDepts.includes("All Departments")
-                      ? ["All Programs", ...Array.from(new Set(Object.values(DEPT_PROGRAMS).flat()))]
-                      : ["All Programs", ...selectedDepts.flatMap((d) => DEPT_PROGRAMS[d] || [])]
+                      ? ["All Programs", ...Array.from(new Set(Object.values(deptProgramsMap).flat()))]
+                      : ["All Programs", ...selectedDepts.flatMap((d) => deptProgramsMap[d] || [])]
                   )
                 )
                   .filter((p) =>
@@ -406,7 +533,7 @@ export function AppliesToSelector({
               <div className="flex justify-between items-center text-[11px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
                 <button
                   type="button"
-                  onClick={() => setSelectedYears(["All Year Levels", ...YEAR_LEVELS])}
+                  onClick={() => setSelectedYears(["All Year Levels", ...yearLevelsList])}
                   className="hover:underline"
                 >
                   Select All
@@ -421,7 +548,7 @@ export function AppliesToSelector({
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
-                {["All Year Levels", ...YEAR_LEVELS]
+                {["All Year Levels", ...yearLevelsList]
                   .filter((y) =>
                     y.toLowerCase().includes(yearSearch.toLowerCase())
                   )
@@ -443,10 +570,117 @@ export function AppliesToSelector({
             </div>
           )}
         </div>
+
+        {/* Student Dropdown */}
+        {setSelectedStudents && (
+          <div className="space-y-2 relative" ref={studentRef}>
+            <label className="font-label-sm text-xs font-semibold text-secondary block">
+              Students only
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setStudentPopoverOpen(!studentPopoverOpen);
+                setDeptPopoverOpen(false);
+                setProgPopoverOpen(false);
+                setYearPopoverOpen(false);
+              }}
+              className="w-full h-10 px-3 pr-8 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-left text-on-surface flex items-center justify-between shadow-sm cursor-pointer focus:border-primary focus:ring-1 focus:ring-primary"
+            >
+              <span className="truncate">
+                {selectedStudents.length === 0
+                  ? "Select Students"
+                  : selectedStudents.length === 1
+                    ? students.find((s) => s.id === selectedStudents[0])?.name || selectedStudents[0]
+                    : `${selectedStudents.length} Students selected`}
+              </span>
+              <span className="material-symbols-outlined text-secondary">
+                expand_more
+              </span>
+            </button>
+
+            {studentPopoverOpen && (
+              <div className="absolute top-full right-0 w-full md:w-[360px] bg-surface-container-lowest border border-outline-variant shadow-lg z-20 rounded-lg p-3 mt-1 flex flex-col gap-2.5 max-h-[300px] overflow-hidden">
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary text-base">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    className="w-full h-8 pl-8 pr-2.5 bg-surface-container-low/50 border border-outline-variant rounded-md text-xs outline-none focus:border-primary"
+                    placeholder="Search students..."
+                  />
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] font-bold text-primary border-b border-outline-variant/30 pb-1.5 px-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentlyMatching = getFilteredStudents().filter(
+                        (s) =>
+                          s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+                          s.id.toLowerCase().includes(studentSearch.toLowerCase())
+                      );
+                      setSelectedStudents((prev) => {
+                        const next = new Set([...prev, ...currentlyMatching.map((s) => s.id)]);
+                        return Array.from(next);
+                      });
+                    }}
+                    className="hover:underline text-left"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStudents([])}
+                    className="hover:underline text-right"
+                  >
+                    Clear All
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[160px]">
+                  {getFilteredStudents()
+                    .filter((s) =>
+                      s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+                      s.id.toLowerCase().includes(studentSearch.toLowerCase())
+                    )
+                    .map((student) => (
+                      <label
+                        key={student.id}
+                        className="flex items-start gap-2 text-xs text-on-surface cursor-pointer py-1 px-1.5 hover:bg-surface-container rounded transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedStudents.includes(student.id)}
+                          onChange={() => toggleStudent(student.id)}
+                          className="w-3.5 h-3.5 mt-0.5 rounded text-primary focus:ring-primary border-outline-variant cursor-pointer"
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-left">{student.name}</span>
+                          <span className="text-[10px] text-secondary text-left">{student.id} - {student.program} - {student.year}</span>
+                        </div>
+                      </label>
+                    ))}
+                  {getFilteredStudents().filter((s) =>
+                    s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+                    s.id.toLowerCase().includes(studentSearch.toLowerCase())
+                  ).length === 0 && (
+                      <div className="text-center py-4 text-xs text-secondary italic">
+                        No students found
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Grouped, Labeled Tag Display */}
-      {(selectedDepts.length > 0 || selectedProgs.length > 0 || selectedYears.length > 0) && (
+      {(selectedDepts.length > 0 || selectedProgs.length > 0 || selectedYears.length > 0 || selectedStudents.length > 0) && (
         <div className="space-y-3 pt-2 bg-surface rounded-xl border border-outline-variant/50 p-4">
           {/* Department Tags */}
           {selectedDepts.length > 0 && (
@@ -551,6 +785,45 @@ export function AppliesToSelector({
                     className="inline-flex items-center px-2 py-0.5 bg-secondary/10 text-secondary border border-secondary/20 rounded-full font-label-sm text-xs font-bold hover:bg-secondary/20"
                   >
                     {expandYears ? "Show less" : `+${selectedYears.length - 4} more`}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Student Tags */}
+          {selectedStudents.length > 0 && (
+            <div className="flex flex-col md:flex-row gap-2 items-start">
+              <span className="text-xs font-semibold text-secondary min-w-[90px] pt-1">
+                Students:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {(expandStudents ? selectedStudents : selectedStudents.slice(0, 4)).map((studentId) => {
+                  const studentObj = students.find((s) => s.id === studentId);
+                  const displayName = studentObj ? `${studentObj.name} (${studentId})` : studentId;
+                  return (
+                    <span
+                      key={studentId}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-primary-container/10 text-primary border border-primary-container/30 rounded-full font-label-sm text-xs font-medium"
+                    >
+                      {displayName}
+                      <button
+                        type="button"
+                        onClick={() => toggleStudent(studentId)}
+                        className="material-symbols-outlined text-sm hover:bg-primary-container/20 rounded-full leading-none p-0.5"
+                      >
+                        close
+                      </button>
+                    </span>
+                  );
+                })}
+                {selectedStudents.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandStudents(!expandStudents)}
+                    className="inline-flex items-center px-2 py-0.5 bg-secondary/10 text-secondary border border-secondary/20 rounded-full font-label-sm text-xs font-bold hover:bg-secondary/20"
+                  >
+                    {expandStudents ? "Show less" : `+${selectedStudents.length - 4} more`}
                   </button>
                 )}
               </div>

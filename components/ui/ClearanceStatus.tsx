@@ -185,7 +185,7 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
   const sgCleared = sgReq && sgReq.status === "Cleared";
 
   // Filter subClearances if viewingOrgId is provided
-  const relevantOrgReqs = viewingOrgId 
+  const relevantOrgReqs = viewingOrgId
     ? orgReqs.filter(r => r.id === viewingOrgId)
     : orgReqs;
 
@@ -249,30 +249,25 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
       status: deptCleared,
       dateCleared: deptDateCleared,
     },
-    {
-      id: 8,
-      office: "Dean's Office Approval",
-      status: requirements.every((r) => r.status === "Cleared") ? "cleared" : "pending",
-    },
   ];
 
   // If a specific office is viewing, filter steps to only show their own row
   const visibleSteps = viewingOfficeId
     ? steps.filter((step) => {
-        // Match the step's office name against the name of the office with the given id
-        // Requirements carry the office name in `responsible`
-        const officeReq = requirements.find(
-          (r) => r.type === "office" && r.id === viewingOfficeId
-        );
-        const officeName = officeReq?.responsible || "";
-        return step.office.toLowerCase().includes(officeName.toLowerCase()) ||
-          officeName.toLowerCase().includes(step.office.toLowerCase());
-      })
+      // Match the step's office name against the name of the office with the given id
+      // Requirements carry the office name in `responsible`
+      const officeReq = requirements.find(
+        (r) => r.type === "office" && r.id === viewingOfficeId
+      );
+      const officeName = officeReq?.responsible || "";
+      return step.office.toLowerCase().includes(officeName.toLowerCase()) ||
+        officeName.toLowerCase().includes(step.office.toLowerCase());
+    })
     : viewingDeptId
-    ? steps.filter((step) => step.id === 7) // Department clearance is step 7
-    : viewingOrgId
-    ? steps.filter((step) => step.id === 4) // Orgs clearance is step 4
-    : steps;
+      ? steps.filter((step) => step.id === 7) // Department clearance is step 7
+      : viewingOrgId
+        ? steps.filter((step) => step.id === 4) // Orgs clearance is step 4
+        : steps;
 
   const allCleared = visibleSteps.every((s) => s.status === "cleared");
 

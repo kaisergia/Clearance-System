@@ -13,6 +13,8 @@ export interface TableStudent {
   status: string;
   initials?: string;
   role?: string;
+  avatarUrl?: string;
+  hasRequirements?: boolean;
 }
 
 interface ConstituentsTableProps {
@@ -49,6 +51,7 @@ export function ConstituentsTable({
   isSysAdmin = false,
   basePath = "/head-office/constituents",
   onViewDetails,
+  onResetPassword,
 }: ConstituentsTableProps) {
   return (
     <section className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
@@ -123,12 +126,14 @@ export function ConstituentsTable({
                   >
                     {!isSysAdmin && (
                       <td className="px-6 py-3.5">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => onSelectStudent(student.id, e.target.checked)}
-                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
-                        />
+                        {student.hasRequirements !== false && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => onSelectStudent(student.id, e.target.checked)}
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
+                          />
+                        )}
                       </td>
                     )}
 
@@ -199,8 +204,8 @@ export function ConstituentsTable({
                           Cleared
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                           Pending
                         </span>
                       )}
@@ -214,7 +219,14 @@ export function ConstituentsTable({
                     {/* ACTIONS Column */}
                     <td className="px-6 py-3.5 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {isCleared ? (
+                        {student.hasRequirements === false ? (
+                          <button
+                            disabled
+                            className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                          >
+                            No Requirements
+                          </button>
+                        ) : isCleared ? (
                           <button
                             onClick={() => onToggleStatus(student.id, student.status)}
                             className="px-3 py-1.5 rounded-lg font-bold text-xs transition-all bg-red-50 text-coral-red hover:bg-coral-red hover:text-white border border-coral-red active:scale-95 shadow-xs cursor-pointer"

@@ -11,6 +11,25 @@ import { prisma } from "@/lib/prisma";
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
   "BS Information Technology": "BSIT",
+  "BS Business Administration": "BSBA",
+  "BS Accountancy": "BSA",
+  "BS Civil Engineering": "BSCE",
+  "BS Mechanical Engineering": "BSME",
+  "BS Electrical Engineering": "BSEE",
+  "BS Data Science": "BSDS",
+  "BS Applied Mathematics": "BSAM",
+  "BS Nursing": "BSN",
+  "BS Pharmacy": "BSP",
+  "BS Medical Technology": "BSMT",
+  "BS Hospitality Management": "BSHM",
+};
+
+const normalizeProg = (p: string) => {
+  return PROGRAM_MAP[p] || p;
+};
+
+const matchProg = (p1: string, p2: string) => {
+  return normalizeProg(p1) === normalizeProg(p2);
 };
 
 export async function GET(req: NextRequest) {
@@ -34,7 +53,8 @@ export async function GET(req: NextRequest) {
       const appliesTo = (r.appliesTo as string[]) || [];
       if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
       return (
-        appliesTo.includes(student.program) ||
+        appliesTo.includes(student.id) ||
+        appliesTo.some((item) => matchProg(item, student.program)) ||
         appliesTo.includes(student.department) ||
         appliesTo.includes(student.year)
       );
@@ -76,13 +96,14 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      const hasReqs = applicableRequirements.length > 0;
       return {
         id: o.id,
         name: "Office Clearance",
         responsible: o.name,
         type: "office" as const,
-        status: clearance?.status || "Pending",
-        dateCleared: clearance?.dateCleared || null,
+        status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
+        dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
       };
@@ -146,13 +167,23 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      let displayName = "Organization Clearance";
+      if (org.type === "LGU") {
+        displayName = "LGU Clearance";
+      } else if (org.type === "Gov") {
+        displayName = "Student Government Clearance";
+      } else if (org.type === "AcademicClub" || org.type === "NonAcademicClub") {
+        displayName = "Club Clearance";
+      }
+
+      const hasReqs = applicableRequirements.length > 0;
       return {
         id: org.id,
-        name: "Org Membership Clearance",
+        name: displayName,
         responsible: org.name,
         type: "org" as const,
-        status: clearance?.status || "Pending",
-        dateCleared: clearance?.dateCleared || null,
+        status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
+        dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
       };
@@ -192,13 +223,14 @@ export async function GET(req: NextRequest) {
               };
             });
 
+            const hasReqs = applicableRequirements.length > 0;
             return {
               id: department.id,
               name: "Department Clearance",
               responsible: department.name,
               type: "department" as const,
-              status: clearance?.status || "Pending",
-              dateCleared: clearance?.dateCleared || null,
+              status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
+              dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
               remarks: clearance?.remarks || "",
               tasks: applicableRequirements,
             };

@@ -65,15 +65,31 @@ export default function ConstituentsPage() {
       if (currentDepartment) setActiveDepartment(currentDepartment);
     }
 
+    const deptReqs = departmentId ? await clearanceService.getDepartmentRequirements(Number(departmentId)) : [];
+    const liveReqs = deptReqs.filter((r: any) => r.status === "Live");
+
+    const isApplicable = (req: any, student: any) => {
+      if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) return true;
+      return (
+        req.appliesTo.includes(student.program) ||
+        req.appliesTo.includes(student.department) ||
+        req.appliesTo.includes(student.year)
+      );
+    };
+
     const allStudents = await clearanceService.getStudents();
     const mappedStudents = [];
     for (const student of allStudents) {
       if (!currentDepartment || student.department === currentDepartment.abbreviation) {
+        const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
+        const hasRequirements = studentApplicable.length > 0;
+
         const records = await clearanceService.getStudentClearanceRecords(student.id);
         const departmentRec = records.find((r: any) => r.departmentId === Number(departmentId));
         mappedStudents.push({
           ...student,
-          status: departmentRec?.status || "Pending",
+          status: hasRequirements ? (departmentRec?.status || "Pending") : "Cleared",
+          hasRequirements,
         });
       }
     }

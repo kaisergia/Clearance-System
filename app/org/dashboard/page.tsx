@@ -7,7 +7,6 @@ import Image from "next/image";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
-
 import { PROGRAM_MAP } from "@/lib/constants";
 
 export default function OrgDashboard() {

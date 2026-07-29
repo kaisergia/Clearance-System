@@ -210,7 +210,7 @@ export async function getSSCOrganizations(options?: { active?: boolean; category
 export async function uploadSSCFile(fileData: Blob | Buffer, remotePath: string, fileName = "file.dat"): Promise<SSCFileUploadResponse> {
   try {
     const formData = new FormData();
-    const blob = fileData instanceof Blob ? fileData : new Blob([fileData]);
+    const blob = fileData instanceof Blob ? fileData : new Blob([fileData as unknown as BlobPart]);
     formData.append("file", blob, fileName);
     formData.append("path", remotePath);
 
