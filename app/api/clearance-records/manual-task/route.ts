@@ -10,6 +10,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const PROGRAM_MAP: Record<string, string> = {
+  "BS Computer Science": "BSCS",
+  "BS Information Technology": "BSIT",
+  "BS Business Administration": "BSBA",
+  "BS Accountancy": "BSA",
+  "BS Civil Engineering": "BSCE",
+  "BS Mechanical Engineering": "BSME",
+  "BS Electrical Engineering": "BSEE",
+  "BS Data Science": "BSDS",
+  "BS Applied Mathematics": "BSAM",
+  "BS Nursing": "BSN",
+  "BS Pharmacy": "BSP",
+  "BS Medical Technology": "BSMT",
+  "BS Hospitality Management": "BSHM",
+};
+
+const normalizeProg = (p: string) => {
+  return PROGRAM_MAP[p] || p;
+};
+
+const matchProg = (p1: string, p2: string) => {
+  return normalizeProg(p1) === normalizeProg(p2);
+};
+
 export async function POST(req: NextRequest) {
   try {
     const { studentId, entityType, entityId, taskIndex, completed } = await req.json();
@@ -58,9 +82,10 @@ export async function POST(req: NextRequest) {
       const appliesTo = (r.appliesTo as string[]) || [];
       if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
       return (
-        Boolean(student?.program && appliesTo.includes(student.program)) ||
-        Boolean(student?.department && appliesTo.includes(student.department)) ||
-        Boolean(student?.year && appliesTo.includes(student.year))
+        appliesTo.includes(studentId) ||
+        (student?.program ? appliesTo.some((item) => matchProg(item, student.program)) : false) ||
+        (student?.department ? appliesTo.includes(student.department) : false) ||
+        (student?.year ? appliesTo.includes(student.year) : false)
       );
     };
 

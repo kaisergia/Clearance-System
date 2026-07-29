@@ -966,11 +966,36 @@ export function ClearanceStatusView({
     }
   }
 
+  const PROGRAM_MAP: Record<string, string> = {
+    "BS Computer Science": "BSCS",
+    "BS Information Technology": "BSIT",
+    "BS Business Administration": "BSBA",
+    "BS Accountancy": "BSA",
+    "BS Civil Engineering": "BSCE",
+    "BS Mechanical Engineering": "BSME",
+    "BS Electrical Engineering": "BSEE",
+    "BS Data Science": "BSDS",
+    "BS Applied Mathematics": "BSAM",
+    "BS Nursing": "BSN",
+    "BS Pharmacy": "BSP",
+    "BS Medical Technology": "BSMT",
+    "BS Hospitality Management": "BSHM",
+  };
+
+  const normalizeProg = (p: string) => {
+    return PROGRAM_MAP[p] || p;
+  };
+
+  const matchProg = (p1: string, p2: string) => {
+    return normalizeProg(p1) === normalizeProg(p2);
+  };
+
   // Helper function to check if a requirement applies to the current student
   const isApplicable = (r: any) => {
     if (!r.appliesTo || r.appliesTo.length === 0 || r.appliesTo.includes("All Students")) return true;
     return (
-      r.appliesTo.includes(student.program) ||
+      r.appliesTo.includes(student.id) ||
+      r.appliesTo.some((item: string) => matchProg(item, student.program)) ||
       r.appliesTo.includes(student.department) ||
       r.appliesTo.includes(student.year)
     );

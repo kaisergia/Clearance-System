@@ -34,26 +34,50 @@ export async function POST(
     const orgId = Number(resolvedParams.orgId);
     const { requirements } = await req.json();
 
-    await prisma.orgRequirement.deleteMany({ where: { orgId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.orgRequirement.deleteMany({ where: { orgId } });
 
-    if (requirements?.length > 0) {
-      await prisma.orgRequirement.createMany({
-        data: requirements.map((r: any) => ({
-          // No `id` — let MySQL auto-generate to avoid PK conflicts
-          orgId,
-          name:           r.name,
-          description:    r.description || "",
-          linkName:       r.linkName || null,
-          linkUrl:        r.linkUrl || null,
-          addedDate:      r.addedDate || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-          status:         r.status || "Draft",
-          appliesTo:      r.appliesTo || ["All Students"],
-          deadline:       r.deadline || null,
-          type:               r.type || "MANUAL",
-          surveyQuestions:    r.surveyQuestions || null,
-          acknowledgmentText: r.acknowledgmentText || null,
-        })),
-        skipDuplicates: true,
+      if (requirements?.length > 0) {
+        await tx.orgRequirement.createMany({
+          data: requirements.map((r: any) => ({
+            // No `id` — let MySQL auto-generate to avoid PK conflicts
+            orgId,
+            name:           r.name,
+            description:    r.description || "",
+            linkName:       r.linkName || null,
+            linkUrl:        r.linkUrl || null,
+            addedDate:      r.addedDate || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            status:         r.status || "Draft",
+            appliesTo:      r.appliesTo || ["All Students"],
+            deadline:       r.deadline || null,
+            type:               r.type || "MANUAL",
+            surveyQuestions:    r.surveyQuestions || null,
+            acknowledgmentText: r.acknowledgmentText || null,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      // 1. Reset all clearance records for this org to Pending since requirements changed
+      await tx.clearanceRecord.updateMany({
+        where: { orgId },
+        data: {
+          status: "Pending",
+          dateCleared: null,
+        },
+      });
+    });
+
+    // 2. Reset the affected students' overall status to Pending
+    const affectedRecords = await prisma.clearanceRecord.findMany({
+      where: { orgId },
+      select: { studentId: true },
+    });
+    const studentIds = affectedRecords.map((r) => r.studentId);
+    if (studentIds.length > 0) {
+      await prisma.student.updateMany({
+        where: { id: { in: studentIds } },
+        data: { status: "Pending" },
       });
     }
 

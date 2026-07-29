@@ -11,6 +11,25 @@ import { prisma } from "@/lib/prisma";
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
   "BS Information Technology": "BSIT",
+  "BS Business Administration": "BSBA",
+  "BS Accountancy": "BSA",
+  "BS Civil Engineering": "BSCE",
+  "BS Mechanical Engineering": "BSME",
+  "BS Electrical Engineering": "BSEE",
+  "BS Data Science": "BSDS",
+  "BS Applied Mathematics": "BSAM",
+  "BS Nursing": "BSN",
+  "BS Pharmacy": "BSP",
+  "BS Medical Technology": "BSMT",
+  "BS Hospitality Management": "BSHM",
+};
+
+const normalizeProg = (p: string) => {
+  return PROGRAM_MAP[p] || p;
+};
+
+const matchProg = (p1: string, p2: string) => {
+  return normalizeProg(p1) === normalizeProg(p2);
 };
 
 export async function GET(req: NextRequest) {
@@ -34,7 +53,8 @@ export async function GET(req: NextRequest) {
       const appliesTo = (r.appliesTo as string[]) || [];
       if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
       return (
-        appliesTo.includes(student.program) ||
+        appliesTo.includes(student.id) ||
+        appliesTo.some((item) => matchProg(item, student.program)) ||
         appliesTo.includes(student.department) ||
         appliesTo.includes(student.year)
       );

@@ -285,6 +285,7 @@ export default function ReportsPage() {
   const [exportProgs, setExportProgs] = useState<string[]>([]);
   const [exportYears, setExportYears] = useState<string[]>([]);
   const [exportStatuses, setExportStatuses] = useState<string[]>([]);
+  const [exportFormat, setExportFormat] = useState<string>("excel");
 
   // Popover Toggles
   const [exportDeptPopoverOpen, setExportDeptPopoverOpen] = useState(false);
@@ -464,7 +465,9 @@ export default function ReportsPage() {
           // Map the individual requirement records
           for (const req of reqs) {
             let isCleared = false;
-            if (currentOfficeReq) {
+            if (officeRec?.status === "Cleared") {
+              isCleared = true;
+            } else if (currentOfficeReq) {
               const task = currentOfficeReq.tasks?.find((t: any) => t.id === String(req.id));
               if (task) {
                 const subStatus = task.submission?.status;
@@ -474,8 +477,6 @@ export default function ReportsPage() {
                 const isManualCompleted = (req.type === "MANUAL" || !req.type) && completedTasks.includes(taskIdx);
                 isCleared = isTaskApproved || isManualCompleted;
               }
-            } else if (officeRec?.status === "Cleared") {
-              isCleared = true;
             }
 
             gatheredRecords.push({
@@ -599,6 +600,7 @@ export default function ReportsPage() {
     setExportDeptSearch("");
     setExportProgSearch("");
     setExportYearSearch("");
+    setExportFormat("excel");
     setIsExportModalOpen(true);
   };
 
@@ -608,8 +610,7 @@ export default function ReportsPage() {
     setShowConfirmDownload(true);
   };
 
-  // Actual Excel XML Generator and Downloader with applied export filters
-  const executeDownloadCSV = () => {
+  const getFilteredStudentsForExport = () => {
     let list = students;
 
     // Filter by selected departments (ignoring the "All Departments" selector)
@@ -635,8 +636,129 @@ export default function ReportsPage() {
       list = list.filter((s) => exportStatuses.includes(s.status));
     }
 
+    return list;
+  };
+
+  // Actual Excel XML Generator and Downloader with applied export filters
+  const executeDownloadCSV = () => {
+    const list = getFilteredStudentsForExport();
+
     if (list.length === 0) {
       alert("No students match the selected criteria for export.");
+      return;
+    }
+
+    if (exportFormat === "csv") {
+      const headers = ["Student ID", "Name", "Department", "Program", "Year Level", "Clearance Status"];
+      const rows = list.map((s) => [
+        s.id,
+        s.name,
+        s.department || "N/A",
+        s.program || "N/A",
+        s.yearLevel || "N/A",
+        s.status.toUpperCase()
+      ]);
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map((val) => `"${val.replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Clearance_Report_${selectedTerm.replace(/\s+/g, "_")}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setIsExportModalOpen(false);
+      setShowConfirmDownload(false);
+      return;
+    }
+
+    if (exportFormat === "pdf") {
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        alert("Please allow popups to export PDF.");
+        return;
+      }
+      const title = `Clearance Report - ${selectedTerm}`;
+      const dateStr = new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const rowsHtml = list
+        .map(
+          (s) => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">${s.id}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${s.name}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${s.department || "N/A"}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${s.program || "N/A"}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${s.yearLevel || "N/A"}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: bold; text-transform: uppercase; ${
+              s.status.toLowerCase() === "cleared"
+                ? "background-color: #D1FAE5; color: #065F46;"
+                : "background-color: #FEE2E2; color: #991B1B;"
+            }">${s.status}</span>
+          </td>
+        </tr>
+      `
+        )
+        .join("");
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>${title}</title>
+            <style>
+              body { font-family: 'Inter', system-ui, sans-serif; color: #333; margin: 40px; }
+              .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+              .title-section h1 { margin: 0; font-size: 24px; font-weight: 800; color: #111; text-transform: uppercase; letter-spacing: 0.5px; }
+              .title-section p { margin: 5px 0 0 0; font-size: 12px; color: #666; font-weight: 500; }
+              .meta-section { text-align: right; font-size: 12px; color: #555; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+              th { background-color: #f3f4f6; padding: 10px 8px; font-weight: 700; text-transform: uppercase; font-size: 10px; color: #4b5563; border-bottom: 2px solid #ddd; text-align: left; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="title-section">
+                <h1>Clearance Status Report</h1>
+                <p>Term: ${selectedTerm}</p>
+              </div>
+              <div class="meta-section">
+                <div>Date Generated: ${dateStr}</div>
+                <div style="margin-top: 4px; font-weight: bold;">Total Records: ${list.length}</div>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Student ID</th>
+                  <th>Name</th>
+                  <th>Department</th>
+                  <th>Program</th>
+                  <th>Year</th>
+                  <th style="text-align: right;">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+            <script>
+              window.onload = function() {
+                window.print();
+                setTimeout(function() { window.close(); }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      setIsExportModalOpen(false);
+      setShowConfirmDownload(false);
       return;
     }
 
@@ -763,7 +885,7 @@ export default function ReportsPage() {
             className="bg-primary text-white px-5 py-2.5 rounded-lg font-label-md text-label-md shadow-sm hover:bg-primary-container disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 btn-hover active:scale-95"
           >
             <span className="material-symbols-outlined text-[20px]">download</span>
-            Export CSV
+            Export
           </button>
         </div>
       </div>
@@ -1129,7 +1251,7 @@ export default function ReportsPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-64">
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-16">
               <p className="text-xs text-secondary mb-4">
                 Select the filters to apply to the exported clearance report. By default, all constituents of the current term ({selectedTerm}) will be exported.
               </p>
@@ -1394,10 +1516,39 @@ export default function ReportsPage() {
                       </div>
                     </div>
                   )}
+              </div>
+            </div>
+
+              {/* File Format Option */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-secondary uppercase tracking-wider block">File Format</label>
+                <div className="flex gap-4">
+                  {[
+                    { value: "excel", label: "Excel (.xls)", icon: "table_view" },
+                    { value: "csv", label: "CSV (.csv)", icon: "description" },
+                    { value: "pdf", label: "PDF (.pdf)", icon: "picture_as_pdf" },
+                  ].map((format) => {
+                    const isChecked = exportFormat === format.value;
+                    return (
+                      <button
+                        type="button"
+                        key={format.value}
+                        onClick={() => setExportFormat(format.value)}
+                        className={`flex-1 flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer select-none transition-all text-left outline-none ${
+                          isChecked
+                            ? "border-primary bg-primary/5 text-primary font-semibold"
+                            : "border-outline-variant hover:bg-surface-container-low text-on-surface"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[20px]">
+                          {format.icon}
+                        </span>
+                        <span className="text-xs">{format.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Clearance Status Option */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-secondary uppercase tracking-wider block">Clearance Status</label>
                 <div className="flex gap-4">
@@ -1433,6 +1584,55 @@ export default function ReportsPage() {
                   })}
                 </div>
               </div>
+
+              {/* Preview Section */}
+              <div className="space-y-2 mt-4 pt-4 border-t border-outline-variant/40">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-secondary uppercase tracking-wider block">
+                    Preview ({getFilteredStudentsForExport().length} students to be exported)
+                  </label>
+                </div>
+                <div className="border border-outline-variant rounded-xl overflow-hidden bg-surface-container-low max-h-[350px] overflow-y-auto">
+                  {getFilteredStudentsForExport().length === 0 ? (
+                    <div className="text-center py-6 text-xs text-secondary italic">
+                      No students match the current filters.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-outline-variant/60 bg-surface-container/50 text-[10px] font-bold text-secondary uppercase tracking-wider">
+                          <th className="py-2 px-3">Student ID</th>
+                          <th className="py-2 px-3">Name</th>
+                          <th className="py-2 px-3">Department</th>
+                          <th className="py-2 px-3">Program</th>
+                          <th className="py-2 px-3">Year</th>
+                          <th className="py-2 px-3 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/30 text-[11px] font-medium text-on-surface">
+                        {getFilteredStudentsForExport().map((student) => (
+                          <tr key={student.id} className="hover:bg-surface-bright/50 transition-colors">
+                            <td className="py-2 px-3 font-bold">{student.id}</td>
+                            <td className="py-2 px-3 font-semibold">{student.name}</td>
+                            <td className="py-2 px-3">{student.department}</td>
+                            <td className="py-2 px-3">{student.program}</td>
+                            <td className="py-2 px-3">{student.yearLevel}</td>
+                            <td className="py-2 px-3 text-right">
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${
+                                student.status === "cleared"
+                                  ? "bg-[#D1FAE5] text-[#065F46]"
+                                  : "bg-red-50 text-red-700 border border-red-100"
+                              }`}>
+                                {student.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Footer */}
@@ -1450,7 +1650,7 @@ export default function ReportsPage() {
                 className="bg-primary text-white px-6 py-2.5 rounded-lg font-label-md text-xs shadow-sm hover:bg-primary-container transition-all flex items-center gap-2 btn-hover active:scale-95 animate-in fade-in"
               >
                 <span className="material-symbols-outlined text-[18px]">download</span>
-                Download CSV
+                Download
               </button>
             </div>
           </div>
