@@ -417,14 +417,14 @@ export default function UnifiedUserManagementPage() {
                         {/* USER */}
                         <td className="px-6 py-3.5">
                           <div className="flex items-center gap-3">
-                            {user.avatarUrl || user.avatar ? (
+                            {user.avatarUrl ? (
                               <img
-                                src={user.avatarUrl || user.avatar}
+                                src={user.avatarUrl}
                                 alt={user.name}
                                 className="w-8 h-8 rounded-full object-cover shrink-0 shadow-2xs border border-gray-200"
                               />
                             ) : (
-                              <div className="w-8 h-8 rounded-full bg-[#800000] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                              <div className="w-8 h-8 rounded-full bg-[#800000] text-[#ffffff] flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                                 {user.initials}
                               </div>
                             )}
