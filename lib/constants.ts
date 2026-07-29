@@ -45,3 +45,25 @@ export const PROGRAM_MAP: Record<string, string> = {
   "BS Medical Technology": "BSMT",
   "BS Hospitality Management": "BSHM",
 };
+
+/**
+ * Helper to auto-resolve correct department from a given program name.
+ */
+export function getDepartmentForProgram(program: string | undefined | null): string {
+  if (!program) return "CCIS";
+  const p = program.toUpperCase();
+
+  if (p.includes("COMPUTER") || p.includes("INFORMATION") || p.includes("CS") || p.includes("IT") || p.includes("BSCS") || p.includes("BSIT")) return "CCIS";
+  if (p.includes("CIVIL") || p.includes("MECHANICAL") || p.includes("ELECTRICAL") || p.includes("ENGINEERING") || p.includes("CE") || p.includes("ME") || p.includes("EE")) return "COE";
+  if (p.includes("DATA") || p.includes("MATHEMATICS") || p.includes("DS") || p.includes("AM")) return "CEDAS";
+  if (p.includes("NURSING") || p.includes("PHARMACY") || p.includes("MEDICAL") || p.includes("NURS") || p.includes("PHARM") || p.includes("MED")) return "CHS";
+  if (p.includes("BUSINESS") || p.includes("ACCOUNTANCY") || p.includes("HOSPITALITY") || p.includes("BA") || p.includes("BSA") || p.includes("HM")) return "CABE";
+
+  for (const [dept, progs] of Object.entries(DEPT_PROGRAMS)) {
+    if (progs.some((pr) => pr.toLowerCase() === program.toLowerCase())) {
+      return dept;
+    }
+  }
+
+  return "CCIS";
+}

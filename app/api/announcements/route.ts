@@ -138,10 +138,13 @@ export async function GET(request: NextRequest) {
     }
 
     // 4. Scoped for specific office / department / org dashboard
-    const where: any = {};
-    if (officeId) where.officeId = parseInt(officeId);
-    if (departmentId) where.departmentId = parseInt(departmentId);
-    if (orgId) where.orgId = parseInt(orgId);
+    const orConditions: any[] = [];
+    if (officeId) orConditions.push({ officeId: parseInt(officeId, 10) });
+    if (departmentId) orConditions.push({ departmentId: parseInt(departmentId, 10) });
+    if (orgId) orConditions.push({ orgId: parseInt(orgId, 10) });
+    orConditions.push({ isSystemWide: true });
+
+    const where: any = { OR: orConditions };
 
     if (cursor) {
       where.id = { lt: parseInt(cursor, 10) };
@@ -150,7 +153,12 @@ export async function GET(request: NextRequest) {
     const announcements = await prisma.announcement.findMany({
       where,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: limitParam || cursor ? limit + 1 : 20,
+      take: limitParam || cursor ? limit + 1 : 50,
+      include: {
+        office: { select: { id: true, name: true, logoUrl: true } },
+        department: { select: { id: true, name: true, abbreviation: true, logoUrl: true } },
+        org: { select: { id: true, name: true, logoUrl: true } },
+      },
     });
 
     if (limitParam || cursor) {

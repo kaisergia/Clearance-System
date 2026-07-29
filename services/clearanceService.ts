@@ -499,7 +499,17 @@ export async function getStudentOrgMemberships(studentId: string): Promise<any[]
 export async function getUsers(): Promise<any[]> {
   const dbResult = await apiFetch<any[]>("/api/users");
   if (dbResult) return dbResult;
-  return [];
+
+  const students = await getStudents();
+  return students.map((s) => ({
+    id: `student-${s.id}`,
+    email: s.email || `${s.id}@g.cjc.edu.ph`,
+    displayName: s.name,
+    role: "student",
+    studentId: s.id,
+    avatarUrl: s.avatarUrl || s.avatar || s.photoUrl || s.profilePicture || s.image || null,
+    student: s,
+  }));
 }
 
 /**

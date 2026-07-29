@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements, mockDepartments, defaultDepartmentRequirements } from "@/mock/mockData";
-import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X, Award, ShieldCheck, QrCode, Lock, Ticket } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X, Award, ShieldCheck, QrCode, Lock, Ticket, KeyRound } from "lucide-react";
 import * as clearanceService from "@/services/clearanceService";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 import { CertificateModal } from "@/components/clearance/CertificateModal";
+import { PinConfirmationModal, SetPinModal } from "@/components/clearance/PinConfirmationModal";
 
 interface ClearanceItem {
   id: number;
@@ -64,7 +65,8 @@ function ClearanceItemRow({
   isSysAdminView,
   studentId,
   onStatusChange,
-  tasks = []
+  tasks = [],
+  onRequestPin,
 }: {
   item: ClearanceItem;
   isLast: boolean;
@@ -72,6 +74,7 @@ function ClearanceItemRow({
   studentId: string;
   onStatusChange: (status: ClearanceItem["status"], data?: any) => void;
   tasks?: any[];
+  onRequestPin?: (action: () => void) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const styles = itemStatusStyles[item.status] || itemStatusStyles.Pending;
@@ -91,16 +94,12 @@ function ClearanceItemRow({
   const isFullyComplete = item.status === "Cleared" || item.status === "Submitted";
 
   useEffect(() => {
-    // Auto-fill all checkboxes only when the OFFICE has fully cleared this item.
-    // Do NOT auto-fill for "Submitted" (Under Review) — the student is still waiting
-    // for the office to confirm, so MANUAL tasks should stay in their actual state.
     if (item.status === "Cleared" && completedTasks.length !== tasks.length) {
       setCompletedTasks(tasks.map((_, idx) => idx));
     }
   }, [item.status, tasks.length]);
 
   const handleToggleTask = (idx: number, task: any) => {
-    // Only block if item is already fully processed — not by admin/office view
     if (isFullyComplete) return;
     if (task.type && task.type !== "MANUAL") return;
 
@@ -118,42 +117,48 @@ function ClearanceItemRow({
     });
   };
 
-  // Office/evaluator-side MANUAL task toggle — persists to DB
+  // Office/evaluator-side MANUAL task toggle — persists to DB with PIN verification
   const handleOfficeManualToggle = async (idx: number) => {
     const willBeCompleted = !completedTasks.includes(idx);
     const newCompleted = willBeCompleted
       ? [...completedTasks, idx]
       : completedTasks.filter((i) => i !== idx);
 
-    // Optimistic UI
-    setCompletedTasks(newCompleted);
+    const executeToggle = async () => {
+      setCompletedTasks(newCompleted);
+      const entityType = item.type === "office" ? "office" : item.type === "department" ? "department" : "org";
 
-    const entityType = item.type === "office" ? "office" : item.type === "department" ? "department" : "org";
-
-    try {
-      const res = await fetch("/api/clearance-records/manual-task", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId,
-          entityType,
-          entityId: item.id,
-          taskIndex: idx,
-          completed: willBeCompleted,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
-      if (data.allCleared) {
-        onStatusChange("Cleared", { completedTasks: newCompleted });
-      } else {
-        onStatusChange(item.status === "Cleared" ? "Submitted" : item.status, { completedTasks: newCompleted });
+      try {
+        const res = await fetch("/api/clearance-records/manual-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId,
+            entityType,
+            entityId: item.id,
+            taskIndex: idx,
+            completed: willBeCompleted,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        const data = await res.json();
+        if (data.allCleared) {
+          onStatusChange("Cleared", { completedTasks: newCompleted });
+        } else {
+          onStatusChange(item.status === "Cleared" ? "Submitted" : item.status, { completedTasks: newCompleted });
+        }
+        window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+      } catch (err) {
+        console.error(err);
+        setCompletedTasks(completedTasks); // revert
+        alert("Failed to save. Please try again.");
       }
-      window.dispatchEvent(new Event("clearanceRecordsUpdated"));
-    } catch (err) {
-      console.error(err);
-      setCompletedTasks(completedTasks); // revert
-      alert("Failed to save. Please try again.");
+    };
+
+    if (willBeCompleted && onRequestPin) {
+      onRequestPin(executeToggle);
+    } else {
+      executeToggle();
     }
   };
 
@@ -264,26 +269,34 @@ function ClearanceItemRow({
       }
     }
 
-    try {
-      const res = await fetch(`/api/submissions/${submissionId}/evaluate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status,
-          reviewedBy: localStorage.getItem("displayName") || "Office Evaluator",
-          reviewNotes: notes,
-        }),
-      });
+    const executeEvaluation = async () => {
+      try {
+        const res = await fetch(`/api/submissions/${submissionId}/evaluate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status,
+            reviewedBy: localStorage.getItem("displayName") || "Office Evaluator",
+            reviewNotes: notes,
+          }),
+        });
 
-      if (!res.ok) {
-        throw new Error("Evaluation failed");
+        if (!res.ok) {
+          throw new Error("Evaluation failed");
+        }
+
+        // Trigger re-sync
+        window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+      } catch (err) {
+        console.error(err);
+        alert("Evaluation failed. Please try again.");
       }
+    };
 
-      // Trigger re-sync
-      window.dispatchEvent(new Event("clearanceRecordsUpdated"));
-    } catch (err) {
-      console.error(err);
-      alert("Evaluation failed. Please try again.");
+    if (status === "approved" && onRequestPin) {
+      onRequestPin(executeEvaluation);
+    } else {
+      executeEvaluation();
     }
   };
 
@@ -745,6 +758,8 @@ export function ClearanceStatusView({
   const [triggerSync, setTriggerSync] = useState(0);
   const [viewMode, setViewMode] = useState<"office" | "all">("office");
   const [showCertModal, setShowCertModal] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingPinAction, setPendingPinAction] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     const handleSync = () => {
@@ -854,7 +869,7 @@ export function ClearanceStatusView({
     initStudent();
   }, [targetStudentId, triggerSync]);
 
-  const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
+  const executeStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
     setRequirements(prev => {
       const updatedReqs = prev.map(req => req.id === reqId ? { ...req, status: newStatus, ...data } : req);
       
@@ -900,6 +915,15 @@ export function ClearanceStatusView({
       
       return updatedReqs;
     });
+  };
+
+  const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
+    if (newStatus === "Cleared") {
+      setPendingPinAction(() => () => executeStatusChange(reqId, newStatus, data));
+      setShowPinModal(true);
+    } else {
+      executeStatusChange(reqId, newStatus, data);
+    }
   };
 
   if (!student) {
@@ -972,25 +996,28 @@ export function ClearanceStatusView({
             )}
           </p>
         </div>
-        {isSysAdminView && !isOfficeView && (
-          <Link
-            href="/admin/user-management?tab=users"
-            className="flex items-center justify-center gap-2 text-sm font-bold text-secondary hover:text-primary transition-colors bg-surface-container-lowest border border-surface-container-high hover:border-primary/30 px-4 py-2 rounded-lg shadow-sm whitespace-nowrap"
-          >
-            <ChevronDown size={16} className="rotate-90" />
-            Back to Constituents
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {isSysAdminView && !isOfficeView && (
+            <Link
+              href="/admin/user-management?tab=users"
+              className="flex items-center justify-center gap-2 text-sm font-bold text-secondary hover:text-primary transition-colors bg-surface-container-lowest border border-surface-container-high hover:border-primary/30 px-4 py-2 rounded-lg shadow-sm whitespace-nowrap"
+            >
+              <ChevronDown size={16} className="rotate-90" />
+              Back to Constituents
+            </Link>
+          )}
+        </div>
       </section>
 
       {/* Official Clearance Slip Banner with Progress Bar & Locked State */}
       {student && (() => {
-        const allReqItems = [...headOffices, ...departments, ...orgsClubs];
+        // ALWAYS evaluate overall clearance from all student requirements, NEVER from office-filtered view subset
+        const allReqItems = requirements;
         const totalItemsCount = allReqItems.length;
         const clearedItemsCount = allReqItems.filter((i) => i.status === "Cleared").length;
         const progressPercent = totalItemsCount > 0 ? Math.round((clearedItemsCount / totalItemsCount) * 100) : 0;
         
-        // Fix: isFullyCleared MUST depend strictly on clearing all items when totalItemsCount > 0
+        // Fix: isFullyCleared MUST depend strictly on clearing ALL items when totalItemsCount > 0
         const isFullyCleared = totalItemsCount > 0 ? clearedItemsCount === totalItemsCount : student.status === "Cleared";
 
         return (
@@ -1162,6 +1189,10 @@ export function ClearanceStatusView({
                         studentId={student?.id || ""}
                         onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                         tasks={tasks}
+                        onRequestPin={(action) => {
+                          setPendingPinAction(() => action);
+                          setShowPinModal(true);
+                        }}
                       />
                     );
                   })}
@@ -1192,6 +1223,10 @@ export function ClearanceStatusView({
                         studentId={student?.id || ""}
                         onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                         tasks={tasks}
+                        onRequestPin={(action) => {
+                          setPendingPinAction(() => action);
+                          setShowPinModal(true);
+                        }}
                       />
                     );
                   })}
@@ -1222,6 +1257,10 @@ export function ClearanceStatusView({
                         studentId={student?.id || ""}
                         onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                         tasks={tasks}
+                        onRequestPin={(action) => {
+                          setPendingPinAction(() => action);
+                          setShowPinModal(true);
+                        }}
                       />
                     );
                   })}
@@ -1246,6 +1285,20 @@ export function ClearanceStatusView({
           }}
         />
       )}
+
+      {/* Security Approval PIN Confirmation Modal */}
+      <PinConfirmationModal
+        isOpen={showPinModal}
+        onClose={() => {
+          setShowPinModal(false);
+          setPendingPinAction(null);
+        }}
+        onConfirm={() => {
+          if (pendingPinAction) pendingPinAction();
+          setPendingPinAction(null);
+        }}
+        officeIdOrKey={currentEntityId || "default"}
+      />
     </div>
   );
 }

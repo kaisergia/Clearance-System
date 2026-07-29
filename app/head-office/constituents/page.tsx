@@ -5,11 +5,12 @@ import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable, TableStudent } from "@/components/constituents/ConstituentsTable";
+import { ConstituentActionsToolbar } from "@/components/constituents/ConstituentActionsToolbar";
 import * as clearanceService from "@/services/clearanceService";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 import { mockStudents } from "@/mock/mockStudents";
-import { mockRequirements } from "@/mock/mockData";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
+import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
 
 export default function ConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -45,29 +46,29 @@ export default function ConstituentsPage() {
     setSelectedStudentForStatus(student);
   };
 
+  const loadData = async () => {
+    const officeId = localStorage.getItem("officeId");
+    let currentOffice = null;
+    if (officeId) {
+      currentOffice = await clearanceService.getOfficeById(Number(officeId));
+      if (currentOffice) setActiveOffice(currentOffice);
+      setCurrentOfficeId(Number(officeId));
+    }
+
+    const allStudents = await clearanceService.getStudents();
+    const mappedStudents = [];
+    for (const student of allStudents) {
+      const records = await clearanceService.getStudentClearanceRecords(student.id);
+      const officeRec = records.find((r: any) => r.officeId === Number(officeId));
+      mappedStudents.push({
+        ...student,
+        status: officeRec?.status || "Pending",
+      });
+    }
+    setConstituents(mappedStudents);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      const officeId = localStorage.getItem("officeId");
-      let currentOffice = null;
-      if (officeId) {
-        currentOffice = await clearanceService.getOfficeById(Number(officeId));
-        if (currentOffice) setActiveOffice(currentOffice);
-        setCurrentOfficeId(Number(officeId));
-      }
-
-      const allStudents = await clearanceService.getStudents();
-      const mappedStudents = [];
-      for (const student of allStudents) {
-        const records = await clearanceService.getStudentClearanceRecords(student.id);
-        const officeRec = records.find((r: any) => r.officeId === Number(officeId));
-        mappedStudents.push({
-          ...student,
-          status: officeRec?.status || "Pending",
-        });
-      }
-      setConstituents(mappedStudents);
-    };
-
     loadData();
     window.addEventListener("clearanceRecordsUpdated", loadData);
     return () => window.removeEventListener("clearanceRecordsUpdated", loadData);
@@ -87,8 +88,11 @@ export default function ConstituentsPage() {
     )
   ).sort();
 
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingPinAction, setPendingPinAction] = useState<(() => void) | null>(null);
+
   // Toggle status handler
-  const handleToggleStatus = async (id: string) => {
+  const executeToggleStatus = async (id: string) => {
     const officeId = localStorage.getItem("officeId");
     if (!officeId) return;
 
@@ -108,6 +112,16 @@ export default function ConstituentsPage() {
     );
 
     await clearanceService.updateClearanceRecord(id, Number(officeId), "office", newStatus);
+  };
+
+  const handleToggleStatus = (id: string) => {
+    const student = constituents.find(s => s.id === id);
+    if (student && student.status !== "Cleared") {
+      setPendingPinAction(() => () => executeToggleStatus(id));
+      setShowPinModal(true);
+    } else {
+      executeToggleStatus(id);
+    }
   };
 
   // Filter students based on state
@@ -182,7 +196,7 @@ export default function ConstituentsPage() {
     setShowConfirmModal(true);
   };
 
-  const confirmBulkStatusChange = async () => {
+  const executeBulkStatusChange = async () => {
     if (pendingBulkStatus) {
       const officeId = localStorage.getItem("officeId");
       if (!officeId) return;
@@ -204,6 +218,16 @@ export default function ConstituentsPage() {
     }
     setShowConfirmModal(false);
     setPendingBulkStatus(null);
+  };
+
+  const confirmBulkStatusChange = () => {
+    if (pendingBulkStatus === "Cleared") {
+      setShowConfirmModal(false);
+      setPendingPinAction(() => executeBulkStatusChange);
+      setShowPinModal(true);
+    } else {
+      executeBulkStatusChange();
+    }
   };  const totalCount = constituents.length;
   const clearedCount = constituents.filter((s) => s.status === "Cleared").length;
   const pendingCount = constituents.filter((s) => s.status === "Pending").length;
@@ -214,7 +238,7 @@ export default function ConstituentsPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header Section */}
-      <section className="pb-4 border-b border-surface-container-high">
+      <section className="pb-4 border-b border-surface-container-high flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="font-headline-lg text-headline-lg text-on-background">
             Constituents
@@ -224,6 +248,11 @@ export default function ConstituentsPage() {
             Office: <span className="font-semibold text-on-surface">{activeOffice ? activeOffice.name : "Loading..."}</span>
           </span>
         </div>
+
+        <ConstituentActionsToolbar
+          onDataRefresh={loadData}
+          entityName={activeOffice?.name}
+        />
       </section>
 
       {/* Stats Section */}
@@ -377,6 +406,20 @@ export default function ConstituentsPage() {
         </div>,
         document.body
       )}
+
+      {/* PIN Confirmation Modal */}
+      <PinConfirmationModal
+        isOpen={showPinModal}
+        onClose={() => {
+          setShowPinModal(false);
+          setPendingPinAction(null);
+        }}
+        onConfirm={() => {
+          if (pendingPinAction) pendingPinAction();
+          setPendingPinAction(null);
+        }}
+        officeIdOrKey={currentOfficeId || "default"}
+      />
     </div>
   );
 }

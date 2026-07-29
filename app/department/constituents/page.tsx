@@ -5,8 +5,10 @@ import { createPortal } from "react-dom";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
+import { ConstituentActionsToolbar } from "@/components/constituents/ConstituentActionsToolbar";
 import * as clearanceService from "@/services/clearanceService";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
+import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
 
 export default function ConstituentsPage() {
   const { getAvailableTerms, currentTerm } = useSettings();
@@ -55,30 +57,30 @@ export default function ConstituentsPage() {
     setSelectedStudentForStatus(student);
   };
 
+  const loadData = async () => {
+    const departmentId = localStorage.getItem("departmentId");
+    let currentDepartment = null;
+    if (departmentId) {
+      currentDepartment = await clearanceService.getDepartmentById(Number(departmentId));
+      if (currentDepartment) setActiveDepartment(currentDepartment);
+    }
+
+    const allStudents = await clearanceService.getStudents();
+    const mappedStudents = [];
+    for (const student of allStudents) {
+      if (!currentDepartment || student.department === currentDepartment.abbreviation) {
+        const records = await clearanceService.getStudentClearanceRecords(student.id);
+        const departmentRec = records.find((r: any) => r.departmentId === Number(departmentId));
+        mappedStudents.push({
+          ...student,
+          status: departmentRec?.status || "Pending",
+        });
+      }
+    }
+    setConstituents(mappedStudents);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      const departmentId = localStorage.getItem("departmentId");
-      let currentDepartment = null;
-      if (departmentId) {
-        currentDepartment = await clearanceService.getDepartmentById(Number(departmentId));
-        if (currentDepartment) setActiveDepartment(currentDepartment);
-      }
-
-      const allStudents = await clearanceService.getStudents();
-      const mappedStudents = [];
-      for (const student of allStudents) {
-        if (!currentDepartment || student.department === currentDepartment.abbreviation) {
-          const records = await clearanceService.getStudentClearanceRecords(student.id);
-          const departmentRec = records.find((r: any) => r.departmentId === Number(departmentId));
-          mappedStudents.push({
-            ...student,
-            status: departmentRec?.status || "Pending",
-          });
-        }
-      }
-      setConstituents(mappedStudents);
-    };
-
     loadData();
     window.addEventListener("clearanceRecordsUpdated", loadData);
     return () => window.removeEventListener("clearanceRecordsUpdated", loadData);
@@ -98,8 +100,11 @@ export default function ConstituentsPage() {
     )
   ).sort();
 
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingPinAction, setPendingPinAction] = useState<(() => void) | null>(null);
+
   // Toggle status handler
-  const handleToggleStatus = async (id: string) => {
+  const executeToggleStatus = async (id: string) => {
     const departmentId = localStorage.getItem("departmentId");
     if (!departmentId) return;
 
@@ -119,6 +124,16 @@ export default function ConstituentsPage() {
     );
 
     await clearanceService.updateClearanceRecord(id, Number(departmentId), "department", newStatus);
+  };
+
+  const handleToggleStatus = (id: string) => {
+    const student = constituents.find(s => s.id === id);
+    if (student && student.status !== "Cleared") {
+      setPendingPinAction(() => () => executeToggleStatus(id));
+      setShowPinModal(true);
+    } else {
+      executeToggleStatus(id);
+    }
   };
 
   // Filter students based on state
@@ -164,7 +179,7 @@ export default function ConstituentsPage() {
     setShowConfirmModal(true);
   };
 
-  const confirmBulkStatusChange = async () => {
+  const executeBulkStatusChange = async () => {
     if (pendingBulkStatus) {
       const departmentId = localStorage.getItem("departmentId");
       if (!departmentId) return;
@@ -186,6 +201,16 @@ export default function ConstituentsPage() {
     }
     setShowConfirmModal(false);
     setPendingBulkStatus(null);
+  };
+
+  const confirmBulkStatusChange = () => {
+    if (pendingBulkStatus === "Cleared") {
+      setShowConfirmModal(false);
+      setPendingPinAction(() => executeBulkStatusChange);
+      setShowPinModal(true);
+    } else {
+      executeBulkStatusChange();
+    }
   };  const totalCount = constituents.length;
   const clearedCount = constituents.filter((s) => s.status === "Cleared").length;
   const pendingCount = constituents.filter((s) => s.status === "Pending").length;
@@ -196,7 +221,7 @@ export default function ConstituentsPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header Section */}
-      <section className="pb-4 border-b border-surface-container-high">
+      <section className="pb-4 border-b border-surface-container-high flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="font-headline-lg text-headline-lg text-on-background">
             Constituents
@@ -206,6 +231,11 @@ export default function ConstituentsPage() {
             Department: <span className="font-semibold text-on-surface">{activeDepartment ? activeDepartment.name : "Loading..."}</span>
           </span>
         </div>
+
+        <ConstituentActionsToolbar
+          onDataRefresh={loadData}
+          entityName={activeDepartment?.name}
+        />
       </section>
 
       {/* Stats Section */}
@@ -323,7 +353,6 @@ export default function ConstituentsPage() {
         isAllSelected={isAllSelected}
         basePath="/department/constituents"
         onViewDetails={handleOpenStatusModal}
-        onResetPassword={handleResetPassword}
       />
 
       {showConfirmModal && (
@@ -401,6 +430,20 @@ export default function ConstituentsPage() {
         </div>,
         document.body
       )}
+
+      {/* PIN Confirmation Modal */}
+      <PinConfirmationModal
+        isOpen={showPinModal}
+        onClose={() => {
+          setShowPinModal(false);
+          setPendingPinAction(null);
+        }}
+        onConfirm={() => {
+          if (pendingPinAction) pendingPinAction();
+          setPendingPinAction(null);
+        }}
+        officeIdOrKey={activeDepartment?.id || "default"}
+      />
     </div>
   );
 }
