@@ -28,9 +28,9 @@ export async function GET(
       const dbStudent = await prisma.student.findFirst({
         where: {
           OR: [
-            { id: { equals: studentIdMatch, mode: "insensitive" } },
-            { id: { equals: cleanCode, mode: "insensitive" } },
-            { email: { equals: cleanCode.toLowerCase(), mode: "insensitive" } },
+            { id: studentIdMatch },
+            { id: cleanCode },
+            { email: cleanCode.toLowerCase() },
           ],
         },
         include: {
@@ -55,8 +55,8 @@ export async function GET(
         const dbUser = await prisma.user.findFirst({
           where: {
             OR: [
-              { email: { equals: cleanCode.toLowerCase(), mode: "insensitive" } },
-              { studentId: { equals: studentIdMatch, mode: "insensitive" } },
+              { email: cleanCode.toLowerCase() },
+              { studentId: studentIdMatch },
             ],
           },
           include: { student: { include: { clearanceRecords: true } } },
