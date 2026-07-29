@@ -564,8 +564,8 @@ export default function UnifiedUserManagementPage() {
                 <tbody className="divide-y divide-gray-100 text-xs">
                   {offices
                     .filter((o) => selectedOfficeId === "all" || String(o.id) === selectedOfficeId)
-                    .map((office) => {
-                      const officeLogo = office.logoUrl || office.logo || (office as any).customization?.logoUrl;
+                    .map((office: any) => {
+                      const officeLogo = office.logoUrl || office.logo || office.customization?.logoUrl;
                       const headObj = office.headUser || office.head;
                       const headName = typeof headObj === "string" ? headObj : headObj?.name || office.head || "Unassigned";
                       const headEmail = typeof headObj === "object" ? headObj?.email || office.email : office.email || "N/A";
