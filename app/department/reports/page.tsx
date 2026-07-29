@@ -657,52 +657,18 @@ export default function ReportsPage() {
     }
 
     if (exportFormat === "csv") {
-      const getYearWeight = (yr: string) => {
-        if (yr.includes("1st")) return 1;
-        if (yr.includes("2nd")) return 2;
-        if (yr.includes("3rd")) return 3;
-        if (yr.includes("4th")) return 4;
-        return 9;
-      };
-
       const headers = ["Student ID", "Name", "Department", "Program", "Year Level", "Clearance Status"];
-
-      const buildCsvSection = (sectionName: string, dataList: typeof list) => {
-        const titleRow = `=== SHEET: ${sectionName} ===`;
-        const headerRow = headers.map((h) => `"${h}"`).join(",");
-        const dataRows = dataList.map((s) => {
-          const row = [
-            s.id,
-            s.name,
-            s.department || "N/A",
-            s.program || "N/A",
-            s.yearLevel || "N/A",
-            s.status.toUpperCase()
-          ];
-          return row.map((val) => `"${val.replace(/"/g, '""')}"`).join(",");
-        });
-        return [titleRow, headerRow, ...dataRows].join("\n");
-      };
-
-      let csvContentSections: string[] = [];
-      // 1. All Students
-      csvContentSections.push(buildCsvSection("All Students", list));
-
-      // 2. Department Sections
-      const departments = Array.from(new Set(list.map((s) => s.department))).filter(Boolean).sort();
-      departments.forEach((dept) => {
-        const deptList = list
-          .filter((s) => s.department === dept)
-          .sort((a, b) => {
-            const yrA = getYearWeight(a.yearLevel || "");
-            const yrB = getYearWeight(b.yearLevel || "");
-            if (yrA !== yrB) return yrA - yrB;
-            return a.name.localeCompare(b.name);
-          });
-        csvContentSections.push(buildCsvSection(dept, deptList));
-      });
-
-      const csvContent = csvContentSections.join("\n\n");
+      const rows = list.map((s) => [
+        s.id,
+        s.name,
+        s.department || "N/A",
+        s.program || "N/A",
+        s.yearLevel || "N/A",
+        s.status.toUpperCase()
+      ]);
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map((val) => `"${val.replace(/"/g, '""')}"`).join(","))
+        .join("\n");
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
