@@ -58,6 +58,28 @@ export async function POST(
       });
     }
 
+    // 1. Reset all clearance records for this office to Pending since requirements changed
+    await prisma.clearanceRecord.updateMany({
+      where: { officeId },
+      data: {
+        status: "Pending",
+        dateCleared: null,
+      },
+    });
+
+    // 2. Reset the affected students' overall status to Pending
+    const affectedRecords = await prisma.clearanceRecord.findMany({
+      where: { officeId },
+      select: { studentId: true },
+    });
+    const studentIds = affectedRecords.map((r) => r.studentId);
+    if (studentIds.length > 0) {
+      await prisma.student.updateMany({
+        where: { id: { in: studentIds } },
+        data: { status: "Pending" },
+      });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[POST /api/requirements/office/:id]", err);
