@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useOffices } from "@/components/contexts/OfficesContext";
 import { useDepartments } from "@/components/contexts/DepartmentsContext";
 import * as clearanceService from "@/services/clearanceService";
+import AddUserModal from "@/components/constituents/AddUserModal";
 import { 
   Building2, 
   Landmark, 
@@ -26,7 +27,8 @@ import {
   CheckCircle2,
   Image as ImageIcon,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 
 export default function UnifiedUserManagementPage() {
@@ -80,22 +82,6 @@ export default function UnifiedUserManagementPage() {
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<any | null>(null);
   const [resetConfirmUser, setResetConfirmUser] = useState<any | null>(null);
 
-  // Add User Form State
-  const [newUserName, setNewUserName] = useState("");
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserPassword, setNewUserPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [newUserConfirmPassword, setNewUserConfirmPassword] = useState("");
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [newUserRole, setNewUserRole] = useState("Student");
-  const [newUserStudentId, setNewUserStudentId] = useState("");
-  const [newUserDob, setNewUserDob] = useState("");
-  const [newUserStudentType, setNewUserStudentType] = useState("Regular College Student");
-  const [newUserDept, setNewUserDept] = useState("CCIS");
-  const [newUserProgram, setNewUserProgram] = useState("BS Information Technology");
-  const [newUserYear, setNewUserYear] = useState("1st Year");
-  const [newUserSelectedClubs, setNewUserSelectedClubs] = useState<string[]>([]);
-
   // Edit User Form State
   const [editUserName, setEditUserName] = useState("");
   const [editUserEmail, setEditUserEmail] = useState("");
@@ -133,32 +119,6 @@ export default function UnifiedUserManagementPage() {
   useEffect(() => {
     loadData();
   }, []);
-
-  // Handle Add User Submit
-  const handleAddUserSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) return;
-
-    try {
-      await clearanceService.createUser({
-        displayName: newUserName.trim(),
-        email: newUserEmail.trim(),
-        role: newUserRole,
-        departmentName: newUserDept,
-        program: newUserProgram,
-        year: newUserYear,
-      });
-
-      showToast(`User ${newUserName} created successfully!`);
-      setShowAddUserModal(false);
-      // Reset form
-      setNewUserName("");
-      setNewUserEmail("");
-      loadData();
-    } catch (err: any) {
-      showToast(`Error: ${err.message || "Failed to create user"}`);
-    }
-  };
 
   // Handle Open Edit Modal
   const handleOpenEditUser = (user: any) => {
@@ -242,6 +202,24 @@ export default function UnifiedUserManagementPage() {
     }
   };
 
+  // Sync real student records from SSC System Masterlist API
+  const handleSyncSSCMasterlist = async () => {
+    try {
+      showToast("Connecting to SSC System Masterlist API (http://localhost:8081)...");
+      const res = await fetch("/api/integration/ssc/masterlist?sync=true");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to sync SSC Masterlist");
+      }
+
+      showToast(data.message || "Successfully synced students from SSC System Masterlist!");
+      loadData();
+    } catch (err: any) {
+      showToast(`SSC Sync Error: ${err.message || "Failed to connect to SSC System API"}`);
+    }
+  };
+
   // Handle Logo Upload Preview
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -286,12 +264,15 @@ export default function UnifiedUserManagementPage() {
     const roleLabel = u.role === "admin" ? "System Admin" : u.role === "head_office" ? "Office Head" : u.role === "department" ? "Department Head" : u.role === "org" ? "Org Adviser" : "Student";
     const initials = name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
 
+    const avatarUrl = u.avatarUrl || u.student?.avatarUrl || u.avatar || u.student?.avatar || u.photoUrl || u.profilePicture || u.image || null;
+
     return {
       raw: u,
       id: u.id,
       studentId: u.studentId || (isStudent ? u.id : null),
       name,
       email,
+      avatarUrl,
       role: roleLabel,
       department: dept,
       program: prog,
@@ -383,6 +364,15 @@ export default function UnifiedUserManagementPage() {
               </button>
 
               <button
+                onClick={handleSyncSSCMasterlist}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                title="Sync real student masterlist records from SSC System API (http://localhost:8081)"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                <span>Sync SSC API</span>
+              </button>
+
+              <button
                 onClick={() => setShowAddUserModal(true)}
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#b51b15] hover:bg-[#961410] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
               >
@@ -427,9 +417,17 @@ export default function UnifiedUserManagementPage() {
                         {/* USER */}
                         <td className="px-6 py-3.5">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-rose-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                              {user.initials}
-                            </div>
+                            {user.avatarUrl ? (
+                              <img
+                                src={user.avatarUrl}
+                                alt={user.name}
+                                className="w-8 h-8 rounded-full object-cover shrink-0 shadow-2xs border border-gray-200"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-[#800000] text-[#ffffff] flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                                {user.initials}
+                              </div>
+                            )}
                             <div>
                               <div className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
                                 {user.name}
@@ -487,13 +485,6 @@ export default function UnifiedUserManagementPage() {
                         {/* ACTIONS */}
                         <td className="px-6 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-2 text-gray-400">
-                            <button
-                              onClick={() => setResetConfirmUser(user)}
-                              className="hover:text-amber-600 transition-colors p-1"
-                              title="Sync / Reset Password"
-                            >
-                              <RotateCw className="w-3.5 h-3.5" />
-                            </button>
                             <button
                               onClick={() => handleOpenEditUser(user)}
                               className="hover:text-gray-700 transition-colors p-1"
@@ -573,40 +564,93 @@ export default function UnifiedUserManagementPage() {
                 <tbody className="divide-y divide-gray-100 text-xs">
                   {offices
                     .filter((o) => selectedOfficeId === "all" || String(o.id) === selectedOfficeId)
-                    .map((office) => (
-                      <tr key={office.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-lg bg-red-50 text-[#b51b15] flex items-center justify-center font-bold text-xs shrink-0 border border-red-100">
-                              {office.name.substring(0, 2).toUpperCase()}
+                    .map((office: any) => {
+                      const officeLogo = office.logoUrl || office.logo || office.customization?.logoUrl;
+                      const headObj = office.headUser || office.head;
+                      const headName = typeof headObj === "string" ? headObj : headObj?.name || office.head || "Unassigned";
+                      const headEmail = typeof headObj === "object" ? headObj?.email || office.email : office.email || "N/A";
+                      const headAvatar = typeof headObj === "object" ? headObj?.avatarUrl || headObj?.avatar : null;
+                      const headInitials = headName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase() || "HD";
+
+                      return (
+                        <tr key={office.id} className="hover:bg-slate-50/80 transition-colors">
+                          {/* OFFICE NAME & LOGO */}
+                          <td className="px-6 py-3.5">
+                            <div className="flex items-center gap-3">
+                              {officeLogo ? (
+                                <img
+                                  src={officeLogo}
+                                  alt={office.name}
+                                  className="w-9 h-9 rounded-lg object-cover shrink-0 border border-gray-200 shadow-2xs"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-lg bg-red-50 text-[#c41e2a] flex items-center justify-center font-bold text-xs shrink-0 border border-red-100">
+                                  {office.name.substring(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                              <span className="font-bold text-gray-900 text-xs">{office.name}</span>
                             </div>
-                            <span className="font-bold text-gray-900">{office.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 font-semibold text-gray-700">
-                          {office.head?.name || "Unassigned"}
-                        </td>
-                        <td className="px-6 py-4 text-gray-500 font-mono">
-                          {office.head?.email || "N/A"}
-                        </td>
-                        <td className="px-6 py-4 text-center font-bold text-[#b51b15]">
-                          {office.pending || 0}
-                        </td>
-                        <td className="px-6 py-4 text-center font-bold text-emerald-600">
-                          {office.approved || 0}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link href={`/admin/offices/${office.id}`} className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-900 transition-colors" title="Manage Office">
-                              <Eye className="w-4 h-4" />
-                            </Link>
-                            <button onClick={() => deleteOffice(office.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600 transition-colors">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+
+                          {/* ASSIGNED HEAD (Constituent-style profile) */}
+                          <td className="px-6 py-3.5">
+                            <div className="flex items-center gap-3">
+                              {headAvatar ? (
+                                <img
+                                  src={headAvatar}
+                                  alt={headName}
+                                  className="w-8 h-8 rounded-full object-cover shrink-0 shadow-2xs border border-gray-200"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-[#800000] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                                  {headInitials}
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-bold text-gray-900 text-xs">{headName}</div>
+                                <div className="text-[11px] text-gray-400 font-mono">{headEmail}</div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* CONTACT EMAIL */}
+                          <td className="px-6 py-3.5 text-gray-500 font-mono text-xs">
+                            {office.email || headEmail}
+                          </td>
+
+                          {/* PENDING COUNT */}
+                          <td className="px-6 py-3.5 text-center">
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              {office.pending || 0} Pending
+                            </span>
+                          </td>
+
+                          {/* APPROVED COUNT */}
+                          <td className="px-6 py-3.5 text-center">
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              {office.approved || 0} Approved
+                            </span>
+                          </td>
+
+                          {/* ACTIONS */}
+                          <td className="px-6 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Link href={`/admin/offices/${office.id}`} className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-900 transition-colors" title="Manage Office">
+                                <Eye className="w-4 h-4" />
+                              </Link>
+                              <button onClick={() => deleteOffice(office.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600 transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -774,287 +818,16 @@ export default function UnifiedUserManagementPage() {
       )}
 
       {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL 1: ADD NEW USER (Matching exact screenshot layout)
+          MODAL 1: ADD NEW USER (Shared Unified Component)
          ───────────────────────────────────────────────────────────────────────────── */}
-      {showAddUserModal && (
-        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={() => setShowAddUserModal(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 space-y-4 max-h-[90vh] overflow-y-auto animate-scaleUp" onClick={(e) => e.stopPropagation()}>
-            <form onSubmit={handleAddUserSubmit} className="space-y-4 text-xs font-sans">
-              {/* Email Address */}
-              <div>
-                <div className="relative">
-                  <input
-                    type="email"
-                    required
-                    placeholder="username@g.cjc.edu.ph"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                    className="w-full h-11 px-4 pr-10 bg-white border border-gray-300 rounded-xl font-medium text-gray-900 outline-none focus:border-[#b51b15] focus:ring-1 focus:ring-[#b51b15]"
-                  />
-                  {newUserEmail && (
-                    <button
-                      type="button"
-                      onClick={() => setNewUserEmail("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                <p className="text-[11px] text-gray-500 mt-1">Must be a @g.cjc.edu.ph email address</p>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block font-bold text-gray-800 text-xs mb-1.5">Password</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    placeholder="Enter password"
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    className="w-full h-11 px-4 pr-10 bg-white border border-gray-300 rounded-xl font-medium text-gray-900 outline-none focus:border-[#b51b15]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label className="block font-bold text-gray-800 text-xs mb-1.5">Confirm Password</label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    required
-                    placeholder="Confirm password"
-                    value={newUserConfirmPassword}
-                    onChange={(e) => setNewUserConfirmPassword(e.target.value)}
-                    className="w-full h-11 px-4 pr-10 bg-white border border-gray-300 rounded-xl font-medium text-gray-900 outline-none focus:border-[#b51b15]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="block font-bold text-gray-800 text-xs mb-1.5">Role</label>
-                <div className="relative">
-                  <select
-                    value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value)}
-                    className="w-full h-11 px-4 pr-10 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none appearance-none cursor-pointer"
-                  >
-                    <option value="student">Student</option>
-                    <option value="department">Department Head (Dean)</option>
-                    <option value="head_office">Office Head</option>
-                    <option value="admin">System Admin</option>
-                  </select>
-                  <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              {newUserRole === "student" && (
-                <>
-                  {/* Student ID */}
-                  <div>
-                    <label className="block font-bold text-gray-800 text-xs mb-1.5">Student ID</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., 2021-0001-5"
-                      value={newUserStudentId}
-                      onChange={(e) => setNewUserStudentId(e.target.value)}
-                      className="w-full h-11 px-4 bg-white border border-gray-300 rounded-xl font-medium text-gray-900 outline-none focus:border-[#b51b15]"
-                    />
-                  </div>
-
-                  {/* Date of Birth */}
-                  <div>
-                    <label className="block font-bold text-gray-800 text-xs mb-1.5">Date of Birth</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={newUserDob}
-                        onChange={(e) => setNewUserDob(e.target.value)}
-                        className="w-full h-11 px-4 bg-white border border-gray-300 rounded-xl font-medium text-gray-700 outline-none"
-                      />
-                    </div>
-                    <p className="text-[11px] text-gray-400 mt-1">Optional</p>
-                  </div>
-
-                  {/* Student Type */}
-                  <div>
-                    <label className="block font-bold text-gray-800 text-xs mb-1.5">Student Type</label>
-                    <div className="relative">
-                      <select
-                        value={newUserStudentType}
-                        onChange={(e) => setNewUserStudentType(e.target.value)}
-                        className="w-full h-11 px-4 pr-10 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none appearance-none cursor-pointer"
-                      >
-                        <option value="Regular College Student">Regular College Student</option>
-                        <option value="Irregular Student">Irregular Student</option>
-                        <option value="Graduating Student">Graduating Student</option>
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Department */}
-                  <div>
-                    <label className="block font-bold text-gray-800 text-xs mb-1.5">Department</label>
-                    <div className="relative">
-                      <select
-                        value={newUserDept}
-                        onChange={(e) => setNewUserDept(e.target.value)}
-                        className="w-full h-11 px-4 pr-10 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none appearance-none cursor-pointer"
-                      >
-                        <option value="CCIS">College of Computing and Information Sciences</option>
-                        <option value="CABE">College of Business and Governance</option>
-                        <option value="COE">College of Engineering</option>
-                        <option value="CHS">College of Health Sciences</option>
-                        <option value="CEDAS">College of Education, Arts and Sciences</option>
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Course & Year Level */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-gray-800 text-xs mb-1.5">Course</label>
-                      <div className="relative">
-                        <select
-                          value={newUserProgram}
-                          onChange={(e) => setNewUserProgram(e.target.value)}
-                          className="w-full h-11 px-3.5 pr-8 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none appearance-none cursor-pointer text-xs"
-                        >
-                          {newUserDept === "CCIS" && (
-                            <>
-                              <option value="BS Computer Science">BS Computer Science</option>
-                              <option value="BS Information Technology">BS Information Technology</option>
-                            </>
-                          )}
-                          {newUserDept === "CABE" && (
-                            <>
-                              <option value="BS Business Administration">BS Business Administration</option>
-                              <option value="BS Accountancy">BS Accountancy</option>
-                            </>
-                          )}
-                          {newUserDept === "COE" && (
-                            <>
-                              <option value="BS Civil Engineering">BS Civil Engineering</option>
-                              <option value="BS Electrical Engineering">BS Electrical Engineering</option>
-                            </>
-                          )}
-                          {newUserDept === "CHS" && (
-                            <>
-                              <option value="BS Nursing">BS Nursing</option>
-                              <option value="BS Medical Technology">BS Medical Technology</option>
-                            </>
-                          )}
-                          {newUserDept === "CEDAS" && (
-                            <>
-                              <option value="BEEd Elementary Education">BEEd Elementary Education</option>
-                              <option value="BSEd Secondary Education">BSEd Secondary Education</option>
-                            </>
-                          )}
-                        </select>
-                        <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-gray-800 text-xs mb-1.5">Year Level</label>
-                      <div className="relative">
-                        <select
-                          value={newUserYear}
-                          onChange={(e) => setNewUserYear(e.target.value)}
-                          className="w-full h-11 px-3.5 pr-8 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none appearance-none cursor-pointer text-xs"
-                        >
-                          <option value="1st Year">1st Year</option>
-                          <option value="2nd Year">2nd Year</option>
-                          <option value="3rd Year">3rd Year</option>
-                          <option value="4th Year">4th Year</option>
-                        </select>
-                        <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Enrolled Clubs (Optional) */}
-                  <div>
-                    <label className="block font-bold text-gray-800 text-xs mb-1.5">
-                      Enrolled Clubs <span className="text-gray-400 font-normal">(Optional)</span>
-                    </label>
-                    <div className="border border-gray-200 rounded-xl p-3.5 bg-gray-50/50 space-y-2.5">
-                      <label className="flex items-center justify-between cursor-pointer select-none">
-                        <div className="flex items-center gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={newUserSelectedClubs.includes("ACSS")}
-                            onChange={(e) => {
-                              if (e.target.checked) setNewUserSelectedClubs((prev) => [...prev, "ACSS"]);
-                              else setNewUserSelectedClubs((prev) => prev.filter((c) => c !== "ACSS"));
-                            }}
-                            className="w-4 h-4 rounded text-[#b51b15] focus:ring-[#b51b15] border-gray-300"
-                          />
-                          <span className="text-xs font-semibold text-gray-800">Association Of Computer Studies Students</span>
-                        </div>
-                        <span className="text-[10px] text-gray-400 font-medium">academic</span>
-                      </label>
-
-                      <label className="flex items-center justify-between cursor-pointer select-none">
-                        <div className="flex items-center gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={newUserSelectedClubs.includes("RedCross")}
-                            onChange={(e) => {
-                              if (e.target.checked) setNewUserSelectedClubs((prev) => [...prev, "RedCross"]);
-                              else setNewUserSelectedClubs((prev) => prev.filter((c) => c !== "RedCross"));
-                            }}
-                            className="w-4 h-4 rounded text-[#b51b15] focus:ring-[#b51b15] border-gray-300"
-                          />
-                          <span className="text-xs font-semibold text-gray-800">College Red Cross Youth Council</span>
-                        </div>
-                        <span className="text-[10px] text-gray-400 font-medium">non-academic</span>
-                      </label>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddUserModal(false)}
-                  className="flex-1 h-12 rounded-2xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 transition-colors text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 h-12 rounded-2xl bg-[#c82333] hover:bg-[#a71d2a] text-white font-bold transition-all shadow-md active:scale-95 text-xs"
-                >
-                  Create User
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AddUserModal
+        isOpen={showAddUserModal}
+        onClose={() => setShowAddUserModal(false)}
+        onSuccess={() => {
+          showToast("User created successfully!");
+          loadData();
+        }}
+      />
 
       {/* ─────────────────────────────────────────────────────────────────────────────
           MODAL 2: EDIT USER

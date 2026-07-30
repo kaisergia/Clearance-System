@@ -26,6 +26,7 @@ interface Requirement {
 // DEPARTMENTS, DEPT_PROGRAMS, YEAR_LEVELS are imported from @/lib/constants
 
 import { ExpandableAppliesTo } from "@/components/ui/ExpandableAppliesTo";
+import { RequirementBatchEvaluator } from "@/components/clearance/RequirementBatchEvaluator";
 
 const TYPE_LABELS: Record<string, string> = {
   MANUAL: "Manual Clearance",
@@ -44,6 +45,7 @@ const TYPE_BADGES: Record<string, string> = {
 };
 
 export default function ClearanceRequirementsPage() {
+  const [activeTab, setActiveTab] = useState<"manage" | "evaluator">("manage");
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [activeDepartment, setActiveDepartment] = useState<any>(null);
@@ -276,17 +278,56 @@ export default function ClearanceRequirementsPage() {
             Department: <span className="font-semibold text-on-surface">{activeDepartment ? activeDepartment.name : "Loading..."}</span>
           </p>
         </div>
+        {activeTab === "manage" && (
+          <button
+            onClick={handleOpenModal}
+            className="bg-brand-red text-white px-5 py-2 rounded font-label-md text-label-md shadow-sm hover:bg-primary transition-all flex items-center gap-2 btn-hover self-start md:self-auto active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[20px]">add</span>
+            Add Requirement
+          </button>
+        )}
+      </div>
+
+      {/* Two-Tab Navigation Bar */}
+      <div className="flex items-center gap-2 p-1.5 bg-gray-100/80 rounded-2xl w-fit shadow-2xs border border-gray-200/60">
         <button
-          onClick={handleOpenModal}
-          className="bg-brand-red text-white px-5 py-2 rounded font-label-md text-label-md shadow-sm hover:bg-primary transition-all flex items-center gap-2 btn-hover self-start md:self-auto active:scale-95"
+          onClick={() => setActiveTab("manage")}
+          className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+            activeTab === "manage"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
         >
-          <span className="material-symbols-outlined text-[20px]">add</span>
-          Add Requirement
+          <span className="material-symbols-outlined text-base">edit_note</span>
+          Tab 1: Manage & Add Requirements
+        </button>
+        <button
+          onClick={() => setActiveTab("evaluator")}
+          className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+            activeTab === "evaluator"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          <span className="material-symbols-outlined text-base text-[#c41e2a]">view_kanban</span>
+          Tab 2: Dedicated Requirement Batch Evaluator & Filter
         </button>
       </div>
 
-      {/* Content Panel */}
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+      {/* TAB 2: DEDICATED REQUIREMENT BATCH EVALUATOR & FILTER WINDOW */}
+      {activeTab === "evaluator" ? (
+        <RequirementBatchEvaluator
+          entityType="department"
+          entityId={departmentId || 1}
+          requirements={requirements}
+          onRefresh={() => {
+            if (departmentId) clearanceService.getDepartmentRequirements(departmentId).then(setRequirements);
+          }}
+        />
+      ) : (
+        /* TAB 1: NORMAL MANAGE & ADD REQUIREMENTS TABLE */
+        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-[3fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-4 bg-surface-container-low border-b border-outline-variant font-label-sm text-xs font-semibold text-secondary uppercase tracking-wider">
           <div className="text-left">Requirement</div>
@@ -412,6 +453,7 @@ export default function ClearanceRequirementsPage() {
           )}
         </div>
       </div>
+    )}
 
       {/* Add Requirement Modal */}
       {isModalOpen && mounted && createPortal(

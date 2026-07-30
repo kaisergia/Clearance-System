@@ -96,13 +96,14 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      const hasReqs = applicableRequirements.length > 0;
       return {
         id: o.id,
         name: "Office Clearance",
         responsible: o.name,
         type: "office" as const,
-        status: clearance?.status || "Pending",
-        dateCleared: clearance?.dateCleared || null,
+        status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
+        dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
       };
@@ -166,13 +167,23 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      let displayName = "Organization Clearance";
+      if (org.type === "LGU") {
+        displayName = "LGU Clearance";
+      } else if (org.type === "Gov") {
+        displayName = "Student Government Clearance";
+      } else if (org.type === "AcademicClub" || org.type === "NonAcademicClub") {
+        displayName = "Club Clearance";
+      }
+
+      const hasReqs = applicableRequirements.length > 0;
       return {
         id: org.id,
-        name: "Org Membership Clearance",
+        name: displayName,
         responsible: org.name,
         type: "org" as const,
-        status: clearance?.status || "Pending",
-        dateCleared: clearance?.dateCleared || null,
+        status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
+        dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
       };
@@ -212,13 +223,14 @@ export async function GET(req: NextRequest) {
               };
             });
 
+            const hasReqs = applicableRequirements.length > 0;
             return {
               id: department.id,
               name: "Department Clearance",
               responsible: department.name,
               type: "department" as const,
-              status: clearance?.status || "Pending",
-              dateCleared: clearance?.dateCleared || null,
+              status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
+              dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
               remarks: clearance?.remarks || "",
               tasks: applicableRequirements,
             };

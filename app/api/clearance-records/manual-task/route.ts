@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
       return (
         appliesTo.includes(studentId) ||
-        (student?.program ? appliesTo.some((item) => matchProg(item, student.program)) : false) ||
+        (student?.program ? (appliesTo.includes(student.program) || appliesTo.some((item) => matchProg(item, student.program))) : false) ||
         (student?.department ? appliesTo.includes(student.department) : false) ||
         (student?.year ? appliesTo.includes(student.year) : false)
       );

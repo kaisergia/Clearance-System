@@ -20,8 +20,8 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
-      const isStudent = session.user.role === "student" || session.user.role === "STUDENT";
-      const isCompleteInSession = session.user.isProfileComplete;
+      const isStudent = (session.user as any).role === "student" || (session.user as any).role === "STUDENT";
+      const isCompleteInSession = (session.user as any).isProfileComplete;
       const isCompleteInStorage = typeof window !== "undefined" && localStorage.getItem("activeStudentProfileComplete") === "true";
       
       if (isStudent && !isCompleteInSession && !isCompleteInStorage) {
@@ -261,7 +261,6 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       <main className="md:ml-[280px] min-h-screen p-4 sm:p-6 md:p-10 pt-20 md:pt-10">
         {children}
       </main>
-      <ProfileCompletionModal isOpen={showCompletionModal} />
     </div>
   );
 }

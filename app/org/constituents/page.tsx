@@ -6,8 +6,9 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
+import { ConstituentActionsToolbar } from "@/components/constituents/ConstituentActionsToolbar";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
-
+import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
 import { PROGRAM_MAP } from "@/lib/constants";
 
 export default function OrgConstituentsPage() {
@@ -42,54 +43,70 @@ export default function OrgConstituentsPage() {
     setSemester(currentTerm);
   }, [currentTerm]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      const orgId = localStorage.getItem("orgId");
-      if (orgId) {
-        const currentOrg = await clearanceService.getOrgById(parseInt(orgId));
-        if (currentOrg) {
-          setOrg(currentOrg);
+  const loadData = async () => {
+    const orgId = localStorage.getItem("orgId");
+    if (orgId) {
+      const currentOrg = await clearanceService.getOrgById(parseInt(orgId));
+      if (currentOrg) {
+        setOrg(currentOrg);
 
-          const allStudents = await clearanceService.getStudents();
-          const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
+        const allStudents = await clearanceService.getStudents();
+        const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
 
-          const matchesProgram = (studentProg: string, orgProg: string | null) => {
-            if (!orgProg) return false;
-            if (studentProg === orgProg) return true;
-            if (PROGRAM_MAP[studentProg] === orgProg) return true;
-            if (PROGRAM_MAP[orgProg] === studentProg) return true;
-            return false;
-          };
+        const matchesProgram = (studentProg: string, orgProg: string | null) => {
+          if (!orgProg) return false;
+          if (studentProg === orgProg) return true;
+          if (PROGRAM_MAP[studentProg] === orgProg) return true;
+          if (PROGRAM_MAP[orgProg] === studentProg) return true;
+          return false;
+        };
 
-          // Fetch students based on org type/scope logic
-          let list: any[] = [];
-          if (currentOrg.type === "Gov") {
-            list = allStudents;
-          } else if (currentOrg.type === "LGU") {
-            list = allStudents.filter((s) => s.department === currentOrg.department || memberIds.includes(s.id));
-            setDepartment(currentOrg.department || "All Departments"); // Lock department
-          } else if (currentOrg.type === "AcademicClub") {
-            list = allStudents.filter((s) => matchesProgram(s.program, currentOrg.program) || memberIds.includes(s.id));
-            setDepartment(currentOrg.department || "All Departments"); // Lock department
-          } else if (currentOrg.type === "NonAcademicClub") {
-            list = allStudents.filter((s) => memberIds.includes(s.id));
-          }
-
-          const mappedList = [];
-          for (const student of list) {
-            const records = await clearanceService.getStudentClearanceRecords(student.id);
-            const orgRec = records.find((r: any) => r.orgId === currentOrg.id);
-            mappedList.push({
-              ...student,
-              status: orgRec?.status || "Pending",
-            });
-          }
-
-          setConstituents(mappedList);
+        // Fetch students based on org type/scope logic
+        let list: any[] = [];
+        if (currentOrg.type === "Gov") {
+          list = allStudents;
+        } else if (currentOrg.type === "LGU") {
+          list = allStudents.filter((s) => s.department === currentOrg.department || memberIds.includes(s.id));
+          setDepartment(currentOrg.department || "All Departments"); // Lock department
+        } else if (currentOrg.type === "AcademicClub") {
+          list = allStudents.filter((s) => matchesProgram(s.program, currentOrg.program) || memberIds.includes(s.id));
+          setDepartment(currentOrg.department || "All Departments"); // Lock department
+        } else if (currentOrg.type === "NonAcademicClub") {
+          list = allStudents.filter((s) => memberIds.includes(s.id));
         }
-      }
-    };
 
+        const orgReqs = await clearanceService.getOrgRequirements(currentOrg.id);
+        const liveReqs = orgReqs.filter((r: any) => r.status === "Live");
+
+        const isApplicable = (req: any, student: any) => {
+          if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) return true;
+          return (
+            req.appliesTo.includes(student.program) ||
+            req.appliesTo.includes(student.department) ||
+            req.appliesTo.includes(student.year)
+          );
+        };
+
+        const mappedList = [];
+        for (const student of list) {
+          const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
+          const hasRequirements = studentApplicable.length > 0;
+
+          const records = await clearanceService.getStudentClearanceRecords(student.id);
+          const orgRec = records.find((r: any) => r.orgId === currentOrg.id);
+          mappedList.push({
+            ...student,
+            status: hasRequirements ? (orgRec?.status || "Pending") : "Cleared",
+            hasRequirements,
+          });
+        }
+
+        setConstituents(mappedList);
+      }
+    }
+  };
+
+  useEffect(() => {
     loadData();
     window.addEventListener("clearanceRecordsUpdated", loadData);
     return () => window.removeEventListener("clearanceRecordsUpdated", loadData);
@@ -109,8 +126,11 @@ export default function OrgConstituentsPage() {
     )
   ).sort();
 
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingPinAction, setPendingPinAction] = useState<(() => void) | null>(null);
+
   // Toggle status handler
-  const handleToggleStatus = async (id: string) => {
+  const executeToggleStatus = async (id: string) => {
     const orgId = localStorage.getItem("orgId");
     if (!orgId) return;
 
@@ -132,6 +152,16 @@ export default function OrgConstituentsPage() {
     await clearanceService.updateClearanceRecord(id, Number(orgId), "org", newStatus);
   };
 
+  const handleToggleStatus = (id: string) => {
+    const student = constituents.find(s => s.id === id);
+    if (student && student.status !== "Cleared") {
+      setPendingPinAction(() => () => executeToggleStatus(id));
+      setShowPinModal(true);
+    } else {
+      executeToggleStatus(id);
+    }
+  };
+
   // Filter students based on state
   const filteredConstituents = constituents.filter((student) => {
     const matchesSearch =
@@ -139,7 +169,11 @@ export default function OrgConstituentsPage() {
       student.id.includes(search);
     const matchesYear = yearLevel === "All Years" || student.year === yearLevel;
     const matchesDept = department === "All Departments" || student.department === department;
-    const matchesProg = program === "All Programs" || student.program === program;
+    const studentProgCode = PROGRAM_MAP[student.program] || student.program;
+    const matchesProg =
+      program === "All Programs" ||
+      student.program === program ||
+      studentProgCode === program;
 
     return matchesSearch && matchesYear && matchesDept && matchesProg;
   });
@@ -175,7 +209,7 @@ export default function OrgConstituentsPage() {
     setShowConfirmModal(true);
   };
 
-  const confirmBulkStatusChange = async () => {
+  const executeBulkStatusChange = async () => {
     if (pendingBulkStatus) {
       const orgId = localStorage.getItem("orgId");
       if (!orgId) return;
@@ -199,6 +233,16 @@ export default function OrgConstituentsPage() {
     setPendingBulkStatus(null);
   };
 
+  const confirmBulkStatusChange = () => {
+    if (pendingBulkStatus === "Cleared") {
+      setShowConfirmModal(false);
+      setPendingPinAction(() => executeBulkStatusChange);
+      setShowPinModal(true);
+    } else {
+      executeBulkStatusChange();
+    }
+  };
+
   // Stats computation
   const totalCount = constituents.length;
   const clearedCount = constituents.filter((s) => s.status === "Cleared").length;
@@ -208,7 +252,7 @@ export default function OrgConstituentsPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header Section */}
-      <section className="pb-4 border-b border-surface-container-high">
+      <section className="pb-4 border-b border-surface-container-high flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="font-headline-lg text-headline-lg text-on-background">
             Constituents
@@ -221,6 +265,11 @@ export default function OrgConstituentsPage() {
             </span>
           </span>
         </div>
+
+        <ConstituentActionsToolbar
+          onDataRefresh={loadData}
+          entityName={org?.name}
+        />
       </section>
 
       {/* Stats Section */}
@@ -371,6 +420,20 @@ export default function OrgConstituentsPage() {
         </div>,
         document.body
       )}
+
+      {/* PIN Confirmation Modal */}
+      <PinConfirmationModal
+        isOpen={showPinModal}
+        onClose={() => {
+          setShowPinModal(false);
+          setPendingPinAction(null);
+        }}
+        onConfirm={() => {
+          if (pendingPinAction) pendingPinAction();
+          setPendingPinAction(null);
+        }}
+        officeIdOrKey={org?.id || "default"}
+      />
     </div>
   );
 }

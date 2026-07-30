@@ -63,7 +63,7 @@ const isBrowser = typeof window !== "undefined";
 async function apiFetch<T>(path: string): Promise<T | null> {
   if (!isBrowser) return null;
   try {
-    const res = await fetch(path);
+    const res = await fetch(path, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {
@@ -216,10 +216,25 @@ export async function getStudentRequirements(studentId: string): Promise<Clearan
     return false;
   });
 
-  const dynamicOrgs = applicableOrgs.map((org: any) => ({
-    id: org.id, name: "Org Membership Clearance", responsible: org.name,
-    type: "org" as const, status: "Pending" as const, dateCleared: null, remarks: "",
-  }));
+  const dynamicOrgs = applicableOrgs.map((org: any) => {
+    let displayName = "Organization Clearance";
+    if (org.type === "LGU") {
+      displayName = "LGU Clearance";
+    } else if (org.type === "Gov") {
+      displayName = "Student Government Clearance";
+    } else if (org.type === "AcademicClub" || org.type === "NonAcademicClub") {
+      displayName = "Club Clearance";
+    }
+    return {
+      id: org.id,
+      name: displayName,
+      responsible: org.name,
+      type: "org" as const,
+      status: "Pending" as const,
+      dateCleared: null,
+      remarks: "",
+    };
+  });
 
   const studentDept = mockDepartments.find((d: any) => d.abbreviation === student.department);
   const dynamicDepts = studentDept ? [{
@@ -499,7 +514,17 @@ export async function getStudentOrgMemberships(studentId: string): Promise<any[]
 export async function getUsers(): Promise<any[]> {
   const dbResult = await apiFetch<any[]>("/api/users");
   if (dbResult) return dbResult;
-  return [];
+
+  const students = await getStudents();
+  return students.map((s) => ({
+    id: `student-${s.id}`,
+    email: s.email || `${s.id}@g.cjc.edu.ph`,
+    displayName: s.name,
+    role: "student",
+    studentId: s.id,
+    avatarUrl: s.avatarUrl || s.avatar || s.photoUrl || s.profilePicture || s.image || null,
+    student: s,
+  }));
 }
 
 /**

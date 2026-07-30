@@ -34,6 +34,7 @@ export async function GET() {
         role: "student",
         createdAt: new Date(),
         studentId: s.id,
+        avatarUrl: (s as any).avatarUrl || (s as any).avatar || (s as any).photoUrl || (s as any).profilePicture || (s as any).image || null,
         officeId: null,
         departmentId: null,
         orgId: null,
