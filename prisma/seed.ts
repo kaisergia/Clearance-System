@@ -97,22 +97,30 @@ async function main() {
     });
   }
 
+  // ── 0. Create default academic term ────────────────────────────────────────
+  console.log("  → Default Academic Term");
+  const defaultTerm = await prisma.academicTerm.upsert({
+    where: { name: "1st Sem 2024-2025" },
+    update: { status: "Active" },
+    create: { name: "1st Sem 2024-2025", status: "Active" },
+  });
+
   // ── 6. Clearance Records (initial Pending state) ───────────────────────────
   console.log("  → Initial clearance records");
   for (const student of mockStudents) {
     // Office records
     for (const office of mockOffices) {
       await prisma.clearanceRecord.upsert({
-        where:  { studentId_officeId: { studentId: student.id, officeId: office.id } },
+        where:  { studentId_officeId_termId: { studentId: student.id, officeId: office.id, termId: defaultTerm.id } },
         update: {},
-        create: { studentId: student.id, officeId: office.id, status: "Pending" },
+        create: { studentId: student.id, officeId: office.id, termId: defaultTerm.id, status: "Pending" },
       });
     }
     // Student Government record (applies to all)
     await prisma.clearanceRecord.upsert({
-      where:  { studentId_orgId: { studentId: student.id, orgId: 5 } },
+      where:  { studentId_orgId_termId: { studentId: student.id, orgId: 5, termId: defaultTerm.id } },
       update: {},
-      create: { studentId: student.id, orgId: 5, status: "Pending" },
+      create: { studentId: student.id, orgId: 5, termId: defaultTerm.id, status: "Pending" },
     });
   }
 
@@ -127,6 +135,7 @@ async function main() {
           data: {
             id:                 req.id,
             officeId,
+            termId:             defaultTerm.id,
             name:               req.name,
             description:        req.description ?? "",
             addedDate:          new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
@@ -153,6 +162,7 @@ async function main() {
           data: {
             id:                 req.id,
             departmentId,
+            termId:             defaultTerm.id,
             name:               req.name,
             description:        req.description ?? "",
             addedDate:          new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
@@ -179,6 +189,7 @@ async function main() {
           data: {
             id:                 req.id,
             orgId,
+            termId:             defaultTerm.id,
             name:               req.name,
             description:        req.description ?? "",
             addedDate:          new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),

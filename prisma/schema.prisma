@@ -146,19 +146,22 @@ model ClearanceRecord {
   officeId     Int?
   orgId        Int?
   departmentId Int?
+  termId       Int?
   status       String  @default("Pending") // Cleared | Pending | Rejected | Submitted
   dateCleared  String?
   remarks      String? @db.Text
   uploadedFiles Json?   // { requirementId: fileUrl }
   completedTasks Json? // number[]
 
-  student Student @relation(fields: [studentId], references: [id])
+  student Student       @relation(fields: [studentId], references: [id])
+  term    AcademicTerm? @relation(fields: [termId],    references: [id], onDelete: Cascade)
 
-  // Each (student, entity) pair is unique
-  @@unique([studentId, officeId])
-  @@unique([studentId, orgId])
-  @@unique([studentId, departmentId])
+  // Each (student, entity, term) pair is unique
+  @@unique([studentId, officeId, termId])
+  @@unique([studentId, orgId, termId])
+  @@unique([studentId, departmentId, termId])
   @@index([studentId])
+  @@index([termId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -167,6 +170,7 @@ model ClearanceRecord {
 model OfficeRequirement {
   id                 String          @id @default(uuid())
   officeId           Int
+  termId             Int?
   name               String
   description        String?         @db.Text
   linkName           String?
@@ -180,14 +184,17 @@ model OfficeRequirement {
   surveyQuestions    Json?           // JSON array of survey questions
   acknowledgmentText String?         @db.Text
 
-  office Office @relation(fields: [officeId], references: [id])
+  office Office        @relation(fields: [officeId], references: [id])
+  term   AcademicTerm? @relation(fields: [termId],    references: [id], onDelete: Cascade)
 
   @@index([officeId])
+  @@index([termId])
 }
 
 model DepartmentRequirement {
   id                 String          @id @default(uuid())
   departmentId       Int
+  termId             Int?
   name               String
   description        String?         @db.Text
   linkName           String?
@@ -201,14 +208,17 @@ model DepartmentRequirement {
   surveyQuestions    Json?
   acknowledgmentText String?         @db.Text
 
-  department Department @relation(fields: [departmentId], references: [id])
+  department Department    @relation(fields: [departmentId], references: [id])
+  term       AcademicTerm? @relation(fields: [termId],       references: [id], onDelete: Cascade)
 
   @@index([departmentId])
+  @@index([termId])
 }
 
 model OrgRequirement {
   id                 String          @id @default(uuid())
   orgId              Int
+  termId             Int?
   name               String
   description        String?         @db.Text
   linkName           String?
@@ -222,9 +232,11 @@ model OrgRequirement {
   surveyQuestions    Json?
   acknowledgmentText String?         @db.Text
 
-  org Org @relation(fields: [orgId], references: [id])
+  org  Org           @relation(fields: [orgId],  references: [id])
+  term AcademicTerm? @relation(fields: [termId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
+  @@index([termId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -307,4 +319,72 @@ enum AnnouncementPriority {
   normal
   high
   urgent
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Academic Terms, Clearance Flows, Flow Steps, & Prerequisites
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AcademicTerm {
+  id        Int             @id @default(autoincrement())
+  name      String          @unique
+  status    String          @default("Active") // "Active" | "Archived"
+  flows     ClearanceFlow[]
+  
+  // Back-relations for term-specific requirements and clearance records
+  officeRequirements     OfficeRequirement[]
+  departmentRequirements DepartmentRequirement[]
+  orgRequirements        OrgRequirement[]
+  clearanceRecords       ClearanceRecord[]
+  
+  createdAt DateTime        @default(now())
+}
+
+model ClearanceFlow {
+  id             Int          @id @default(autoincrement())
+  name           String
+  description    String?      @db.Text
+  termId         Int
+  term           AcademicTerm @relation(fields: [termId], references: [id])
+  status         String       @default("Draft") // "Draft" | "Published" | "Archived"
+  
+  // JSON field describing targeting criteria (e.g. { year: ["4th Year"], department: [] })
+  targetCriteria Json?
+  
+  steps          FlowStep[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model FlowStep {
+  id             Int           @id @default(autoincrement())
+  flowId         Int
+  flow           ClearanceFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  
+  // Represents who needs to clear this step.
+  // officeId, departmentId, or orgId can be null if it's dynamic
+  officeId       Int?
+  departmentId   Int?
+  orgId          Int?
+  
+  // If true, dynamically resolves to the student's department or active org memberships
+  isDynamicDept  Boolean       @default(false)
+  isDynamicOrgs  Boolean       @default(false)
+  isPrerequisiteOnly Boolean     @default(false)
+  
+  sequenceOrder  Int           @default(1)
+  
+  // Self-relation to model dependencies/prerequisites
+  prerequisites  FlowStepPrerequisite[] @relation("StepToPrerequisite")
+  dependentSteps FlowStepPrerequisite[] @relation("PrerequisiteToStep")
+}
+
+model FlowStepPrerequisite {
+  stepId             Int
+  prerequisiteStepId Int
+  
+  step               FlowStep @relation("StepToPrerequisite", fields: [stepId], references: [id], onDelete: Cascade)
+  prerequisiteStep   FlowStep @relation("PrerequisiteToStep", fields: [prerequisiteStepId], references: [id], onDelete: Cascade)
+  
+  @@id([stepId, prerequisiteStepId])
 }

@@ -277,10 +277,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link
             href="/admin/announcements"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm text-secondary hover:bg-surface-container-high"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${
+              pathname.startsWith("/admin/announcements") ? "bg-primary-fixed text-primary font-bold" : "text-secondary hover:bg-surface-container-high"
+            }`}
           >
             <span className="material-symbols-outlined text-xl">campaign</span>
             <span>Announcements</span>
+          </Link>
+          <Link
+            href="/admin/clearance-requirements"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${
+              pathname.startsWith("/admin/clearance-requirements") ? "bg-primary-fixed text-primary font-bold" : "text-secondary hover:bg-surface-container-high"
+            }`}
+          >
+            <span className="material-symbols-outlined text-xl">task_alt</span>
+            <span>Clearance Requirements</span>
           </Link>
           <Link
             href="/admin/reports"
@@ -418,6 +430,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <span className="material-symbols-outlined">campaign</span>
             <span className="font-body-md text-body-md">Announcements</span>
+          </Link>
+
+          {/* Clearance Requirements */}
+          <Link
+            href="/admin/clearance-requirements"
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all border-l-4 ${
+              pathname.startsWith("/admin/clearance-requirements")
+                ? "bg-primary-fixed text-primary border-primary font-bold"
+                : "text-secondary hover:bg-surface-container-high border-transparent"
+            }`}
+          >
+            <span className="material-symbols-outlined">task_alt</span>
+            <span className="font-body-md text-body-md">Clearance Requirements</span>
           </Link>
 
           {/* Reports */}
