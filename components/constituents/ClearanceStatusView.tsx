@@ -20,6 +20,7 @@ interface ClearanceItem {
   uploadedFiles?: Record<number, string>;
   completedTasks?: number[];
   tasks?: any[];
+  prerequisiteSignatories?: any[];
 }
 
 const itemStatusStyles = {
@@ -1215,7 +1216,19 @@ export function ClearanceStatusView({
       )}
 
       {/* Lists of Requirements OR Clearance Status Progress Map */}
-      {isOfficeView && viewMode === "all" ? (
+      {requirements.length === 0 ? (
+        <div className="bg-surface-container-lowest border border-surface-container-high rounded-2xl p-12 text-center shadow-[0px_2px_8px_rgba(0,0,0,0.02)] space-y-4">
+          <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center mx-auto text-secondary/60">
+            <span className="material-symbols-outlined text-4xl">rule_folder</span>
+          </div>
+          <div className="max-w-md mx-auto space-y-2">
+            <h3 className="font-bold text-on-surface text-lg">No Active Clearance Signatories</h3>
+            <p className="text-secondary text-sm">
+              There is no published clearance flow for your academic term yet. Clearance requirements will appear here once the administrator publishes the clearance flow.
+            </p>
+          </div>
+        </div>
+      ) : isOfficeView && viewMode === "all" ? (
         <div className="w-full">
           <ClearanceStatus requirements={requirements} studentId={student.id} />
         </div>

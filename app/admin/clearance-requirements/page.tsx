@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
 interface AcademicTerm {
   id: number;
@@ -27,7 +28,7 @@ interface FlowStep {
   isDynamicOrgs: boolean;
   isPrerequisiteOnly?: boolean;
   sequenceOrder: number;
-  prerequisites: ReactPrereq[];
+  prerequisites: any[];
   type?: "office" | "department" | "org" | "dynamicDept" | "dynamicOrgs";
 }
 
@@ -67,6 +68,10 @@ export default function ClearanceRequirementsPage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [orgs, setOrgs] = useState<Org[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [showConfirmPublish, setShowConfirmPublish] = useState(false);
+  const [pendingPublishFlow, setPendingPublishFlow] = useState<{ id: number; status: string } | null>(null);
 
   // Modals / Form States
   const [showTermModal, setShowTermModal] = useState(false);
@@ -99,14 +104,26 @@ export default function ClearanceRequirementsPage() {
   const fetchTerms = async () => {
     try {
       const res = await fetch("/api/terms");
-      const data = await res.json();
-      setTerms(data);
-      if (data.length > 0 && activeTermId === null) {
-        const active = data.find((t: any) => t.status === "Active") || data[0];
-        setActiveTermId(active.id);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch terms (status ${res.status}). Ensure the database server is running.`);
       }
-    } catch (err) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setTerms(data);
+        setError(null);
+        if (data.length > 0 && activeTermId === null) {
+          const active = data.find((t: any) => t.status === "Active") || data[0];
+          setActiveTermId(active.id);
+        }
+      } else {
+        console.error("Fetched terms data is not an array:", data);
+        setTerms([]);
+        setError("Invalid data format received for academic terms.");
+      }
+    } catch (err: any) {
       console.error("Error fetching terms:", err);
+      setTerms([]);
+      setError(err.message || "Failed to fetch academic terms.");
     }
   };
 
@@ -117,24 +134,76 @@ export default function ClearanceRequirementsPage() {
         fetch("/api/departments"),
         fetch("/api/orgs"),
       ]);
-      const off = await officesRes.json();
-      const dep = await deptsRes.json();
-      const og = await orgsRes.json();
-      setOffices(off);
-      setDepartments(dep);
-      setOrgs(og);
+      
+      const off = officesRes.ok ? await officesRes.json() : [];
+      const dep = deptsRes.ok ? await deptsRes.json() : [];
+      const og = orgsRes.ok ? await orgsRes.json() : [];
+
+      if (!officesRes.ok || !deptsRes.ok || !orgsRes.ok) {
+        console.warn("One or more entity fetch requests returned non-200 response code.");
+      }
+      
+      setOffices(Array.isArray(off) ? off : []);
+      setDepartments(Array.isArray(dep) ? dep : []);
+      setOrgs(Array.isArray(og) ? og : []);
     } catch (err) {
       console.error("Error fetching entities:", err);
+      setOffices([]);
+      setDepartments([]);
+      setOrgs([]);
     }
   };
 
   const fetchFlows = async (termId: number) => {
     try {
       const res = await fetch(`/api/flows?termId=${termId}`);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch clearance flows (status ${res.status}).`);
+      }
       const data = await res.json();
-      setFlows(data);
-    } catch (err) {
+      if (Array.isArray(data)) {
+        setFlows(data);
+        setError(null);
+      } else {
+        console.error("Fetched flows data is not an array:", data);
+        setFlows([]);
+        setError("Invalid data format received for clearance flows.");
+      }
+    } catch (err: any) {
       console.error("Error fetching flows:", err);
+      setFlows([]);
+      setError(err.message || "Failed to fetch clearance flows.");
+    }
+  };
+
+  const handleTogglePublish = (flowId: number, currentStatus: string) => {
+    setPendingPublishFlow({ id: flowId, status: currentStatus });
+    setShowConfirmPublish(true);
+  };
+
+  const executeTogglePublish = async () => {
+    if (!pendingPublishFlow) return;
+    const { id: flowId, status: currentStatus } = pendingPublishFlow;
+    const newStatus = currentStatus === "Published" ? "Draft" : "Published";
+    setShowConfirmPublish(false);
+    setPendingPublishFlow(null);
+    try {
+      const res = await fetch("/api/flows", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: flowId, status: newStatus }),
+      });
+      if (res.ok) {
+        if (activeTermId !== null) {
+          fetchFlows(activeTermId);
+        }
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to update flow status.");
+      }
+    } catch (err: any) {
+      console.error("Error toggling publish status:", err);
+      setError(err.message || "Error toggling publish status.");
     }
   };
 
@@ -157,6 +226,7 @@ export default function ClearanceRequirementsPage() {
   };
 
   const handleOpenFlowModal = (flow: ClearanceFlow | null = null) => {
+    setModalError(null);
     if (flow) {
       setEditingFlow(flow);
       setFlowName(flow.name);
@@ -371,9 +441,13 @@ export default function ClearanceRequirementsPage() {
       if (res.ok) {
         setShowFlowModal(false);
         fetchFlows(activeTermId);
+      } else {
+        const data = await res.json();
+        setModalError(data.error || "Failed to save clearance flow.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error saving flow:", err);
+      setModalError(err.message || "Error saving flow.");
     }
   };
 
@@ -436,9 +510,32 @@ export default function ClearanceRequirementsPage() {
         </div>
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 shadow-xs animate-fade-in ${
+          error.includes("already a published clearance flow")
+            ? "border-amber-200 bg-amber-50 text-amber-800"
+            : "border-red-200 bg-red-50 text-red-800"
+        }`}>
+          <span className={`material-symbols-outlined mt-0.5 ${
+            error.includes("already a published clearance flow") ? "text-amber-600" : "text-red-600"
+          }`}>
+            {error.includes("already a published clearance flow") ? "warning" : "error_outline"}
+          </span>
+          <div>
+            <h4 className="font-semibold text-sm">
+              {error.includes("already a published clearance flow") ? "Clearance Flow Restriction" : "Connection or Database Error"}
+            </h4>
+            <p className={`text-xs mt-1 ${
+              error.includes("already a published clearance flow") ? "text-amber-800" : "text-red-700"
+            }`}>{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Term Tabs */}
       <div className="flex gap-6 border-b border-surface-container-high mb-8 relative overflow-x-auto whitespace-nowrap scrollbar-none">
-        {terms.map((term) => (
+        {Array.isArray(terms) && terms.map((term) => (
           <button
             key={term.id}
             onClick={() => setActiveTermId(term.id)}
@@ -460,7 +557,7 @@ export default function ClearanceRequirementsPage() {
 
       {/* Flow Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">
-        {flows.map((flow) => (
+        {Array.isArray(flows) && flows.map((flow) => (
           <div
             key={flow.id}
             className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-6 flex flex-col shadow-[0px_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0px_8px_16px_rgba(0,0,0,0.04)] transition-all relative overflow-hidden"
@@ -473,13 +570,20 @@ export default function ClearanceRequirementsPage() {
                   Target: {flow.targetCriteria?.years?.join(", ") || "All Years"}
                 </span>
               </div>
-              <span
-                className={`px-2.5 py-0.5 rounded text-xs font-semibold ${
-                  flow.status === "Published" ? "bg-emerald-100 text-emerald-700" : "bg-yellow-100 text-yellow-700"
+              <button
+                onClick={() => flow.id && handleTogglePublish(flow.id, flow.status)}
+                className={`px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all hover:scale-105 active:scale-95 flex items-center gap-1 select-none border ${
+                  flow.status === "Published"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                    : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
                 }`}
+                title={flow.status === "Published" ? "Click to set as Draft (Unpublish)" : "Click to Publish Live"}
               >
+                <span className="material-symbols-outlined text-[12px] leading-none">
+                  {flow.status === "Published" ? "public" : "drafts"}
+                </span>
                 {flow.status}
-              </span>
+              </button>
             </div>
 
             <p className="font-body-sm text-body-sm text-secondary mb-6 flex-1">
@@ -585,6 +689,21 @@ export default function ClearanceRequirementsPage() {
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
+
+            {modalError && (
+              <div className={`mx-6 mt-4 p-4 border rounded-xl text-sm flex items-center gap-3 animate-fadeIn ${
+                modalError.includes("already a published clearance flow")
+                  ? "bg-amber-50 border-amber-200 text-amber-800"
+                  : "bg-red-50 border-red-200 text-red-800"
+              }`}>
+                <span className={`material-symbols-outlined text-[20px] shrink-0 ${
+                  modalError.includes("already a published clearance flow") ? "text-amber-600" : "text-red-600"
+                }`}>
+                  {modalError.includes("already a published clearance flow") ? "warning" : "error"}
+                </span>
+                <span className="font-semibold">{modalError}</span>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-6 min-h-0">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -987,6 +1106,21 @@ export default function ClearanceRequirementsPage() {
           </div>
         </div>
       )}
+      <ConfirmationDialog
+        isOpen={showConfirmPublish}
+        title={pendingPublishFlow?.status === "Published" ? "Unpublish Clearance Flow?" : "Publish Clearance Flow?"}
+        message={
+          pendingPublishFlow?.status === "Published"
+            ? "Unpublishing this clearance flow will set it back to Draft. Students will no longer see these signatories or requirements until it is published again. Are you sure you want to proceed?"
+            : "Publishing this clearance flow will make it active. Students matching the targeting criteria will immediately receive this flow's signatories. Are you sure you want to proceed?"
+        }
+        confirmText={pendingPublishFlow?.status === "Published" ? "Unpublish" : "Publish"}
+        onConfirm={executeTogglePublish}
+        onCancel={() => {
+          setShowConfirmPublish(false);
+          setPendingPublishFlow(null);
+        }}
+      />
     </div>
   );
 }

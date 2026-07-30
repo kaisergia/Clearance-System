@@ -105,23 +105,101 @@ async function main() {
     create: { name: "1st Sem 2024-2025", status: "Active" },
   });
 
-  // ── 6. Clearance Records (initial Pending state) ───────────────────────────
-  console.log("  → Initial clearance records");
-  for (const student of mockStudents) {
-    // Office records
-    for (const office of mockOffices) {
-      await prisma.clearanceRecord.upsert({
-        where:  { studentId_officeId_termId: { studentId: student.id, officeId: office.id, termId: defaultTerm.id } },
-        update: {},
-        create: { studentId: student.id, officeId: office.id, termId: defaultTerm.id, status: "Pending" },
+  // ── 5.5. Create default published clearance flow ────────────────────────────
+  console.log("  → Default Published Clearance Flow");
+  
+  let flow = await prisma.clearanceFlow.findFirst({
+    where: { termId: defaultTerm.id, status: "Published" },
+  });
+
+  if (!flow) {
+    flow = await prisma.clearanceFlow.create({
+      data: {
+        name: "Standard Semestral Clearance Flow",
+        description: "Standard semestral clearance flow for all students.",
+        termId: defaultTerm.id,
+        status: "Published",
+        targetCriteria: { years: [], departments: [] },
+      },
+    });
+
+    const stepsData = [
+      { officeId: 1, sequenceOrder: 1 },
+      { officeId: 2, sequenceOrder: 2 },
+      { officeId: 3, sequenceOrder: 3 },
+      { officeId: 4, sequenceOrder: 4 },
+      { officeId: 5, sequenceOrder: 5 },
+      { isDynamicDept: true, sequenceOrder: 6 },
+      { orgId: 5, sequenceOrder: 7 },
+      { isDynamicOrgs: true, sequenceOrder: 8 },
+    ];
+
+    for (const step of stepsData) {
+      await prisma.flowStep.create({
+        data: {
+          flowId: flow.id,
+          officeId: step.officeId || null,
+          isDynamicDept: step.isDynamicDept || false,
+          orgId: step.orgId || null,
+          isDynamicOrgs: step.isDynamicOrgs || false,
+          sequenceOrder: step.sequenceOrder,
+        },
       });
     }
-    // Student Government record (applies to all)
-    await prisma.clearanceRecord.upsert({
-      where:  { studentId_orgId_termId: { studentId: student.id, orgId: 5, termId: defaultTerm.id } },
-      update: {},
-      create: { studentId: student.id, orgId: 5, termId: defaultTerm.id, status: "Pending" },
-    });
+  }
+
+  // ── 6. Clearance Records (initial Pending state matching the flow) ───────────
+  console.log("  → Initial clearance records based on flow");
+  const flowSteps = await prisma.flowStep.findMany({
+    where: { flowId: flow.id },
+  });
+
+  for (const student of mockStudents) {
+    for (const step of flowSteps) {
+      let recordsToCreate: { officeId?: number; departmentId?: number; orgId?: number }[] = [];
+
+      if (step.officeId) {
+        recordsToCreate.push({ officeId: step.officeId });
+      } else if (step.departmentId) {
+        recordsToCreate.push({ departmentId: step.departmentId });
+      } else if (step.orgId) {
+        recordsToCreate.push({ orgId: step.orgId });
+      } else if (step.isDynamicDept) {
+        const dept = mockDepartments.find((d) => d.abbreviation === student.department);
+        if (dept) {
+          recordsToCreate.push({ departmentId: dept.id });
+        }
+      } else if (step.isDynamicOrgs) {
+        const memberships = mockOrgMembers.filter((m) => m.studentId === student.id);
+        for (const m of memberships) {
+          recordsToCreate.push({ orgId: m.orgId });
+        }
+      }
+
+      for (const item of recordsToCreate) {
+        let actualWhereClause: any = null;
+        if (item.officeId) {
+          actualWhereClause = { studentId_officeId_termId: { studentId: student.id, officeId: item.officeId, termId: defaultTerm.id } };
+        } else if (item.orgId) {
+          actualWhereClause = { studentId_orgId_termId: { studentId: student.id, orgId: item.orgId, termId: defaultTerm.id } };
+        } else if (item.departmentId) {
+          actualWhereClause = { studentId_departmentId_termId: { studentId: student.id, departmentId: item.departmentId, termId: defaultTerm.id } };
+        }
+
+        if (actualWhereClause) {
+          await prisma.clearanceRecord.upsert({
+            where: actualWhereClause,
+            update: {},
+            create: {
+              studentId: student.id,
+              termId: defaultTerm.id,
+              status: "Pending",
+              ...item,
+            },
+          });
+        }
+      }
+    }
   }
 
   // ── 7. Default Office Requirements ────────────────────────────────────────

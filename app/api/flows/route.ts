@@ -43,6 +43,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name and Term ID are required" }, { status: 400 });
     }
 
+    if (status === "Published") {
+      const existingPublished = await prisma.clearanceFlow.findFirst({
+        where: {
+          termId: Number(termId),
+          status: "Published",
+          id: id ? { not: Number(id) } : undefined,
+        },
+      });
+      if (existingPublished) {
+        return NextResponse.json(
+          { error: "You cannot publish another clearance flow because there is already a published clearance flow for this term. Please unpublish the existing one in order to publish a new clearance flow." },
+          { status: 400 }
+        );
+      }
+    }
+
     const flowIdResult = await prisma.$transaction(async (tx) => {
       let flow;
       if (id) {
@@ -176,6 +192,34 @@ async function syncStudentClearanceRecords(flowId: number, tx: any) {
   }
   const students = await tx.student.findMany({ where: whereClause });
 
+  const officeReqs = await tx.officeRequirement.findMany({
+    where: { termId: flow.termId },
+    select: { id: true },
+  });
+  const deptReqs = await tx.departmentRequirement.findMany({
+    where: { termId: flow.termId },
+    select: { id: true },
+  });
+  const orgReqs = await tx.orgRequirement.findMany({
+    where: { termId: flow.termId },
+    select: { id: true },
+  });
+
+  const termReqIds = [
+    ...officeReqs.map((r: any) => r.id),
+    ...deptReqs.map((r: any) => r.id),
+    ...orgReqs.map((r: any) => r.id),
+  ];
+
+  if (termReqIds.length > 0 && students.length > 0) {
+    await tx.requirementSubmission.deleteMany({
+      where: {
+        studentId: { in: students.map((s: any) => s.id) },
+        requirementId: { in: termReqIds },
+      },
+    });
+  }
+
   for (const student of students) {
     for (const step of flow.steps) {
       let recordsToCreate: { officeId?: number; departmentId?: number; orgId?: number }[] = [];
@@ -215,7 +259,11 @@ async function syncStudentClearanceRecords(flowId: number, tx: any) {
         if (actualWhereClause) {
           await tx.clearanceRecord.upsert({
             where: actualWhereClause,
-            update: {}, // keep existing status if already created
+            update: {
+              status: "Pending",
+              dateCleared: null,
+              remarks: "",
+            },
             create: {
               studentId: student.id,
               termId: flow.termId,
@@ -226,5 +274,54 @@ async function syncStudentClearanceRecords(flowId: number, tx: any) {
         }
       }
     }
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { id, status } = await req.json();
+    if (!id || !status) {
+      return NextResponse.json({ error: "ID and Status are required" }, { status: 400 });
+    }
+
+    const flowToUpdate = await prisma.clearanceFlow.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!flowToUpdate) {
+      return NextResponse.json({ error: "Clearance flow not found" }, { status: 404 });
+    }
+
+    if (status === "Published") {
+      const existingPublished = await prisma.clearanceFlow.findFirst({
+        where: {
+          termId: flowToUpdate.termId,
+          status: "Published",
+          id: { not: flowToUpdate.id },
+        },
+      });
+      if (existingPublished) {
+        return NextResponse.json(
+          { error: "You cannot publish another clearance flow because there is already a published clearance flow for this term. Please unpublish the existing one in order to publish a new clearance flow." },
+          { status: 400 }
+        );
+      }
+    }
+
+    const updatedFlow = await prisma.clearanceFlow.update({
+      where: { id: Number(id) },
+      data: { status },
+    });
+
+    if (status === "Published") {
+      await prisma.$transaction(async (tx) => {
+        await syncStudentClearanceRecords(updatedFlow.id, tx);
+      });
+    }
+
+    return NextResponse.json(updatedFlow);
+  } catch (err) {
+    console.error("[PATCH /api/flows]", err);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
   }
 }

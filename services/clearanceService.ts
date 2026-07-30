@@ -47,6 +47,7 @@ export interface ClearanceItem {
   uploadedFiles?: Record<number, string>;
   completedTasks?: number[];
   tasks?: any[];
+  prerequisiteSignatories?: any[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -65,18 +65,131 @@ export async function GET(req: NextRequest) {
       where: { studentId },
     });
 
-    // 1. Get all offices and their requirements
-    const offices = await prisma.office.findMany({
-      include: {
-        requirements: {
-          where: { status: "Live" },
-        },
-      },
+    // Find the active academic term
+    const activeTerm = await prisma.academicTerm.findFirst({
+      where: { status: "Active" },
     });
 
-    const officeRecords = await prisma.clearanceRecord.findMany({
-      where: { studentId, officeId: { not: null } },
+    // Find the published clearance flows for this term
+    const activeFlows = activeTerm
+      ? await prisma.clearanceFlow.findMany({
+          where: { termId: activeTerm.id, status: "Published" },
+          include: {
+            steps: {
+              include: {
+                prerequisites: true,
+              },
+              orderBy: { sequenceOrder: "asc" },
+            },
+          },
+        })
+      : [];
+
+    // Filter flows that apply to this student based on targetCriteria
+    const applicableFlows = activeFlows.filter((flow) => {
+      let criteria: any = {};
+      try {
+        if (typeof flow.targetCriteria === "string") {
+          criteria = JSON.parse(flow.targetCriteria);
+        } else if (flow.targetCriteria && typeof flow.targetCriteria === "object") {
+          criteria = flow.targetCriteria;
+        }
+      } catch (e) {
+        console.error("Error parsing target criteria", e);
+      }
+
+      const years = criteria.years || [];
+      const depts = criteria.departments || [];
+      const matchYear = years.length === 0 || years.includes(student.year);
+      const matchDept = depts.length === 0 || depts.includes(student.department);
+      return matchYear && matchDept;
     });
+
+    // Resolve signatories from applicable clearance flows
+    const resolvedOffices: Set<number> = new Set();
+    const resolvedDepartments: Set<number> = new Set();
+    const resolvedOrgs: Set<number> = new Set();
+
+    // Check student's specific memberships
+    const memberships = await prisma.orgMember.findMany({
+      where: { studentId },
+    });
+    const memberOrgIds = memberships.map((m) => m.orgId);
+
+    // Get student's department object to resolve isDynamicDept
+    const studentDeptObj = await prisma.department.findFirst({
+      where: { abbreviation: student.department },
+    });
+
+    const getPrerequisitesForSignatory = (type: "office" | "department" | "org", id: number) => {
+      const prers: { type: "office" | "department" | "org"; id: number }[] = [];
+      for (const flow of applicableFlows) {
+        for (const step of flow.steps) {
+          const isMatch =
+            (type === "office" && step.officeId === id) ||
+            (type === "department" && (step.departmentId === id || (step.isDynamicDept && studentDeptObj?.id === id))) ||
+            (type === "org" && (step.orgId === id || (step.isDynamicOrgs && memberOrgIds.includes(id))));
+
+          if (isMatch) {
+            for (const prereqRelation of step.prerequisites) {
+              const prereqStep = flow.steps.find((s) => s.id === prereqRelation.prerequisiteStepId);
+              if (prereqStep) {
+                if (prereqStep.officeId) {
+                  prers.push({ type: "office", id: prereqStep.officeId });
+                } else if (prereqStep.departmentId) {
+                  prers.push({ type: "department", id: prereqStep.departmentId });
+                } else if (prereqStep.orgId) {
+                  prers.push({ type: "org", id: prereqStep.orgId });
+                } else if (prereqStep.isDynamicDept && studentDeptObj) {
+                  prers.push({ type: "department", id: studentDeptObj.id });
+                } else if (prereqStep.isDynamicOrgs) {
+                  for (const orgId of memberOrgIds) {
+                    prers.push({ type: "org", id: orgId });
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      return prers;
+    };
+
+    for (const flow of applicableFlows) {
+      for (const step of flow.steps) {
+        if (step.officeId) {
+          resolvedOffices.add(step.officeId);
+        } else if (step.departmentId) {
+          resolvedDepartments.add(step.departmentId);
+        } else if (step.orgId) {
+          resolvedOrgs.add(step.orgId);
+        } else if (step.isDynamicDept && studentDeptObj) {
+          resolvedDepartments.add(studentDeptObj.id);
+        } else if (step.isDynamicOrgs) {
+          for (const orgId of memberOrgIds) {
+            resolvedOrgs.add(orgId);
+          }
+        }
+      }
+    }
+
+    // 1. Get resolved offices and their requirements for this term
+    const offices = resolvedOffices.size > 0
+      ? await prisma.office.findMany({
+          where: { id: { in: Array.from(resolvedOffices) } },
+          include: {
+            requirements: {
+              where: { status: "Live", termId: activeTerm?.id || undefined },
+            },
+          },
+        })
+      : [];
+
+    const officeRecords = activeTerm
+      ? await prisma.clearanceRecord.findMany({
+          where: { studentId, termId: activeTerm.id, officeId: { not: null } },
+        })
+      : [];
 
     const officeData = offices.map((o) => {
       const clearance = officeRecords.find((r) => r.officeId === o.id);
@@ -102,52 +215,31 @@ export async function GET(req: NextRequest) {
         name: "Office Clearance",
         responsible: o.name,
         type: "office" as const,
-        status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
-        dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
+        status: clearance ? clearance.status : (hasReqs ? "Pending" : "Cleared"),
+        dateCleared: clearance ? clearance.dateCleared : (hasReqs ? null : "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
+        prerequisiteSignatories: getPrerequisitesForSignatory("office", o.id),
       };
     });
 
-    // 2. Get applicable orgs and their requirements
-    const orgs = await prisma.org.findMany({
-      where: { status: "Active" },
-      include: {
-        requirements: {
-          where: { status: "Live" },
-        },
-      },
-    });
+    // 2. Get resolved applicable orgs and their requirements for this term
+    const applicableOrgs = resolvedOrgs.size > 0
+      ? await prisma.org.findMany({
+          where: { id: { in: Array.from(resolvedOrgs) }, status: "Active" },
+          include: {
+            requirements: {
+              where: { status: "Live", termId: activeTerm?.id || undefined },
+            },
+          },
+        })
+      : [];
 
-    // Check student's specific memberships
-    const memberships = await prisma.orgMember.findMany({
-      where: { studentId },
-    });
-    const memberOrgIds = new Set(memberships.map((m) => m.orgId));
-    const studentProgCode = PROGRAM_MAP[student.program] || student.program;
-
-    const applicableOrgs = orgs.filter((org) => {
-      // 1. Student Government applies to all students
-      if (org.type === "Gov") return true;
-
-      // 2. Department LGU applies to students in that department
-      if (org.type === "LGU" && org.department === student.department) return true;
-
-      // 3. Academic Club applies to students matching department or program
-      if (org.type === "AcademicClub") {
-        if (org.department && org.department === student.department) return true;
-        if (org.program && (org.program === studentProgCode || org.program === student.program)) return true;
-      }
-
-      // 4. Non-Academic / Interest Clubs apply if student is explicitly enrolled
-      if (memberOrgIds.has(org.id)) return true;
-
-      return false;
-    });
-
-    const orgRecords = await prisma.clearanceRecord.findMany({
-      where: { studentId, orgId: { not: null } },
-    });
+    const orgRecords = activeTerm
+      ? await prisma.clearanceRecord.findMany({
+          where: { studentId, termId: activeTerm.id, orgId: { not: null } },
+        })
+      : [];
 
     const orgData = applicableOrgs.map((org) => {
       const clearance = orgRecords.find((r) => r.orgId === org.id);
@@ -182,63 +274,86 @@ export async function GET(req: NextRequest) {
         name: displayName,
         responsible: org.name,
         type: "org" as const,
-        status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
-        dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
+        status: clearance ? clearance.status : (hasReqs ? "Pending" : "Cleared"),
+        dateCleared: clearance ? clearance.dateCleared : (hasReqs ? null : "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
+        prerequisiteSignatories: getPrerequisitesForSignatory("org", org.id),
       };
     });
 
-    // 3. Get student's department clearance
-    const department = await prisma.department.findFirst({
-      where: { abbreviation: student.department },
-      include: {
-        requirements: {
-          where: { status: "Live" },
-        },
-      },
-    });
-
-    const deptRecords = await prisma.clearanceRecord.findMany({
-      where: { studentId, departmentId: { not: null } },
-    });
-
-    const deptData = department
-      ? [
-          (() => {
-            const clearance = deptRecords.find((r) => r.departmentId === department.id);
-            const applicableRequirements = department.requirements.filter(isApplicable).map((req) => {
-              const sub = submissions.find((s) => s.requirementId === req.id);
-              return {
-                id: req.id,
-                name: req.name,
-                description: req.description || "",
-                linkName: req.linkName || null,
-                linkUrl: req.linkUrl || null,
-                type: req.type,
-                surveyQuestions: req.surveyQuestions,
-                acknowledgmentText: req.acknowledgmentText,
-                deadline: req.deadline || null,
-                submission: sub || null,
-              };
-            });
-
-            const hasReqs = applicableRequirements.length > 0;
-            return {
-              id: department.id,
-              name: "Department Clearance",
-              responsible: department.name,
-              type: "department" as const,
-              status: hasReqs ? (clearance?.status || "Pending") : "Cleared",
-              dateCleared: hasReqs ? (clearance?.dateCleared || null) : (clearance?.dateCleared || "Auto-Cleared"),
-              remarks: clearance?.remarks || "",
-              tasks: applicableRequirements,
-            };
-          })(),
-        ]
+    // 3. Get resolved department clearance and requirements for this term
+    const deptList = resolvedDepartments.size > 0
+      ? await prisma.department.findMany({
+          where: { id: { in: Array.from(resolvedDepartments) } },
+          include: {
+            requirements: {
+              where: { status: "Live", termId: activeTerm?.id || undefined },
+            },
+          },
+        })
       : [];
 
+    const deptRecords = activeTerm
+      ? await prisma.clearanceRecord.findMany({
+          where: { studentId, termId: activeTerm.id, departmentId: { not: null } },
+        })
+      : [];
+
+    const deptData = deptList.map((dept) => {
+      const clearance = deptRecords.find((r) => r.departmentId === dept.id);
+      const applicableRequirements = dept.requirements.filter(isApplicable).map((req) => {
+        const sub = submissions.find((s) => s.requirementId === req.id);
+        return {
+          id: req.id,
+          name: req.name,
+          description: req.description || "",
+          linkName: req.linkName || null,
+          linkUrl: req.linkUrl || null,
+          type: req.type,
+          surveyQuestions: req.surveyQuestions,
+          acknowledgmentText: req.acknowledgmentText,
+          deadline: req.deadline || null,
+          submission: sub || null,
+        };
+      });
+
+      const hasReqs = applicableRequirements.length > 0;
+      return {
+        id: dept.id,
+        name: "Department Clearance",
+        responsible: dept.name,
+        type: "department" as const,
+        status: clearance ? clearance.status : (hasReqs ? "Pending" : "Cleared"),
+        dateCleared: clearance ? clearance.dateCleared : (hasReqs ? null : "Auto-Cleared"),
+        remarks: clearance?.remarks || "",
+        tasks: applicableRequirements,
+        prerequisiteSignatories: getPrerequisitesForSignatory("department", dept.id),
+      };
+    });
+
     const combined = [...officeData, ...orgData, ...deptData];
+
+    // Sort combined signatories by the sequence order in applicable flows
+    const getSequenceOrder = (item: any) => {
+      for (const flow of applicableFlows) {
+        for (const step of flow.steps) {
+          if (item.type === "office" && step.officeId === item.id) {
+            return step.sequenceOrder;
+          }
+          if (item.type === "department" && (step.departmentId === item.id || (step.isDynamicDept && studentDeptObj && studentDeptObj.id === item.id))) {
+            return step.sequenceOrder;
+          }
+          if (item.type === "org" && (step.orgId === item.id || (step.isDynamicOrgs && memberOrgIds.includes(item.id)))) {
+            return step.sequenceOrder;
+          }
+        }
+      }
+      return 999; // Fallback for any unmatched steps
+    };
+
+    combined.sort((a, b) => getSequenceOrder(a) - getSequenceOrder(b));
+
     return NextResponse.json(combined);
   } catch (err) {
     console.error("[GET /api/student-requirements]", err);

@@ -164,112 +164,96 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
     loadStudent();
   }, [studentId]);
 
-  // Helper to fetch status from mockRequirements
-  const getStatus = (responsibleKey: string) => {
-    const req = requirements.find((r) =>
-      r.responsible.toLowerCase().includes(responsibleKey.toLowerCase())
-    );
-    return req && req.status === "Cleared" ? "cleared" : "pending";
-  };
-
-  const getDateCleared = (responsibleKey: string) => {
-    const req = requirements.find((r) =>
-      r.responsible.toLowerCase().includes(responsibleKey.toLowerCase())
-    );
-    return req && req.status === "Cleared" ? req.dateCleared : null;
-  };
-
-  // Find all dynamic orgs (which are in the requirements array as type "org")
-  const orgReqs = requirements.filter((r) => r.type === "org");
-  const sgReq = requirements.find((r) => r.responsible.toLowerCase().includes("student government"));
-  const sgCleared = sgReq && sgReq.status === "Cleared";
-
-  // Filter subClearances if viewingOrgId is provided
-  const relevantOrgReqs = viewingOrgId
-    ? orgReqs.filter(r => r.id === viewingOrgId)
-    : orgReqs;
-
-  const subClearances = relevantOrgReqs.map((orgReq) => ({
-    id: `org-${orgReq.id}`,
-    name: orgReq.responsible,
-    status: orgReq.status === "Cleared" ? "cleared" : "pending"
-  }));
-
-  const orgsStepStatus = sgCleared && orgReqs.every((r) => r.status === "Cleared") ? "cleared" : "pending";
-
-  // Resolve Department Clearance status
-  const deptReq = requirements.find((r) => r.type === "department");
-  const deptCleared = deptReq && deptReq.status === "Cleared" ? "cleared" : "pending";
-  const deptDateCleared = deptReq && deptReq.status === "Cleared" ? deptReq.dateCleared : null;
-
   if (!currentStudent) {
     return <div className="text-center p-4 text-secondary">Loading student details...</div>;
   }
 
-  const steps = [
-    {
-      id: 1,
-      office: "Library",
-      status: getStatus("Library"),
-      dateCleared: getDateCleared("Library"),
-    },
-    {
-      id: 2,
-      office: "Accounting",
-      status: getStatus("Accounting"),
-      dateCleared: getDateCleared("Accounting"),
-    },
-    {
-      id: 3,
-      office: "Registrar",
-      status: getStatus("Registrar"),
-      dateCleared: getDateCleared("Registrar"),
-    },
-    {
-      id: 4,
-      office: "Student Government & Orgs",
-      status: orgsStepStatus,
-      subClearances: subClearances,
-    },
-    {
-      id: 5,
-      office: "Guidance Office",
-      status: getStatus("Guidance"),
-      dateCleared: getDateCleared("Guidance"),
-    },
-    {
-      id: 6,
-      office: "Discipline Office",
-      status: getStatus("Discipline"),
-      dateCleared: getDateCleared("Discipline"),
-    },
-    {
-      id: 7,
-      office: `${currentStudent.department} Department Clearance`,
-      status: deptCleared,
-      dateCleared: deptDateCleared,
-    },
-  ];
+  // Find all signatories that are declared as prerequisites of any step
+  const prerequisiteKeys = new Set<string>();
+  requirements.forEach((req) => {
+    (req.prerequisiteSignatories || []).forEach((item: any) => {
+      prerequisiteKeys.add(`${item.type}-${item.id}`);
+    });
+  });
 
-  // If a specific office is viewing, filter steps to only show their own row
-  const visibleSteps = viewingOfficeId
-    ? steps.filter((step) => {
-      // Match the step's office name against the name of the office with the given id
-      // Requirements carry the office name in `responsible`
-      const officeReq = requirements.find(
-        (r) => r.type === "office" && r.id === viewingOfficeId
-      );
-      const officeName = officeReq?.responsible || "";
-      return step.office.toLowerCase().includes(officeName.toLowerCase()) ||
-        officeName.toLowerCase().includes(step.office.toLowerCase());
-    })
-    : viewingDeptId
-      ? steps.filter((step) => step.id === 7) // Department clearance is step 7
-      : viewingOrgId
-        ? steps.filter((step) => step.id === 4) // Orgs clearance is step 4
-        : steps;
+  // Dynamically map requirements (which represent active signatories in sequence order) to steps
+  const steps = requirements.map((req) => {
+    let officeName = req.responsible;
+    if (req.type === "department") {
+      officeName = `${req.responsible} Department Clearance`;
+    } else if (req.type === "org") {
+      if (req.name.toLowerCase().includes("student government")) {
+        officeName = "Student Government Clearance";
+      } else {
+        officeName = `${req.responsible} Club Clearance`;
+      }
+    }
 
-  const allCleared = visibleSteps.every((s) => s.status === "cleared");
+    // Map prerequisite signatories to subClearances
+    const prereqSubs = (req.prerequisiteSignatories || [])
+      .map((item: any) => {
+        const found = requirements.find((r) => r.type === item.type && r.id === item.id);
+        if (!found) return null;
+        let displayName = found.responsible;
+        if (found.type === "department") {
+          displayName = `${found.responsible} Department Clearance`;
+        } else if (found.type === "org") {
+          if (found.name.toLowerCase().includes("student government")) {
+            displayName = "Student Government";
+          } else {
+            displayName = `${found.responsible} Club`;
+          }
+        }
+        return {
+          id: `${found.type}-${found.id}`,
+          name: displayName,
+          status: found.status === "Cleared" ? "cleared" : "pending",
+        };
+      })
+      .filter(Boolean);
+
+    // Map signatory tasks to subClearances (prerequisites) in the status tree
+    const taskSubs = (req.tasks || []).map((task: any) => {
+      const isTaskCleared = req.status === "Cleared" || task.submission?.status === "Approved" || task.submission?.status === "Cleared";
+      return {
+        id: String(task.id),
+        name: task.name,
+        status: isTaskCleared ? "cleared" : "pending"
+      };
+    });
+
+    const subClearances = [...prereqSubs, ...taskSubs];
+
+    return {
+      id: `${req.type}-${req.id}`,
+      office: officeName,
+      status: req.status === "Cleared" ? "cleared" : "pending",
+      dateCleared: req.status === "Cleared" ? req.dateCleared : null,
+      subClearances,
+      type: req.type,
+    };
+  });
+
+  // Filter visible steps if viewed by a specific signatory role
+  const visibleSteps = steps.filter((step) => {
+    if (viewingOfficeId) {
+      const matchedReq = requirements.find(r => r.type === "office" && r.id === viewingOfficeId);
+      return matchedReq ? step.office.includes(matchedReq.responsible) : false;
+    }
+    if (viewingDeptId) {
+      const matchedReq = requirements.find(r => r.type === "department" && r.id === viewingDeptId);
+      return matchedReq ? step.office.includes(matchedReq.responsible) : false;
+    }
+    if (viewingOrgId) {
+      const matchedReq = requirements.find(r => r.type === "org" && r.id === viewingOrgId);
+      return matchedReq ? step.office.includes(matchedReq.responsible) : false;
+    }
+    // For overall student timeline view: hide steps that are displayed as nested sub-clearances (prerequisites)
+    const stepKey = step.id;
+    return !prerequisiteKeys.has(stepKey);
+  });
+
+  const allCleared = visibleSteps.length > 0 && visibleSteps.every((s) => s.status === "cleared");
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-surface-container-high shadow-sm p-6 w-full space-y-5">
@@ -277,11 +261,17 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
         Clearance Status
       </p>
 
-      <div className="space-y-1">
-        {visibleSteps.map((step, i) => (
-          <ClearanceStepRow key={step.id} step={step} isLast={i === visibleSteps.length - 1} />
-        ))}
-      </div>
+      {visibleSteps.length === 0 ? (
+        <div className="text-center py-6 border border-dashed border-gray-300 rounded-xl bg-gray-50/50">
+          <p className="text-sm font-semibold text-secondary">No published clearance available</p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {visibleSteps.map((step, i) => (
+            <ClearanceStepRow key={step.id} step={step} isLast={i === visibleSteps.length - 1} />
+          ))}
+        </div>
+      )}
 
       {allCleared && (
         <div className="text-center py-3 mt-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">

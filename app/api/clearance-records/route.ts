@@ -64,6 +64,9 @@ export async function POST(req: NextRequest) {
       where: { status: "Active" },
     });
     const termId = reqTermId ? Number(reqTermId) : activeTerm?.id || null;
+    if (!termId) {
+      return NextResponse.json({ error: "Active academic term is required" }, { status: 400 });
+    }
 
     // Validate prerequisites if status is being updated to "Cleared"
     if (status === "Cleared" && termId) {

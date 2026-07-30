@@ -47,6 +47,8 @@ export default function OrgClearanceRequirementsPage() {
   const [activeTab, setActiveTab] = useState<"manage" | "evaluator">("manage");
   const [org, setOrg] = useState<any>(null);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [restrictionReason, setRestrictionReason] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReqId, setEditingReqId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -76,13 +78,32 @@ export default function OrgClearanceRequirementsPage() {
 
     const orgId = localStorage.getItem("orgId");
     if (orgId) {
+      const oid = parseInt(orgId, 10);
       // DATABASE SWAP POINT: clearanceService.getOrgs replaces direct localStorage["orgs"] read
       clearanceService.getOrgs().then((orgsList) => {
-        const currentOrg = orgsList.find((o: any) => o.id === parseInt(orgId));
+        const currentOrg = orgsList.find((o: any) => o.id === oid);
         if (currentOrg) {
           setOrg(currentOrg);
           // DATABASE SWAP POINT: replace with DB query via clearanceService
           clearanceService.getOrgRequirements(currentOrg.id).then(setRequirements);
+
+          // Check access dynamically based on published clearance flows
+          fetch(`/api/requirements/check-access?type=org&id=${oid}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data && data.hasAccess !== undefined) {
+                setHasAccess(data.hasAccess);
+                if (!data.hasAccess) {
+                  setRestrictionReason(data.reason || "Access restricted.");
+                }
+              } else {
+                setHasAccess(true);
+              }
+            })
+            .catch((err) => {
+              console.error("Error checking org access:", err);
+              setHasAccess(true);
+            });
         }
       });
     }
@@ -294,7 +315,7 @@ export default function OrgClearanceRequirementsPage() {
             </span>
           </p>
         </div>
-        {activeTab === "manage" && (
+        {activeTab === "manage" && hasAccess !== false && (
           <button
             onClick={handleOpenModal}
             className="bg-brand-red text-white px-5 py-2 rounded font-label-md text-label-md shadow-sm hover:bg-primary transition-all flex items-center gap-2 btn-hover self-start md:self-auto active:scale-95"
@@ -304,6 +325,16 @@ export default function OrgClearanceRequirementsPage() {
           </button>
         )}
       </div>
+
+      {hasAccess === false && (
+        <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl flex items-start gap-3 shadow-xs animate-fadeIn">
+          <span className="material-symbols-outlined text-amber-600 shrink-0">info</span>
+          <div>
+            <h4 className="font-semibold text-sm">Clearance Flow Restriction</h4>
+            <p className="text-xs text-amber-750 mt-1">{restrictionReason}</p>
+          </div>
+        </div>
+      )}
 
       {/* Two-Tab Navigation Bar */}
       <div className="flex items-center gap-2 p-1.5 bg-gray-100/80 rounded-2xl w-fit shadow-2xs border border-gray-200/60">
@@ -424,7 +455,13 @@ export default function OrgClearanceRequirementsPage() {
 
                 {/* Status Toggle */}
                 <div className="flex justify-center items-center">
-                  {req.status === "Live" ? (
+                  {hasAccess === false ? (
+                    <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${
+                      req.status === "Live" ? "bg-green-50 text-green-700 border-green-200" : "bg-surface-container-high text-secondary border border-outline-variant"
+                    }`}>
+                      {req.status}
+                    </span>
+                  ) : req.status === "Live" ? (
                     <button
                       onClick={() => handleToggleStatus(req.id)}
                       className="flex items-center gap-1.5 px-2.5 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded-full hover:bg-green-100 transition-colors cursor-pointer"
@@ -447,22 +484,26 @@ export default function OrgClearanceRequirementsPage() {
 
                 {/* Actions */}
                 <div className="flex justify-center items-center">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEditRequirement(req)}
-                      className="text-secondary hover:text-primary transition-colors p-1"
-                      title="Edit"
-                    >
-                      <span className="material-symbols-outlined text-xl">edit</span>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteRequirement(req.id)}
-                      className="text-secondary hover:text-primary transition-colors p-1 text-error hover:bg-red-50 rounded"
-                      title="Delete"
-                    >
-                      <span className="material-symbols-outlined text-xl">delete</span>
-                    </button>
-                  </div>
+                  {hasAccess !== false ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditRequirement(req)}
+                        className="text-secondary hover:text-primary transition-colors p-1"
+                        title="Edit"
+                      >
+                        <span className="material-symbols-outlined text-xl">edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRequirement(req.id)}
+                        className="text-secondary hover:text-primary transition-colors p-1 text-error hover:bg-red-50 rounded"
+                        title="Delete"
+                      >
+                        <span className="material-symbols-outlined text-xl">delete</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-secondary/40 text-xs italic select-none">Locked</span>
+                  )}
                 </div>
               </div>
             ))
