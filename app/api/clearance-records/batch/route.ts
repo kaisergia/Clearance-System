@@ -13,6 +13,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logBatchClearanceAction } from "@/services/auditService";
 
 export async function POST(req: NextRequest) {
   try {
@@ -82,6 +83,17 @@ export async function POST(req: NextRequest) {
         updatedCount++;
       }
     });
+
+    // Record audit log for batch operation
+    logBatchClearanceAction(
+      `${entityType.toUpperCase()} Evaluator`,
+      entityType,
+      updatedCount,
+      "auto",
+      entityType,
+      numEntityId,
+      `${entityType.toUpperCase()} #${numEntityId}`
+    ).catch((err) => console.error("[AuditBatchLogError]", err));
 
     return NextResponse.json({
       success: true,

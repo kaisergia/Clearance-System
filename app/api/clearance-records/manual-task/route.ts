@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEvaluationResultAlert } from "@/services/notificationService";
+import { logClearanceAction } from "@/services/auditService";
 
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
@@ -135,9 +136,21 @@ export async function POST(req: NextRequest) {
     const targetReq = applicableReqs[taskIndex];
     const taskName = targetReq ? targetReq.name : `Requirement Task #${taskIndex + 1}`;
     const newStatus = completed ? "Cleared" : "Pending";
-    sendEvaluationResultAlert(studentId, taskName, newStatus, undefined, "Signatory Evaluator").catch((err) =>
+    sendEvaluationResultAlert(studentId, taskName, newStatus, undefined, `${entityType.toUpperCase()} Evaluator`).catch((err) =>
       console.error("[ManualTaskAlertError]", err)
     );
+
+    // 7. Record Audit Log Entry
+    logClearanceAction(
+      `${entityType.toUpperCase()} Evaluator`,
+      entityType,
+      studentId,
+      completed,
+      entityType,
+      entityId,
+      `${entityType.toUpperCase()} #${entityId}`,
+      completed ? undefined : `Unmarked task: ${taskName}`
+    ).catch((err) => console.error("[AuditTaskLogError]", err));
 
     return NextResponse.json({ ok: true, record: updatedRecord, completedTasks: updated, allCleared });
   } catch (err) {

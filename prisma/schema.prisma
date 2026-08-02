@@ -411,3 +411,26 @@ model Notification {
 
   @@index([studentId, status])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Institutional Audit Trail & Activity Logs
+// ─────────────────────────────────────────────────────────────────────────────
+model AuditLog {
+  id                String   @id @default(uuid())
+  actorId           String?  // User ID or account
+  actorName         String   // e.g. "John Doe (Registrar Head)"
+  actorRole         String   // "admin" | "head_office" | "department" | "org" | "student" | "system"
+  action            String   // "CLEAR_STUDENT" | "UNCLEAR_STUDENT" | "FLAG_DEFICIENCY" | "BATCH_CLEAR" | "AUTO_APPROVE"
+  targetStudentId   String?  // e.g. "2021-0492"
+  targetStudentName String?  // e.g. "Jane Smith"
+  entityType        String?  // "office" | "department" | "org" | "system"
+  entityId          String?  // ID of office/department/org
+  entityName        String?  // e.g. "Registrar's Office"
+  details           String?  @db.Text // Description or remarks
+  ipAddress         String?
+  createdAt         DateTime @default(now())
+
+  @@index([targetStudentId])
+  @@index([actorId])
+  @@index([createdAt])
+}
