@@ -919,14 +919,11 @@ export default function UnifiedUserManagementPage() {
                       onChange={(e) => setEditUserOfficeId(e.target.value)}
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
                     >
-                      {offices.map((office: any) => {
-                        const headText = typeof office.head === "object" && office.head !== null ? (office.head.name || "Office Head") : (office.head || "Office Head");
-                        return (
-                          <option key={office.id} value={office.id}>
-                            {office.name} ({headText})
-                          </option>
-                        );
-                      })}
+                      {offices.map((office: any) => (
+                        <option key={office.id} value={office.id}>
+                          {office.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -939,14 +936,11 @@ export default function UnifiedUserManagementPage() {
                       onChange={(e) => setEditUserDepartmentId(e.target.value)}
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
                     >
-                      {departments.map((dept: any) => {
-                        const headText = typeof dept.head === "object" && dept.head !== null ? (dept.head.name || dept.abbreviation) : (dept.head || dept.abbreviation);
-                        return (
-                          <option key={dept.id} value={dept.id}>
-                            {dept.name} ({headText})
-                          </option>
-                        );
-                      })}
+                      {departments.map((dept: any) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name} {dept.abbreviation ? `(${dept.abbreviation})` : ""}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -959,14 +953,11 @@ export default function UnifiedUserManagementPage() {
                       onChange={(e) => setEditUserOrgId(e.target.value)}
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
                     >
-                      {orgsList.map((org: any) => {
-                        const adviserText = typeof org.adviser === "object" && org.adviser !== null ? (org.adviser.name || "Adviser") : (org.adviser || "Adviser");
-                        return (
-                          <option key={org.id} value={org.id}>
-                            {org.name} ({adviserText})
-                          </option>
-                        );
-                      })}
+                      {orgsList.map((org: any) => (
+                        <option key={org.id} value={org.id}>
+                          {org.name} {org.category ? `(${org.category})` : ""}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
