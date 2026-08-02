@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: ["192.168.1.38", "clearance-system.local"],
+  allowedDevOrigins: [
+    "192.168.1.38",
+    "clearance-system.local",
+    "*.trycloudflare.com",
+    "baseball-reproduce-fruits-journal.trycloudflare.com",
+  ],
   images: {
     remotePatterns: [
       {
