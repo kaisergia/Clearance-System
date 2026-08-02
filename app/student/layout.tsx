@@ -194,7 +194,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             </p>
           </div>
           <div className="ml-auto">
-            <StudentNotificationCenter studentId={student?.id} />
+            <StudentNotificationCenter studentId={student?.id} align="left" />
           </div>
         </div>
 
