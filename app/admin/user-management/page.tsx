@@ -130,13 +130,14 @@ export default function UnifiedUserManagementPage() {
     setEditUserName(rawUser.displayName || rawUser.name || user.name || "");
     setEditUserEmail(rawUser.email || user.email || "");
 
-    // Normalize role string e.g. "Office Head" -> "head_office"
-    let roleKey = rawUser.role || "student";
-    if (roleKey === "Office Head") roleKey = "head_office";
-    if (roleKey === "Department Head") roleKey = "department";
-    if (roleKey === "Org Adviser") roleKey = "org";
-    if (roleKey === "System Admin") roleKey = "admin";
-    if (roleKey === "Student") roleKey = "student";
+    // Robust role normalization e.g. "Office Head" / "head_office" -> "head_office"
+    let roleVal = (rawUser.role || user.role || "student").toString().toLowerCase().trim();
+    let roleKey = "student";
+    if (roleVal.includes("office") || roleVal.includes("head_office")) roleKey = "head_office";
+    else if (roleVal.includes("department") || roleVal.includes("dept")) roleKey = "department";
+    else if (roleVal.includes("org") || roleVal.includes("adviser")) roleKey = "org";
+    else if (roleVal.includes("admin")) roleKey = "admin";
+    else if (roleVal.includes("student")) roleKey = "student";
     setEditUserRole(roleKey);
 
     setEditUserOfficeId(rawUser.officeId ? String(rawUser.officeId) : offices[0]?.id ? String(offices[0].id) : "");
