@@ -86,6 +86,9 @@ export default function UnifiedUserManagementPage() {
   const [editUserName, setEditUserName] = useState("");
   const [editUserEmail, setEditUserEmail] = useState("");
   const [editUserRole, setEditUserRole] = useState("student");
+  const [editUserOfficeId, setEditUserOfficeId] = useState<string>("");
+  const [editUserDepartmentId, setEditUserDepartmentId] = useState<string>("");
+  const [editUserOrgId, setEditUserOrgId] = useState<string>("");
   const [editUserDept, setEditUserDept] = useState("CCIS");
   const [editUserProgram, setEditUserProgram] = useState("BSIT");
   const [editUserStatus, setEditUserStatus] = useState("Active");
@@ -122,13 +125,27 @@ export default function UnifiedUserManagementPage() {
 
   // Handle Open Edit Modal
   const handleOpenEditUser = (user: any) => {
-    setEditingUser(user);
-    setEditUserName(user.displayName || user.name || "");
-    setEditUserEmail(user.email || "");
-    setEditUserRole(user.role || "student");
-    setEditUserDept(user.department?.name || user.student?.department || user.departmentName || "CCIS");
-    setEditUserProgram(user.student?.program || "BSIT");
-    setEditUserStatus(user.student?.status || "Active");
+    const rawUser = user.raw || user;
+    setEditingUser(rawUser);
+    setEditUserName(rawUser.displayName || rawUser.name || user.name || "");
+    setEditUserEmail(rawUser.email || user.email || "");
+
+    // Normalize role string e.g. "Office Head" -> "head_office"
+    let roleKey = rawUser.role || "student";
+    if (roleKey === "Office Head") roleKey = "head_office";
+    if (roleKey === "Department Head") roleKey = "department";
+    if (roleKey === "Org Adviser") roleKey = "org";
+    if (roleKey === "System Admin") roleKey = "admin";
+    if (roleKey === "Student") roleKey = "student";
+    setEditUserRole(roleKey);
+
+    setEditUserOfficeId(rawUser.officeId ? String(rawUser.officeId) : offices[0]?.id ? String(offices[0].id) : "");
+    setEditUserDepartmentId(rawUser.departmentId ? String(rawUser.departmentId) : departments[0]?.id ? String(departments[0].id) : "");
+    setEditUserOrgId(rawUser.orgId ? String(rawUser.orgId) : orgsList[0]?.id ? String(orgsList[0].id) : "");
+
+    setEditUserDept(rawUser.department?.name || rawUser.student?.department || rawUser.departmentName || "CCIS");
+    setEditUserProgram(rawUser.student?.program || "BSIT");
+    setEditUserStatus(rawUser.student?.status || "Active");
     setShowEditUserModal(true);
   };
 
@@ -142,6 +159,9 @@ export default function UnifiedUserManagementPage() {
         displayName: editUserName.trim(),
         email: editUserEmail.trim(),
         role: editUserRole,
+        officeId: editUserRole === "head_office" ? editUserOfficeId : undefined,
+        departmentId: editUserRole === "department" ? editUserDepartmentId : undefined,
+        orgId: editUserRole === "org" ? editUserOrgId : undefined,
         departmentName: editUserDept,
         program: editUserProgram,
         status: editUserStatus,
@@ -873,30 +893,96 @@ export default function UnifiedUserManagementPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1">Role</label>
+                  <label className="block font-bold text-gray-700 mb-1">Role *</label>
                   <select
                     value={editUserRole}
                     onChange={(e) => setEditUserRole(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold outline-none"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
                   >
-                    <option value="student">Student</option>
-                    <option value="department">Department Head</option>
-                    <option value="head_office">Office Head</option>
+                    <option value="head_office">Office Head (Registrar, Library, Guidance, etc.)</option>
+                    <option value="department">Department Head (CCIS, CABE, CHSE, etc.)</option>
+                    <option value="org">Organization / Club Adviser</option>
                     <option value="admin">System Admin</option>
+                    <option value="student">Student</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Department</label>
-                  <input
-                    type="text"
-                    value={editUserDept}
-                    onChange={(e) => setEditUserDept(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium outline-none"
-                  />
-                </div>
+                {/* Dynamic Entity Assignment Dropdowns based on Role */}
+                {editUserRole === "head_office" && (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Assigned Head Office *</label>
+                    <select
+                      value={editUserOfficeId}
+                      onChange={(e) => setEditUserOfficeId(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
+                    >
+                      {offices.map((office: any) => (
+                        <option key={office.id} value={office.id}>
+                          {office.name} ({office.head || "Office Head"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {editUserRole === "department" && (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Assigned Academic Department *</label>
+                    <select
+                      value={editUserDepartmentId}
+                      onChange={(e) => setEditUserDepartmentId(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
+                    >
+                      {departments.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name} ({dept.abbreviation})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {editUserRole === "org" && (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Assigned Organization / Club *</label>
+                    <select
+                      value={editUserOrgId}
+                      onChange={(e) => setEditUserOrgId(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
+                    >
+                      {orgsList.map((org) => (
+                        <option key={org.id} value={org.id}>
+                          {org.name} ({org.category || "Organization"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {editUserRole === "student" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">Department</label>
+                      <input
+                        type="text"
+                        value={editUserDept}
+                        onChange={(e) => setEditUserDept(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">Program</label>
+                      <input
+                        type="text"
+                        value={editUserProgram}
+                        onChange={(e) => setEditUserProgram(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 pt-2">
