@@ -268,7 +268,7 @@ export function StudentNotificationCenter({ studentId: propStudentId, align = "r
                       {/* Action / Navigation Link */}
                       <div className="mt-2 flex items-center gap-2">
                         <Link
-                          href={notif.linkUrl || "/student/clearance-status"}
+                          href={!notif.linkUrl || notif.linkUrl.includes("clearance-status") ? "/student/clearance" : notif.linkUrl}
                           onClick={() => setIsOpen(false)}
                           className="text-[11px] font-bold text-[#c41e2a] hover:underline inline-flex items-center gap-1"
                         >

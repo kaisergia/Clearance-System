@@ -34,7 +34,7 @@ export async function createNotification(params: CreateNotificationParams) {
         title,
         message,
         type,
-        linkUrl: linkUrl || `/student/clearance-status`,
+        linkUrl: linkUrl || `/student/clearance`,
       },
     });
 
@@ -79,7 +79,7 @@ export async function sendEvaluationResultAlert(
     title,
     message,
     type: "evaluation",
-    linkUrl: `/student/clearance-status`,
+    linkUrl: `/student/clearance`,
   });
 
   // 2. Simulate Email Dispatch
@@ -95,7 +95,7 @@ Dear ${student.name},
 
 ${message}
 
-View Clearance Status: https://clearance.cjc.edu.ph/student/clearance-status
+View Clearance Status: https://clearance.cjc.edu.ph/student/clearance
 
 Best regards,
 Cor Jesu College Clearance Office
@@ -122,7 +122,7 @@ export async function sendDeadlineWarningAlert(studentId: string, daysLeft: numb
     title,
     message,
     type: "deadline_warning",
-    linkUrl: `/student/clearance-status`,
+    linkUrl: `/student/clearance`,
   });
 
   return notif;
