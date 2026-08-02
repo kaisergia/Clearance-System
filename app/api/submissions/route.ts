@@ -6,6 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendEvaluationResultAlert } from "@/services/notificationService";
 
 export async function GET(req: NextRequest) {
   try {
@@ -142,6 +143,13 @@ export async function POST(req: NextRequest) {
           await prisma.clearanceRecord.create({ data: { studentId, orgId: entityId, status: "Cleared", dateCleared: todayStr } });
         }
       }
+    }
+
+    // Trigger alert if auto-approved
+    if (isAutoApprove) {
+      sendEvaluationResultAlert(studentId, requirementId, "Cleared", undefined, "Auto-Approve System Engine").catch(
+        (err) => console.error("[SubmissionAlertError]", err)
+      );
     }
 
     return NextResponse.json({

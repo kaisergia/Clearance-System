@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendEvaluationResultAlert } from "@/services/notificationService";
 
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
@@ -129,6 +130,14 @@ export async function POST(req: NextRequest) {
       where: { id: studentId },
       data: { status: overallCleared ? "Cleared" : "Pending" },
     });
+
+    // 6. Trigger In-App & Email Notification Alert
+    const targetReq = applicableReqs[taskIndex];
+    const taskName = targetReq ? targetReq.name : `Requirement Task #${taskIndex + 1}`;
+    const newStatus = completed ? "Cleared" : "Pending";
+    sendEvaluationResultAlert(studentId, taskName, newStatus, undefined, "Signatory Evaluator").catch((err) =>
+      console.error("[ManualTaskAlertError]", err)
+    );
 
     return NextResponse.json({ ok: true, record: updatedRecord, completedTasks: updated, allCleared });
   } catch (err) {

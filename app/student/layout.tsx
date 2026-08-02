@@ -7,6 +7,7 @@ import * as clearanceService from "@/services/clearanceService";
 import { signOut, useSession } from "next-auth/react";
 import { Menu, X, LogOut } from "lucide-react";
 import ProfileCompletionModal from "@/components/constituents/ProfileCompletionModal";
+import { StudentNotificationCenter } from "@/components/notifications/StudentNotificationCenter";
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -88,13 +89,16 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           </div>
         </div>
 
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-lg text-secondary hover:text-primary hover:bg-surface-container-high transition-colors"
-          aria-label="Toggle navigation menu"
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <StudentNotificationCenter studentId={student?.id} />
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 rounded-lg text-secondary hover:text-primary hover:bg-surface-container-high transition-colors"
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </header>
 
       {/* Mobile Slide-down / Drawer Menu Backdrop */}
@@ -188,6 +192,9 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             <p className="font-label-sm text-label-sm text-secondary uppercase tracking-wider">
               Student Access
             </p>
+          </div>
+          <div className="ml-auto">
+            <StudentNotificationCenter studentId={student?.id} />
           </div>
         </div>
 

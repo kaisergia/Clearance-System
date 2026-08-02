@@ -59,6 +59,7 @@ model Student {
   clearanceRecords ClearanceRecord[]
   orgMemberships   OrgMember[]
   submissions      RequirementSubmission[]
+  notifications    Notification[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -390,4 +391,23 @@ model FlowStepPrerequisite {
   prerequisiteStep   FlowStep @relation("PrerequisiteToStep", fields: [prerequisiteStepId], references: [id], onDelete: Cascade)
   
   @@id([stepId, prerequisiteStepId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notifications (In-App & Email Alert Log)
+// ─────────────────────────────────────────────────────────────────────────────
+model Notification {
+  id          String    @id @default(uuid())
+  studentId   String
+  title       String
+  message     String    @db.Text
+  type        String    @default("evaluation") // "evaluation" | "deadline_warning" | "announcement" | "general"
+  status      String    @default("unread")     // "unread" | "read"
+  readAt      DateTime?
+  linkUrl     String?
+  createdAt   DateTime  @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, status])
 }
