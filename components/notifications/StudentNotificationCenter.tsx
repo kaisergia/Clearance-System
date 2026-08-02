@@ -142,7 +142,7 @@ export function StudentNotificationCenter({ studentId: propStudentId, align = "r
 
       {/* Notification Center Dropdown Panel */}
       {isOpen && (
-        <div className={`absolute ${align === "left" ? "left-0" : "right-0"} mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200`}>
+        <div className={`fixed inset-x-3 top-16 sm:top-auto sm:inset-auto sm:absolute ${align === "left" ? "sm:left-0" : "sm:right-0"} sm:mt-2 w-auto sm:w-96 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-gray-200 z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200`}>
           {/* Header */}
           <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
