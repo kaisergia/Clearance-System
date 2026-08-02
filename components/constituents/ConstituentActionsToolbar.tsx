@@ -1,17 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, FileSpreadsheet, RefreshCw, Upload, Download, X, KeyRound, Sparkles, CheckCircle2 } from "lucide-react";
+import { UserPlus, FileSpreadsheet, RefreshCw, Upload, Download, X, KeyRound, Sparkles, CheckCircle2, Layers } from "lucide-react";
 import AddUserModal from "@/components/constituents/AddUserModal";
+import { BatchCsvImporterModal } from "@/components/clearance/BatchCsvImporterModal";
 
 interface ConstituentActionsToolbarProps {
   onDataRefresh: () => void;
   entityName?: string;
+  entityType?: "office" | "department" | "org";
+  entityId?: number | string;
 }
 
-export function ConstituentActionsToolbar({ onDataRefresh, entityName }: ConstituentActionsToolbarProps) {
+export function ConstituentActionsToolbar({ onDataRefresh, entityName, entityType = "office", entityId = 1 }: ConstituentActionsToolbarProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCsvBatchModal, setShowCsvBatchModal] = useState(false);
   const [resetConfirmUser, setResetConfirmUser] = useState<any | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -81,6 +85,15 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName }: Constit
       {/* Header Actions Buttons (Matching Admin Page) */}
       <div className="flex items-center gap-2 flex-wrap justify-end">
         <button
+          onClick={() => setShowCsvBatchModal(true)}
+          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+          title="Flag CSV deficiencies or auto-clear 500+ students at once"
+        >
+          <Layers className="w-4 h-4 text-amber-600" />
+          <span>CSV Deficiencies & Batch</span>
+        </button>
+
+        <button
           onClick={() => setShowImportModal(true)}
           className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
         >
@@ -106,6 +119,19 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName }: Constit
           <span>Add Student</span>
         </button>
       </div>
+
+      {/* CSV Deficiency Import Modal */}
+      <BatchCsvImporterModal
+        isOpen={showCsvBatchModal}
+        onClose={() => setShowCsvBatchModal(false)}
+        entityType={entityType}
+        entityId={entityId}
+        entityName={entityName}
+        onSuccess={() => {
+          showToast("Batch CSV clearance update completed successfully!");
+          onDataRefresh();
+        }}
+      />
 
       {/* Add Student Modal */}
       <AddUserModal

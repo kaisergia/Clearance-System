@@ -181,6 +181,7 @@ model OfficeRequirement {
   deadline           String?
   requiresUpload     Boolean         @default(false)
   type               RequirementType @default(MANUAL)
+  autoApprove        Boolean         @default(false)
   surveyQuestions    Json?           // JSON array of survey questions
   acknowledgmentText String?         @db.Text
 
@@ -205,6 +206,7 @@ model DepartmentRequirement {
   deadline           String?
   requiresUpload     Boolean         @default(false)
   type               RequirementType @default(MANUAL)
+  autoApprove        Boolean         @default(false)
   surveyQuestions    Json?
   acknowledgmentText String?         @db.Text
 
@@ -229,6 +231,7 @@ model OrgRequirement {
   deadline           String?
   requiresUpload     Boolean         @default(false)
   type               RequirementType @default(MANUAL)
+  autoApprove        Boolean         @default(false)
   surveyQuestions    Json?
   acknowledgmentText String?         @db.Text
 

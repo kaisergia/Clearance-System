@@ -6,6 +6,7 @@ import { Check, X, Search, Filter, ShieldCheck, CheckSquare, Square, Layers, Che
 import * as clearanceService from "@/services/clearanceService";
 import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
+import { BatchCsvImporterModal } from "@/components/clearance/BatchCsvImporterModal";
 import { DEPARTMENTS, ALL_PROGRAMS, YEAR_LEVELS, getDepartmentForProgram } from "@/lib/constants";
 
 export interface RequirementItem {
@@ -18,6 +19,7 @@ export interface RequirementItem {
   deadline?: string;
   requiresUpload?: boolean;
   type?: string;
+  autoApprove?: boolean;
   surveyQuestions?: any;
   acknowledgmentText?: string;
 }
@@ -48,6 +50,7 @@ export function RequirementBatchEvaluator({
   );
   const [students, setStudents] = useState<any[]>([]);
   const [clearanceRecords, setClearanceRecords] = useState<Record<string, any>>({});
+  const [showCsvBatchModal, setShowCsvBatchModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Search & Filters for Left window (requirements) & Right window (students)
@@ -466,6 +469,15 @@ export function RequirementBatchEvaluator({
 
                 {/* Batch Actions Toolbar */}
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowCsvBatchModal(true)}
+                    className="bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold py-2 px-3.5 rounded-lg shadow-2xs hover:bg-amber-100 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    title="Upload CSV spreadsheet to flag deficiencies or batch clear students"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-amber-600" />
+                    CSV Deficiencies & Batch
+                  </button>
+
                   {selectedStudentIds.length > 0 && (
                     <>
                       <button
@@ -723,6 +735,20 @@ export function RequirementBatchEvaluator({
         </div>,
         document.body
       )}
+
+      {/* CSV Deficiency Import Modal */}
+      <BatchCsvImporterModal
+        isOpen={showCsvBatchModal}
+        onClose={() => setShowCsvBatchModal(false)}
+        entityType={entityType}
+        entityId={entityId}
+        onSuccess={() => {
+          setToastMessage("Batch CSV updates applied successfully!");
+          setTimeout(() => setToastMessage(null), 3500);
+          loadData();
+          if (onRefresh) onRefresh();
+        }}
+      />
 
       {/* Security PIN Authorization Modal */}
       <PinConfirmationModal
