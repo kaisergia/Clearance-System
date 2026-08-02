@@ -51,9 +51,18 @@ export async function POST(req: NextRequest) {
     else if (entityType === "org") whereClause.orgId = Number(entityId);
     else return NextResponse.json({ error: "Invalid entityType" }, { status: 400 });
 
-    const record = await prisma.clearanceRecord.findFirst({ where: whereClause });
+    let record = await prisma.clearanceRecord.findFirst({ where: whereClause });
     if (!record) {
-      return NextResponse.json({ error: "Clearance record not found" }, { status: 404 });
+      record = await prisma.clearanceRecord.create({
+        data: {
+          studentId,
+          ...(entityType === "office" ? { officeId: Number(entityId) } : {}),
+          ...(entityType === "department" ? { departmentId: Number(entityId) } : {}),
+          ...(entityType === "org" ? { orgId: Number(entityId) } : {}),
+          status: "Pending",
+          completedTasks: [],
+        },
+      });
     }
 
     // 2. Update the completedTasks array
