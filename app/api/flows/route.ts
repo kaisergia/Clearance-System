@@ -88,6 +88,16 @@ export async function POST(req: NextRequest) {
 
       const flowId = flow.id;
 
+      // Clean up previous prerequisites first to prevent constraint violations
+      await tx.flowStepPrerequisite.deleteMany({
+        where: {
+          OR: [
+            { step: { flowId } },
+            { prerequisiteStep: { flowId } }
+          ]
+        }
+      });
+
       // Clean up previous steps if updating
       await tx.flowStep.deleteMany({
         where: { flowId },
@@ -222,6 +232,8 @@ async function syncStudentClearanceRecords(flowId: number, tx: any) {
 
   for (const student of students) {
     for (const step of flow.steps) {
+      if (step.isPrerequisiteOnly) continue; // Skip prerequisite-only steps from receiving records
+
       let recordsToCreate: { officeId?: number; departmentId?: number; orgId?: number }[] = [];
 
       if (step.officeId) {
@@ -231,11 +243,13 @@ async function syncStudentClearanceRecords(flowId: number, tx: any) {
       } else if (step.orgId) {
         recordsToCreate.push({ orgId: step.orgId });
       } else if (step.isDynamicDept) {
-        const dept = await tx.department.findUnique({
-          where: { abbreviation: student.department },
-        });
-        if (dept) {
-          recordsToCreate.push({ departmentId: dept.id });
+        if (student.department) {
+          const dept = await tx.department.findUnique({
+            where: { abbreviation: student.department },
+          });
+          if (dept) {
+            recordsToCreate.push({ departmentId: dept.id });
+          }
         }
       } else if (step.isDynamicOrgs) {
         const memberships = await tx.orgMember.findMany({
