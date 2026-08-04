@@ -288,11 +288,34 @@ export async function updateClearanceRecord(
   data: Partial<Omit<ClearanceItem, "id" | "type" | "status">> = {}
 ): Promise<void> {
   // Try DB first
-  const dbResult = await apiPost("/api/clearance-records", {
-    studentId, entityId, type, status, data,
-  });
+  let dbSuccess = false;
+  let validationError: string | null = null;
 
-  if (!dbResult) {
+  if (isBrowser) {
+    try {
+      const res = await fetch("/api/clearance-records", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, entityId, type, status, data }),
+      });
+      if (res.ok) {
+        dbSuccess = true;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 400 && errData.error) {
+          validationError = errData.error;
+        }
+      }
+    } catch (err) {
+      console.warn("DB update failed, will check fallback", err);
+    }
+  }
+
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  if (!dbSuccess) {
     // FALLBACK — localStorage
     initStorage();
     if (!isBrowser) return;

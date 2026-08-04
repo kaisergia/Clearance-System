@@ -6,6 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensureRequirementsForTerm } from "@/lib/requirementCloner";
 
 export async function GET(
   _req: NextRequest,
@@ -14,6 +15,21 @@ export async function GET(
   try {
     const resolvedParams = await params;
     const departmentId = Number(resolvedParams.departmentId);
+
+    // Find the active academic term
+    const activeTerm = await prisma.academicTerm.findFirst({
+      where: { status: "Active" },
+    });
+
+    if (activeTerm) {
+      await ensureRequirementsForTerm(activeTerm.id, [], [departmentId], []);
+      const reqs = await prisma.departmentRequirement.findMany({
+        where:   { departmentId, termId: activeTerm.id },
+        orderBy: { addedDate: "asc" },
+      });
+      return NextResponse.json(reqs);
+    }
+
     const reqs = await prisma.departmentRequirement.findMany({
       where: { departmentId },
       orderBy: { addedDate: "asc" },
@@ -70,6 +86,7 @@ export async function POST(
           data: requirements.map((r: any) => ({
             // No `id` — let MySQL auto-generate to avoid PK conflicts
             departmentId,
+            termId:         activeTerm.id,
             name:           r.name,
             description:    r.description || "",
             linkName:       r.linkName || null,

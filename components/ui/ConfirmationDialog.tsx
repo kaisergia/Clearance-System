@@ -9,7 +9,9 @@ interface ConfirmationDialogProps {
   confirmText?: string;
   cancelText?: string;
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel?: () => void;
+  isAlert?: boolean;
+  confirmButtonClass?: string;
 }
 
 export function ConfirmationDialog({
@@ -20,6 +22,8 @@ export function ConfirmationDialog({
   cancelText = "Cancel",
   onConfirm,
   onCancel,
+  isAlert = false,
+  confirmButtonClass = "bg-brand-red hover:bg-primary",
 }: ConfirmationDialogProps) {
   if (!isOpen) return null;
 
@@ -29,21 +33,23 @@ export function ConfirmationDialog({
         <h3 className="font-title-lg text-lg font-bold text-on-surface mb-2">
           {title}
         </h3>
-        <p className="font-body-md text-sm text-secondary mb-6 leading-relaxed">
+        <p className="font-body-md text-sm text-secondary mb-6 leading-relaxed whitespace-pre-line">
           {message}
         </p>
         <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2.5 border border-outline-variant text-secondary rounded-lg font-label-md text-sm hover:bg-surface-container-low transition-colors cursor-pointer"
-          >
-            {cancelText}
-          </button>
+          {!isAlert && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2.5 border border-outline-variant text-secondary rounded-lg font-label-md text-sm hover:bg-surface-container-low transition-colors cursor-pointer"
+            >
+              {cancelText}
+            </button>
+          )}
           <button
             type="button"
             onClick={onConfirm}
-            className="px-4 py-2.5 bg-brand-red text-white rounded-lg font-label-md text-sm shadow-sm hover:bg-primary transition-colors cursor-pointer active:scale-95"
+            className={`px-4 py-2.5 text-white rounded-lg font-label-md text-sm shadow-sm transition-colors cursor-pointer active:scale-95 ${confirmButtonClass}`}
           >
             {confirmText}
           </button>

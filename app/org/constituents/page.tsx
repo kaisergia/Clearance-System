@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
@@ -16,6 +17,15 @@ export default function OrgConstituentsPage() {
   const availableTerms = getAvailableTerms();
 
   const [mounted, setMounted] = useState(false);
+  // Warning Modal state
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [warningConfig, setWarningConfig] = useState<{ title: string; message: string } | null>(null);
+
+  const showWarning = (title: string, message: string) => {
+    setWarningConfig({ title, message });
+    setWarningOpen(true);
+  };
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -129,6 +139,13 @@ export default function OrgConstituentsPage() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingPinAction, setPendingPinAction] = useState<(() => void) | null>(null);
 
+  const [confirmToggleConfig, setConfirmToggleConfig] = useState<{
+    studentId: string;
+    studentName: string;
+    willClear: boolean;
+  } | null>(null);
+  const [showToggleConfirmModal, setShowToggleConfirmModal] = useState(false);
+
   // Toggle status handler
   const executeToggleStatus = async (id: string) => {
     const orgId = localStorage.getItem("orgId");
@@ -137,7 +154,8 @@ export default function OrgConstituentsPage() {
     const student = constituents.find(s => s.id === id);
     if (!student) return;
 
-    const newStatus = student.status === "Cleared" ? "Pending" : "Cleared";
+    const currentStatus = student.status;
+    const newStatus = currentStatus === "Cleared" ? "Pending" : "Cleared";
     
     // Optimistic UI update
     setConstituents((prev) =>
@@ -149,16 +167,33 @@ export default function OrgConstituentsPage() {
       })
     );
 
-    await clearanceService.updateClearanceRecord(id, Number(orgId), "org", newStatus);
+    try {
+      await clearanceService.updateClearanceRecord(id, Number(orgId), "org", newStatus);
+    } catch (err: any) {
+      console.warn(err);
+      // Revert optimistic UI update
+      setConstituents((prev) =>
+        prev.map((s) => {
+          if (s.id === id) {
+            return { ...s, status: currentStatus };
+          }
+          return s;
+        })
+      );
+      showWarning("Clearance Warning", err.message || "Failed to update clearance status.");
+    }
   };
 
   const handleToggleStatus = (id: string) => {
     const student = constituents.find(s => s.id === id);
-    if (student && student.status !== "Cleared") {
-      setPendingPinAction(() => () => executeToggleStatus(id));
-      setShowPinModal(true);
-    } else {
-      executeToggleStatus(id);
+    if (student) {
+      const willClear = student.status !== "Cleared";
+      setConfirmToggleConfig({
+        studentId: id,
+        studentName: student.name,
+        willClear,
+      });
+      setShowToggleConfirmModal(true);
     }
   };
 
@@ -214,6 +249,17 @@ export default function OrgConstituentsPage() {
       const orgId = localStorage.getItem("orgId");
       if (!orgId) return;
 
+      const failedList: { studentId: string; reason: string }[] = [];
+      const previousStatuses = new Map<string, string>();
+      
+      // Store original statuses for reversion
+      selectedIds.forEach((id) => {
+        const student = constituents.find((s) => s.id === id);
+        if (student) {
+          previousStatuses.set(id, student.status);
+        }
+      });
+
       setConstituents((prev) =>
         prev.map((student) => {
           if (selectedIds.includes(student.id)) {
@@ -224,10 +270,37 @@ export default function OrgConstituentsPage() {
       );
 
       for (const id of selectedIds) {
-        await clearanceService.updateClearanceRecord(id, Number(orgId), "org", pendingBulkStatus);
+        try {
+          await clearanceService.updateClearanceRecord(id, Number(orgId), "org", pendingBulkStatus);
+        } catch (err: any) {
+          console.warn(err);
+          failedList.push({ studentId: id, reason: err.message || "Failed to update record." });
+          // Revert this specific student's status in the list
+          setConstituents((prev) =>
+            prev.map((student) => {
+              if (student.id === id) {
+                return { ...student, status: previousStatuses.get(id) || "Pending" };
+              }
+              return student;
+            })
+          );
+        }
       }
 
       setSelectedIds([]);
+      
+      if (failedList.length > 0) {
+        const successCount = selectedIds.length - failedList.length;
+        let errMsg = `Batch status change completed.`;
+        if (successCount > 0) {
+          errMsg += `\n- Cleared: ${successCount} student(s)`;
+        }
+        errMsg += `\n\nFailed to clear the following student(s):`;
+        failedList.forEach((f) => {
+          errMsg += `\n• Student ${f.studentId}: ${f.reason}`;
+        });
+        showWarning("Batch Clearance Warning", errMsg);
+      }
     }
     setShowConfirmModal(false);
     setPendingBulkStatus(null);
@@ -352,12 +425,26 @@ export default function OrgConstituentsPage() {
               <span className="material-symbols-outlined text-3xl">warning</span>
               <h3 className="font-title-lg text-title-lg text-on-surface font-bold">Confirm Bulk Action</h3>
             </div>
-            <p className="font-body-md text-body-md text-secondary mb-6">
+             <p className="font-body-md text-body-md text-secondary mb-4">
               Are you sure you want to mark the <strong>{selectedIds.length}</strong> selected students as{" "}
               <strong className={pendingBulkStatus === "Cleared" ? "text-green-600" : "text-coral-red"}>
                 {pendingBulkStatus}
               </strong>?
             </p>
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-xs space-y-1 mb-6">
+              <p className="font-bold flex items-center gap-1 text-[13px] text-amber-900">
+                <span className="material-symbols-outlined text-sm font-bold">warning</span>
+                Warning / Reminder:
+              </p>
+              {pendingBulkStatus === "Cleared" ? (
+                <>
+                  <p>You are about to clear these students in bulk without verifying their individual signatory requirements one-by-one.</p>
+                  <p className="mt-1 font-semibold">Students who have not cleared the prerequisite signatories in the clearance flow will have their clearance blocked.</p>
+                </>
+              ) : (
+                <p>This will revert the selected students' clearance status back to Pending.</p>
+              )}
+            </div>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => {
@@ -434,6 +521,52 @@ export default function OrgConstituentsPage() {
         }}
         officeIdOrKey={org?.id || "default"}
       />
+
+      {/* Direct Toggle Confirmation Modal */}
+      {confirmToggleConfig && (
+        <ConfirmationDialog
+          isOpen={showToggleConfirmModal}
+          title={confirmToggleConfig.willClear ? "Confirm Direct Clearance" : "Confirm Revert to Pending"}
+          message={
+            confirmToggleConfig.willClear
+              ? `Warning: You are clearing '${confirmToggleConfig.studentName}' directly without checking their individual requirements one-by-one.\n\nPrerequisite steps in the clearance flow must still be cleared, otherwise this action will fail.\n\nDo you want to proceed?`
+              : `Warning: You are reverting '${confirmToggleConfig.studentName}' back to Pending.\n\nDo you want to proceed?`
+          }
+          confirmText="Yes, Proceed"
+          cancelText="Cancel"
+          confirmButtonClass={confirmToggleConfig.willClear ? "bg-emerald-600 hover:bg-emerald-700" : "bg-brand-red hover:bg-primary"}
+          onCancel={() => {
+            setShowToggleConfirmModal(false);
+            setConfirmToggleConfig(null);
+          }}
+          onConfirm={() => {
+            setShowToggleConfirmModal(false);
+            const targetId = confirmToggleConfig.studentId;
+            const willClear = confirmToggleConfig.willClear;
+            setConfirmToggleConfig(null);
+            
+            if (willClear) {
+              setPendingPinAction(() => () => executeToggleStatus(targetId));
+              setShowPinModal(true);
+            } else {
+              executeToggleStatus(targetId);
+            }
+          }}
+        />
+      )}
+
+      {/* Warning Dialog Modal */}
+      {warningConfig && (
+        <ConfirmationDialog
+          isOpen={warningOpen}
+          title={warningConfig.title}
+          message={warningConfig.message}
+          confirmText="OK"
+          isAlert={true}
+          confirmButtonClass="bg-emerald-600 hover:bg-emerald-700"
+          onConfirm={() => setWarningOpen(false)}
+        />
+      )}
     </div>
   );
 }
