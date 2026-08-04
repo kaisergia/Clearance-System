@@ -661,9 +661,6 @@ export default function UnifiedUserManagementPage() {
                           {/* ACTIONS */}
                           <td className="px-6 py-3.5 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <Link href={`/admin/offices/${office.id}`} className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-900 transition-colors" title="Manage Office">
-                                <Eye className="w-4 h-4" />
-                              </Link>
                               <button onClick={() => deleteOffice(office.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600 transition-colors">
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -723,12 +720,6 @@ export default function UnifiedUserManagementPage() {
                       <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded-full self-start sm:self-auto">
                         {deptOrgs.length} Affiliated Organizations
                       </span>
-                      <Link
-                        href={`/admin/user-management?tab=departments&deptId=${dept.id}`}
-                        className="px-3 py-1.5 bg-[#b51b15] hover:bg-[#961410] text-white font-bold text-xs rounded-lg transition-colors shadow-2xs"
-                      >
-                        Manage Department
-                      </Link>
                     </div>
                   </div>
 
@@ -764,12 +755,6 @@ export default function UnifiedUserManagementPage() {
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                 Active
                               </span>
-                              <Link
-                                href={`/admin/organizations/student-government?orgId=${org.id}`}
-                                className="text-[#b51b15] font-bold hover:underline"
-                              >
-                                Manage Org
-                              </Link>
                             </div>
                           </div>
                         ))}
@@ -825,12 +810,6 @@ export default function UnifiedUserManagementPage() {
 
                 <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
                   <span className="text-gray-500">Adviser: <strong className="text-gray-800">{org.adviser || "N/A"}</strong></span>
-                  <Link
-                    href={`/admin/organizations/student-government?orgId=${org.id}`}
-                    className="text-[#b51b15] font-bold hover:underline"
-                  >
-                    Manage Org
-                  </Link>
                 </div>
               </div>
             ))}

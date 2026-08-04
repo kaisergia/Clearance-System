@@ -99,11 +99,6 @@ export default function DepartmentsPage() {
                   </td>
                   <td className="px-lg py-4 text-right">
                     <div className="flex justify-end gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link href={`/admin/departments/${dept.id}`}>
-                        <button className="p-2 hover:bg-surface-variant rounded transition-colors text-secondary hover:text-primary">
-                          <span className="material-symbols-outlined text-sm">visibility</span>
-                        </button>
-                      </Link>
                       <button className="p-2 hover:bg-surface-variant rounded transition-colors text-secondary hover:text-primary">
                         <span className="material-symbols-outlined text-sm">edit</span>
                       </button>
