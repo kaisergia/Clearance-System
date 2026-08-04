@@ -66,9 +66,9 @@ function ClearanceItemRow({
   isSysAdminView,
   studentId,
   onStatusChange,
-  tasks = [],
+  tasks: rawTasks,
   onRequestPin,
-  requirements = [],
+  requirements: rawRequirements,
 }: {
   item: ClearanceItem;
   isLast: boolean;
@@ -79,6 +79,9 @@ function ClearanceItemRow({
   onRequestPin?: (action: () => void) => void;
   requirements?: ClearanceItem[];
 }) {
+  const tasks = rawTasks || [];
+  const requirements = rawRequirements || [];
+
   const [expanded, setExpanded] = useState(false);
   const styles = itemStatusStyles[item.status] || itemStatusStyles.Pending;
 
