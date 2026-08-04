@@ -6,7 +6,6 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendEvaluationResultAlert } from "@/services/notificationService";
 
 export async function GET(req: NextRequest) {
   try {
@@ -121,26 +120,31 @@ export async function POST(req: NextRequest) {
 
     // If auto-approved, automatically mark the student's ClearanceRecord as Cleared
     if (isAutoApprove && entityType && entityId) {
+      const activeTerm = await prisma.academicTerm.findFirst({
+        where: { status: "Active" },
+      });
+      const termId = activeTerm?.id || null;
+
       if (entityType === "office") {
-        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, officeId: entityId } });
+        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, officeId: entityId, termId } });
         if (existing) {
           await prisma.clearanceRecord.update({ where: { id: existing.id }, data: { status: "Cleared", dateCleared: todayStr } });
         } else {
-          await prisma.clearanceRecord.create({ data: { studentId, officeId: entityId, status: "Cleared", dateCleared: todayStr } });
+          await prisma.clearanceRecord.create({ data: { studentId, officeId: entityId, termId, status: "Cleared", dateCleared: todayStr } });
         }
       } else if (entityType === "department") {
-        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, departmentId: entityId } });
+        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, departmentId: entityId, termId } });
         if (existing) {
           await prisma.clearanceRecord.update({ where: { id: existing.id }, data: { status: "Cleared", dateCleared: todayStr } });
         } else {
-          await prisma.clearanceRecord.create({ data: { studentId, departmentId: entityId, status: "Cleared", dateCleared: todayStr } });
+          await prisma.clearanceRecord.create({ data: { studentId, departmentId: entityId, termId, status: "Cleared", dateCleared: todayStr } });
         }
       } else if (entityType === "org") {
-        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, orgId: entityId } });
+        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, orgId: entityId, termId } });
         if (existing) {
           await prisma.clearanceRecord.update({ where: { id: existing.id }, data: { status: "Cleared", dateCleared: todayStr } });
         } else {
-          await prisma.clearanceRecord.create({ data: { studentId, orgId: entityId, status: "Cleared", dateCleared: todayStr } });
+          await prisma.clearanceRecord.create({ data: { studentId, orgId: entityId, termId, status: "Cleared", dateCleared: todayStr } });
         }
       }
     }

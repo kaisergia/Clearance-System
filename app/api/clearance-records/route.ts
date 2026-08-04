@@ -6,6 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkPrerequisites } from "@/lib/clearancePrereqs";
 
 export async function GET(req: NextRequest) {
   try {
@@ -70,127 +71,12 @@ export async function POST(req: NextRequest) {
 
     // Validate prerequisites if status is being updated to "Cleared"
     if (status === "Cleared" && termId) {
-      const student = await prisma.student.findUnique({ where: { id: studentId } });
-      if (student) {
-        const flows = await prisma.clearanceFlow.findMany({
-          where: { termId, status: "Published" },
-          include: {
-            steps: {
-              include: {
-                prerequisites: {
-                  include: {
-                    prerequisiteStep: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        // Find matching flow based on target criteria
-        let matchedFlow = null;
-        for (const flow of flows) {
-          let criteria: any = {};
-          try {
-            if (typeof flow.targetCriteria === "string") {
-              criteria = JSON.parse(flow.targetCriteria);
-            } else if (flow.targetCriteria && typeof flow.targetCriteria === "object") {
-              criteria = flow.targetCriteria;
-            }
-          } catch {}
-
-          const matchYear = !criteria.years || criteria.years.length === 0 || criteria.years.includes(student.year);
-          const matchDept = !criteria.departments || criteria.departments.length === 0 || criteria.departments.includes(student.department);
-
-          if (matchYear && matchDept) {
-            matchedFlow = flow;
-            break;
-          }
-        }
-
-        if (matchedFlow) {
-          // Find the step for this signatory
-          const step = matchedFlow.steps.find((s) => {
-            if (type === "office" && s.officeId === entityId) return true;
-            if (type === "department" && (s.departmentId === entityId || s.isDynamicDept)) return true;
-            if (type === "org" && (s.orgId === entityId || s.isDynamicOrgs)) return true;
-            return false;
-          });
-
-          if (step && step.prerequisites.length > 0) {
-            for (const p of step.prerequisites) {
-              const prereq = p.prerequisiteStep;
-              let isPrereqCleared = false;
-
-              if (prereq.officeId) {
-                const r = await prisma.clearanceRecord.findFirst({
-                  where: { studentId, termId, officeId: prereq.officeId },
-                });
-                if (r && r.status === "Cleared") isPrereqCleared = true;
-              } else if (prereq.departmentId) {
-                const r = await prisma.clearanceRecord.findFirst({
-                  where: { studentId, termId, departmentId: prereq.departmentId },
-                });
-                if (r && r.status === "Cleared") isPrereqCleared = true;
-              } else if (prereq.orgId) {
-                const r = await prisma.clearanceRecord.findFirst({
-                  where: { studentId, termId, orgId: prereq.orgId },
-                });
-                if (r && r.status === "Cleared") isPrereqCleared = true;
-              } else if (prereq.isDynamicDept) {
-                const dept = await prisma.department.findUnique({
-                  where: { abbreviation: student.department },
-                });
-                if (dept) {
-                  const r = await prisma.clearanceRecord.findFirst({
-                    where: { studentId, termId, departmentId: dept.id },
-                  });
-                  if (r && r.status === "Cleared") isPrereqCleared = true;
-                } else {
-                  isPrereqCleared = true;
-                }
-              } else if (prereq.isDynamicOrgs) {
-                const memberships = await prisma.orgMember.findMany({
-                  where: { studentId },
-                });
-                let allOrgsCleared = true;
-                for (const m of memberships) {
-                  const r = await prisma.clearanceRecord.findFirst({
-                    where: { studentId, termId, orgId: m.orgId },
-                  });
-                  if (!r || r.status !== "Cleared") {
-                    allOrgsCleared = false;
-                    break;
-                  }
-                }
-                if (allOrgsCleared) isPrereqCleared = true;
-              }
-
-              if (!isPrereqCleared) {
-                let prereqName = "Prerequisite Signatories";
-                if (prereq.officeId) {
-                  const off = await prisma.office.findUnique({ where: { id: prereq.officeId } });
-                  if (off) prereqName = off.name;
-                } else if (prereq.departmentId) {
-                  const d = await prisma.department.findUnique({ where: { id: prereq.departmentId } });
-                  if (d) prereqName = d.name;
-                } else if (prereq.orgId) {
-                  const o = await prisma.org.findUnique({ where: { id: prereq.orgId } });
-                  if (o) prereqName = o.name;
-                } else if (prereq.isDynamicDept) {
-                  prereqName = "Academic Department";
-                } else if (prereq.isDynamicOrgs) {
-                  prereqName = "Student Organizations";
-                }
-
-                return NextResponse.json(
-                  { error: `Cannot approve. Prerequisite '${prereqName}' must clear the student first.` },
-                  { status: 400 }
-                );
-              }
-            }
-          }
-        }
+      const prereqCheck = await checkPrerequisites(studentId, termId, type, Number(entityId));
+      if (!prereqCheck.allowed) {
+        return NextResponse.json(
+          { error: prereqCheck.error },
+          { status: 400 }
+        );
       }
     }
 

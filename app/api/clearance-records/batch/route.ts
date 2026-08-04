@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logBatchClearanceAction } from "@/services/auditService";
+import { checkPrerequisites } from "@/lib/clearancePrereqs";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,39 +46,57 @@ export async function POST(req: NextRequest) {
 
     const todayStr = new Date().toISOString().split("T")[0];
 
+    // Find active term
+    const activeTerm = await prisma.academicTerm.findFirst({
+      where: { status: "Active" },
+    });
+    const termId = activeTerm?.id || null;
+
     // Filter payload to valid students only
     const validRecords = records.filter((r: any) => existingStudentIdSet.has(String(r.studentId).trim()));
 
     // Prepare Prisma operations based on entityType
     let updatedCount = 0;
+    const prereqSkipped: string[] = [];
 
     await prisma.$transaction(async (tx) => {
       for (const item of validRecords) {
         const sid = String(item.studentId).trim();
-        const status = item.status === "Cleared" ? "Cleared" : "Pending";
-        const remarks = item.remarks ? String(item.remarks).trim() : null;
+        let status = item.status === "Cleared" ? "Cleared" : "Pending";
+        let remarks = item.remarks ? String(item.remarks).trim() : null;
+
+        if (status === "Cleared" && termId) {
+          const prereqCheck = await checkPrerequisites(sid, termId, entityType as any, numEntityId);
+          if (!prereqCheck.allowed) {
+            status = "Pending";
+            const warningMsg = `[Prerequisite Warning] ${prereqCheck.error}`;
+            remarks = remarks ? `${remarks} (${warningMsg})` : warningMsg;
+            prereqSkipped.push(sid);
+          }
+        }
+
         const dateCleared = status === "Cleared" ? todayStr : null;
 
         if (entityType === "office") {
-          const existing = await tx.clearanceRecord.findFirst({ where: { studentId: sid, officeId: numEntityId } });
+          const existing = await tx.clearanceRecord.findFirst({ where: { studentId: sid, officeId: numEntityId, termId } });
           if (existing) {
             await tx.clearanceRecord.update({ where: { id: existing.id }, data: { status, remarks, dateCleared } });
           } else {
-            await tx.clearanceRecord.create({ data: { studentId: sid, officeId: numEntityId, status, remarks, dateCleared } });
+            await tx.clearanceRecord.create({ data: { studentId: sid, officeId: numEntityId, termId, status, remarks, dateCleared } });
           }
         } else if (entityType === "department") {
-          const existing = await tx.clearanceRecord.findFirst({ where: { studentId: sid, departmentId: numEntityId } });
+          const existing = await tx.clearanceRecord.findFirst({ where: { studentId: sid, departmentId: numEntityId, termId } });
           if (existing) {
             await tx.clearanceRecord.update({ where: { id: existing.id }, data: { status, remarks, dateCleared } });
           } else {
-            await tx.clearanceRecord.create({ data: { studentId: sid, departmentId: numEntityId, status, remarks, dateCleared } });
+            await tx.clearanceRecord.create({ data: { studentId: sid, departmentId: numEntityId, termId, status, remarks, dateCleared } });
           }
         } else if (entityType === "org") {
-          const existing = await tx.clearanceRecord.findFirst({ where: { studentId: sid, orgId: numEntityId } });
+          const existing = await tx.clearanceRecord.findFirst({ where: { studentId: sid, orgId: numEntityId, termId } });
           if (existing) {
             await tx.clearanceRecord.update({ where: { id: existing.id }, data: { status, remarks, dateCleared } });
           } else {
-            await tx.clearanceRecord.create({ data: { studentId: sid, orgId: numEntityId, status, remarks, dateCleared } });
+            await tx.clearanceRecord.create({ data: { studentId: sid, orgId: numEntityId, termId, status, remarks, dateCleared } });
           }
         }
         updatedCount++;
@@ -99,8 +118,12 @@ export async function POST(req: NextRequest) {
       success: true,
       totalRequested: records.length,
       updatedCount,
+      prereqSkippedCount: prereqSkipped.length,
+      prereqSkipped,
       missingStudents,
-      message: `Successfully processed batch updates for ${updatedCount} constituents.`
+      message: prereqSkipped.length > 0
+        ? `Processed updates. Note: ${prereqSkipped.length} student(s) could not be cleared due to unmet prerequisites (kept as Pending with warning remarks).`
+        : `Successfully processed batch updates for ${updatedCount} constituents.`
     });
   } catch (err: any) {
     console.error("Batch clearance update failed:", err);

@@ -8,6 +8,7 @@ import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModa
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 import { BatchCsvImporterModal } from "@/components/clearance/BatchCsvImporterModal";
 import { DEPARTMENTS, ALL_PROGRAMS, YEAR_LEVELS, getDepartmentForProgram } from "@/lib/constants";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
 export interface RequirementItem {
   id: string;
@@ -65,6 +66,15 @@ export function RequirementBatchEvaluator({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<any | null>(null);
   const [mounted, setMounted] = useState(false);
+
+  // Warning Modal state
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [warningConfig, setWarningConfig] = useState<{ title: string; message: string } | null>(null);
+
+  const showWarning = (title: string, message: string) => {
+    setWarningConfig({ title, message });
+    setWarningOpen(true);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -227,15 +237,18 @@ export function RequirementBatchEvaluator({
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to update status");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to update status");
+      }
       await loadData();
       if (onRefresh) onRefresh();
 
       setToastMessage(willClear ? `Cleared requirement for Student ${studentId}` : `Reverted Student ${studentId} to Pending`);
       setTimeout(() => setToastMessage(null), 3000);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to update requirement status.");
+    } catch (err: any) {
+      console.warn(err);
+      showWarning("Clearance Warning", err.message || "Failed to update requirement status.");
     }
   };
 
@@ -254,8 +267,9 @@ export function RequirementBatchEvaluator({
     if (reqIndex === -1 || idsToClear.length === 0) return;
 
     try {
+      const failedList: { studentId: string; reason: string }[] = [];
       for (const stId of idsToClear) {
-        await fetch("/api/clearance-records/manual-task", {
+        const res = await fetch("/api/clearance-records/manual-task", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -266,17 +280,38 @@ export function RequirementBatchEvaluator({
             completed: true,
           }),
         });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          failedList.push({
+            studentId: stId,
+            reason: errData.error || "Failed to update status"
+          });
+        }
       }
 
       setSelectedStudentIds([]);
       await loadData();
       if (onRefresh) onRefresh();
 
-      setToastMessage(`Successfully batch cleared ${idsToClear.length} students for "${activeRequirement?.name}"!`);
-      setTimeout(() => setToastMessage(null), 3500);
+      if (failedList.length > 0) {
+        const successCount = idsToClear.length - failedList.length;
+        let errMsg = `Batch evaluation completed.`;
+        if (successCount > 0) {
+          errMsg += `\n- Cleared: ${successCount} student(s)`;
+        }
+        errMsg += `\n\nFailed to clear the following student(s):`;
+        failedList.forEach((f) => {
+          errMsg += `\n• Student ${f.studentId}: ${f.reason}`;
+        });
+        showWarning("Batch Clearance Warning", errMsg);
+      } else {
+        setToastMessage(`Successfully batch cleared ${idsToClear.length} students for "${activeRequirement?.name}"!`);
+        setTimeout(() => setToastMessage(null), 3500);
+      }
     } catch (err) {
-      console.error(err);
-      alert("Batch clearing failed. Please try again.");
+      console.warn(err);
+      showWarning("Batch Clearance Error", "Batch clearing failed. Please try again.");
     }
   };
 
@@ -763,6 +798,19 @@ export function RequirementBatchEvaluator({
         }}
         officeIdOrKey={entityId || "default"}
       />
+
+      {/* Warning Dialog Modal */}
+      {warningConfig && (
+        <ConfirmationDialog
+          isOpen={warningOpen}
+          title={warningConfig.title}
+          message={warningConfig.message}
+          confirmText="OK"
+          isAlert={true}
+          confirmButtonClass="bg-emerald-600 hover:bg-emerald-700"
+          onConfirm={() => setWarningOpen(false)}
+        />
+      )}
     </div>
   );
 }

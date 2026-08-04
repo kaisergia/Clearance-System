@@ -6,6 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkPrerequisites } from "@/lib/clearancePrereqs";
 
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
@@ -80,10 +81,16 @@ export async function POST(
     }
 
     if (officeId || departmentId || orgId) {
-      // Find the corresponding ClearanceRecord
+      const activeTerm = await prisma.academicTerm.findFirst({
+        where: { status: "Active" },
+      });
+      const termId = activeTerm?.id || null;
+
+      // Find the corresponding ClearanceRecord for the active term
       const clearanceRecord = await prisma.clearanceRecord.findFirst({
         where: {
           studentId,
+          termId,
           ...(officeId && { officeId }),
           ...(departmentId && { departmentId }),
           ...(orgId && { orgId }),
@@ -117,14 +124,14 @@ export async function POST(
               );
             };
 
-            // Get all requirements for this specific entity
+            // Get all requirements for this specific entity for the active term
             let allEntityReqs: any[] = [];
             if (officeId) {
-              allEntityReqs = await prisma.officeRequirement.findMany({ where: { officeId, status: "Live" } });
+              allEntityReqs = await prisma.officeRequirement.findMany({ where: { officeId, status: "Live", termId: termId || undefined } });
             } else if (departmentId) {
-              allEntityReqs = await prisma.departmentRequirement.findMany({ where: { departmentId, status: "Live" } });
+              allEntityReqs = await prisma.departmentRequirement.findMany({ where: { departmentId, status: "Live", termId: termId || undefined } });
             } else if (orgId) {
-              allEntityReqs = await prisma.orgRequirement.findMany({ where: { orgId, status: "Live" } });
+              allEntityReqs = await prisma.orgRequirement.findMany({ where: { orgId, status: "Live", termId: termId || undefined } });
             }
 
             // Filter down to only those applicable to this student
@@ -164,6 +171,25 @@ export async function POST(
             }
 
             // Update ClearanceRecord status based on allCleared check
+            if (allCleared && termId) {
+              const entityType = officeId ? "office" : departmentId ? "department" : "org";
+              const entityVal = officeId || departmentId || orgId;
+              if (entityVal) {
+                const prereqCheck = await checkPrerequisites(studentId, termId, entityType, entityVal);
+                if (!prereqCheck.allowed) {
+                  // Revert submission status back to pending
+                  await prisma.requirementSubmission.update({
+                    where: { id: submissionId },
+                    data: { status: "pending" },
+                  });
+                  return NextResponse.json(
+                    { error: prereqCheck.error },
+                    { status: 400 }
+                  );
+                }
+              }
+            }
+
             await prisma.clearanceRecord.update({
               where: { id: clearanceRecord.id },
               data: {
@@ -175,8 +201,8 @@ export async function POST(
               },
             });
 
-            // Trigger sync of overall student status
-            const allRecords = await prisma.clearanceRecord.findMany({ where: { studentId } });
+            // Trigger sync of overall student status for the active term
+            const allRecords = await prisma.clearanceRecord.findMany({ where: { studentId, termId } });
             const overallCleared = allRecords.length > 0 && allRecords.every(r => r.status === "Cleared");
             await prisma.student.update({
               where: { id: studentId },
