@@ -77,7 +77,9 @@ function SubClearance({ sub, isLast }: { sub: { id: string; name: string; status
 function ClearanceStepRow({ step, isLast }: { step: any; isLast: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const styles = statusStyles[step.status as keyof typeof statusStyles] || statusStyles.pending;
-  const hasSubs = step.subClearances && step.subClearances.length > 0;
+  const hasPrereqs = step.prereqClearances && step.prereqClearances.length > 0;
+  const hasTasks = step.taskClearances && step.taskClearances.length > 0;
+  const hasSubs = hasPrereqs || hasTasks;
 
   return (
     <div className="flex gap-3">
@@ -118,24 +120,62 @@ function ClearanceStepRow({ step, isLast }: { step: any; isLast: boolean }) {
           )}
 
           {hasSubs && !expanded && (
-            <p className="text-[12px] text-secondary mt-0.5 font-medium">
-              {step.subClearances.filter((s: any) => s.status === "cleared").length}/
-              {step.subClearances.length} prerequisites met
-            </p>
+            <div className="text-[12px] text-secondary mt-0.5 font-medium flex flex-wrap gap-x-3 gap-y-1">
+              {hasPrereqs && (
+                <span>
+                  {step.prereqClearances.filter((s: any) => s.status === "cleared").length}/
+                  {step.prereqClearances.length} prerequisites met
+                </span>
+              )}
+              {hasTasks && (
+                <span>
+                  {step.taskClearances.filter((s: any) => s.status === "cleared").length}/
+                  {step.taskClearances.length} tasks completed
+                </span>
+              )}
+            </div>
           )}
 
           {hasSubs && expanded && (
-            <div className="mt-3 pt-1">
-              {step.subClearances.map((sub: any, i: number) => (
-                <SubClearance
-                  key={sub.id}
-                  sub={sub}
-                  isLast={i === step.subClearances.length - 1}
-                />
-              ))}
+            <div className="mt-3 pt-1 space-y-4">
+              {hasPrereqs && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-extrabold text-secondary uppercase tracking-wider block">
+                    Prerequisite Signatories
+                  </span>
+                  <div className="space-y-1.5 pl-1.5">
+                    {step.prereqClearances.map((sub: any, i: number) => (
+                      <SubClearance
+                        key={sub.id}
+                        sub={sub}
+                        isLast={i === step.prereqClearances.length - 1}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hasTasks && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-extrabold text-secondary uppercase tracking-wider block">
+                    Office Requirements Checklist
+                  </span>
+                  <div className="space-y-1.5 pl-1.5">
+                    {step.taskClearances.map((sub: any, i: number) => (
+                      <SubClearance
+                        key={sub.id}
+                        sub={sub}
+                        isLast={i === step.taskClearances.length - 1}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {step.status !== "cleared" &&
-                step.subClearances.every((s: any) => s.status === "cleared") && (
-                  <p className="text-[12px] text-secondary mt-1 pl-[26px]">
+                hasPrereqs &&
+                step.prereqClearances.every((s: any) => s.status === "cleared") && (
+                  <p className="text-[12px] text-secondary mt-1 pl-[26px] italic">
                     All prerequisites cleared — this office still needs to confirm your clearance.
                   </p>
                 )}
@@ -214,7 +254,8 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
 
     // Map signatory tasks to subClearances (prerequisites) in the status tree
     const taskSubs = (req.tasks || []).map((task: any) => {
-      const isTaskCleared = req.status === "Cleared" || task.submission?.status === "Approved" || task.submission?.status === "Cleared";
+      const subStatus = task.submission?.status?.toLowerCase();
+      const isTaskCleared = req.status === "Cleared" || subStatus === "approved" || subStatus === "cleared";
       return {
         id: String(task.id),
         name: task.name,
@@ -222,14 +263,13 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
       };
     });
 
-    const subClearances = [...prereqSubs, ...taskSubs];
-
     return {
       id: `${req.type}-${req.id}`,
       office: officeName,
       status: req.status === "Cleared" ? "cleared" : "pending",
       dateCleared: req.status === "Cleared" ? req.dateCleared : null,
-      subClearances,
+      prereqClearances: prereqSubs,
+      taskClearances: taskSubs,
       type: req.type,
     };
   });

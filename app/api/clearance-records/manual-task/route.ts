@@ -9,6 +9,9 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendEvaluationResultAlert } from "@/services/notificationService";
+import { logClearanceAction } from "@/services/auditService";
+import { checkPrerequisites } from "@/lib/clearancePrereqs";
 
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
@@ -42,16 +45,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // 1. Find the ClearanceRecord for this student + entity
-    const whereClause: any = { studentId };
+    // Find active term
+    const activeTerm = await prisma.academicTerm.findFirst({
+      where: { status: "Active" },
+    });
+    const termId = activeTerm?.id || null;
+
+    // 1. Find the ClearanceRecord for this student + entity + term
+    const whereClause: any = { studentId, termId };
     if (entityType === "office") whereClause.officeId = Number(entityId);
     else if (entityType === "department") whereClause.departmentId = Number(entityId);
     else if (entityType === "org") whereClause.orgId = Number(entityId);
     else return NextResponse.json({ error: "Invalid entityType" }, { status: 400 });
 
-    const record = await prisma.clearanceRecord.findFirst({ where: whereClause });
+    let record = await prisma.clearanceRecord.findFirst({ where: whereClause });
     if (!record) {
-      return NextResponse.json({ error: "Clearance record not found" }, { status: 404 });
+      record = await prisma.clearanceRecord.create({
+        data: {
+          studentId,
+          termId,
+          ...(entityType === "office" ? { officeId: Number(entityId) } : {}),
+          ...(entityType === "department" ? { departmentId: Number(entityId) } : {}),
+          ...(entityType === "org" ? { orgId: Number(entityId) } : {}),
+          status: "Pending",
+          completedTasks: [],
+        },
+      });
     }
 
     // 2. Update the completedTasks array
@@ -71,11 +90,11 @@ export async function POST(req: NextRequest) {
 
     let allEntityReqs: any[] = [];
     if (entityType === "office") {
-      allEntityReqs = await prisma.officeRequirement.findMany({ where: { officeId: Number(entityId), status: "Live" } });
+      allEntityReqs = await prisma.officeRequirement.findMany({ where: { officeId: Number(entityId), status: "Live", termId: termId || undefined } });
     } else if (entityType === "department") {
-      allEntityReqs = await prisma.departmentRequirement.findMany({ where: { departmentId: Number(entityId), status: "Live" } });
+      allEntityReqs = await prisma.departmentRequirement.findMany({ where: { departmentId: Number(entityId), status: "Live", termId: termId || undefined } });
     } else if (entityType === "org") {
-      allEntityReqs = await prisma.orgRequirement.findMany({ where: { orgId: Number(entityId), status: "Live" } });
+      allEntityReqs = await prisma.orgRequirement.findMany({ where: { orgId: Number(entityId), status: "Live", termId: termId || undefined } });
     }
 
     const isApplicable = (r: any) => {
@@ -109,6 +128,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (completed && allCleared && termId) {
+      const prereqCheck = await checkPrerequisites(studentId, termId, entityType as any, Number(entityId));
+      if (!prereqCheck.allowed) {
+        return NextResponse.json(
+          { error: prereqCheck.error },
+          { status: 400 }
+        );
+      }
+    }
+
     // 4. Persist the updated completedTasks and status
     const updatedRecord = await prisma.clearanceRecord.update({
       where: { id: record.id },
@@ -123,7 +152,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 5. Update overall student status
-    const allRecords = await prisma.clearanceRecord.findMany({ where: { studentId } });
+    const allRecords = await prisma.clearanceRecord.findMany({ where: { studentId, termId } });
     const overallCleared = allRecords.length > 0 && allRecords.every((r) => r.status === "Cleared");
     await prisma.student.update({
       where: { id: studentId },

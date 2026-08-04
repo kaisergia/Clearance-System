@@ -73,7 +73,7 @@ function ClearanceItemRow({
   isLast: boolean;
   isSysAdminView: boolean;
   studentId: string;
-  onStatusChange: (status: ClearanceItem["status"], data?: any) => void;
+  onStatusChange: (status: ClearanceItem["status"], data?: any, bypassPin?: boolean) => void;
   tasks?: any[];
   onRequestPin?: (action: () => void) => void;
 }) {
@@ -144,7 +144,7 @@ function ClearanceItemRow({
         if (!res.ok) throw new Error("Failed");
         const data = await res.json();
         if (data.allCleared) {
-          onStatusChange("Cleared", { completedTasks: newCompleted });
+          onStatusChange("Cleared", { completedTasks: newCompleted }, true);
         } else {
           onStatusChange(item.status === "Cleared" ? "Submitted" : item.status, { completedTasks: newCompleted });
         }
@@ -874,55 +874,52 @@ export function ClearanceStatusView({
   }, [targetStudentId, triggerSync]);
 
   const executeStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
-    setRequirements(prev => {
-      const updatedReqs = prev.map(req => req.id === reqId ? { ...req, status: newStatus, ...data } : req);
+    const updatedReqs = requirements.map(req => req.id === reqId ? { ...req, status: newStatus, ...data } : req);
+    setRequirements(updatedReqs);
 
-      // Persist to localStorage
-      if (student) {
-        const storedRecords = localStorage.getItem("studentClearanceRecords");
-        if (storedRecords) {
-          const records = JSON.parse(storedRecords);
-          const studentRecords = records[student.id] || [];
+    // Persist to localStorage safely outside of React's state updater/reducer phase
+    if (student) {
+      const storedRecords = localStorage.getItem("studentClearanceRecords");
+      if (storedRecords) {
+        const records = JSON.parse(storedRecords);
+        const studentRecords = records[student.id] || [];
 
-          const req = updatedReqs.find(r => r.id === reqId);
-          if (req) {
-            const isOffice = req.type === "office";
-            const existingIdx = studentRecords.findIndex((r: any) =>
-              (isOffice && r.officeId === reqId) || (!isOffice && r.orgId === reqId)
-            );
+        const req = updatedReqs.find(r => r.id === reqId);
+        if (req) {
+          const isOffice = req.type === "office";
+          const existingIdx = studentRecords.findIndex((r: any) =>
+            (isOffice && r.officeId === reqId) || (!isOffice && r.orgId === reqId)
+          );
 
-            if (existingIdx >= 0) {
-              studentRecords[existingIdx].status = newStatus;
-              if (data?.remarks !== undefined) studentRecords[existingIdx].remarks = data.remarks;
-              if (data?.dateCleared !== undefined) studentRecords[existingIdx].dateCleared = data.dateCleared;
-              if (data?.uploadedFiles !== undefined) studentRecords[existingIdx].uploadedFiles = data.uploadedFiles;
-              if (data?.completedTasks !== undefined) studentRecords[existingIdx].completedTasks = data.completedTasks;
-            } else {
-              studentRecords.push({
-                [isOffice ? "officeId" : "orgId"]: reqId,
-                status: newStatus,
-                dateCleared: data?.dateCleared || null,
-                remarks: data?.remarks || "",
-                uploadedFiles: data?.uploadedFiles,
-                completedTasks: data?.completedTasks
-              });
-            }
-
-            records[student.id] = studentRecords;
-            localStorage.setItem("studentClearanceRecords", JSON.stringify(records));
-
-            // Dispatch a custom event to notify other components (like admin table) that clearance data changed
-            window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+          if (existingIdx >= 0) {
+            studentRecords[existingIdx].status = newStatus;
+            if (data?.remarks !== undefined) studentRecords[existingIdx].remarks = data.remarks;
+            if (data?.dateCleared !== undefined) studentRecords[existingIdx].dateCleared = data.dateCleared;
+            if (data?.uploadedFiles !== undefined) studentRecords[existingIdx].uploadedFiles = data.uploadedFiles;
+            if (data?.completedTasks !== undefined) studentRecords[existingIdx].completedTasks = data.completedTasks;
+          } else {
+            studentRecords.push({
+              [isOffice ? "officeId" : "orgId"]: reqId,
+              status: newStatus,
+              dateCleared: data?.dateCleared || null,
+              remarks: data?.remarks || "",
+              uploadedFiles: data?.uploadedFiles,
+              completedTasks: data?.completedTasks
+            });
           }
+
+          records[student.id] = studentRecords;
+          localStorage.setItem("studentClearanceRecords", JSON.stringify(records));
+
+          // Safe synchronous event dispatch to trigger updates in parent components
+          window.dispatchEvent(new Event("clearanceRecordsUpdated"));
         }
       }
-
-      return updatedReqs;
-    });
+    }
   };
 
-  const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
-    if (newStatus === "Cleared") {
+  const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any, bypassPin?: boolean) => {
+    if (newStatus === "Cleared" && !bypassPin) {
       setPendingPinAction(() => () => executeStatusChange(reqId, newStatus, data));
       setShowPinModal(true);
     } else {
@@ -1254,7 +1251,7 @@ export function ClearanceStatusView({
                         isLast={i === headOffices.length - 1}
                         isSysAdminView={isSysAdminView}
                         studentId={student?.id || ""}
-                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        onStatusChange={(status, data, bypassPin) => handleStatusChange(item.id, status, data, bypassPin)}
                         tasks={tasks}
                         onRequestPin={(action) => {
                           setPendingPinAction(() => action);
@@ -1288,7 +1285,7 @@ export function ClearanceStatusView({
                         isLast={i === departments.length - 1}
                         isSysAdminView={isSysAdminView}
                         studentId={student?.id || ""}
-                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        onStatusChange={(status, data, bypassPin) => handleStatusChange(item.id, status, data, bypassPin)}
                         tasks={tasks}
                         onRequestPin={(action) => {
                           setPendingPinAction(() => action);
@@ -1322,7 +1319,7 @@ export function ClearanceStatusView({
                         isLast={i === orgsClubs.length - 1}
                         isSysAdminView={isSysAdminView}
                         studentId={student?.id || ""}
-                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
+                        onStatusChange={(status, data, bypassPin) => handleStatusChange(item.id, status, data, bypassPin)}
                         tasks={tasks}
                         onRequestPin={(action) => {
                           setPendingPinAction(() => action);

@@ -64,6 +64,7 @@ interface Org {
 export default function ClearanceRequirementsPage() {
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
   const [activeTermId, setActiveTermId] = useState<number | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [flows, setFlows] = useState<ClearanceFlow[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -87,6 +88,13 @@ export default function ClearanceRequirementsPage() {
   const [targetDepts, setTargetDepts] = useState<string[]>([]);
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([]);
   const [prereqFormStates, setPrereqFormStates] = useState<{[key: number]: { type: string; entityId: string }}>({});
+
+  // Confirmation state for deleting a step node in the flow builder
+  const [showDeleteStepConfirm, setShowDeleteStepConfirm] = useState(false);
+  const [pendingDeleteStepIdx, setPendingDeleteStepIdx] = useState<number | null>(null);
+
+  // Confirmation state for saving the clearance flow
+  const [showSaveFlowConfirm, setShowSaveFlowConfirm] = useState(false);
 
   // Fetch initial data
   useEffect(() => {
@@ -219,6 +227,7 @@ export default function ClearanceRequirementsPage() {
         setNewTermName("");
         setShowTermModal(false);
         fetchTerms();
+        window.dispatchEvent(new Event("clearanceTermsUpdated"));
       }
     } catch (err) {
       console.error("Error creating term:", err);
@@ -304,11 +313,19 @@ export default function ClearanceRequirementsPage() {
   };
 
   const handleRemoveStep = (idx: number) => {
-    const updated = flowSteps.filter((_, i) => i !== idx).map((step, i) => ({
+    setPendingDeleteStepIdx(idx);
+    setShowDeleteStepConfirm(true);
+  };
+
+  const executeRemoveStep = () => {
+    if (pendingDeleteStepIdx === null) return;
+    const updated = flowSteps.filter((_, i) => i !== pendingDeleteStepIdx).map((step, i) => ({
       ...step,
       sequenceOrder: i + 1,
     }));
     setFlowSteps(updated);
+    setShowDeleteStepConfirm(false);
+    setPendingDeleteStepIdx(null);
   };
 
   const handleStepChange = (idx: number, field: string, val: any) => {
@@ -384,7 +401,12 @@ export default function ClearanceRequirementsPage() {
     setFlowSteps(updated);
   };
 
-  const handleSaveFlow = async () => {
+  const handleSaveFlow = () => {
+    if (!flowName || activeTermId === null) return;
+    setShowSaveFlowConfirm(true);
+  };
+
+  const executeSaveFlow = async () => {
     if (!flowName || activeTermId === null) return;
 
     const flatSteps: any[] = [];
@@ -439,6 +461,7 @@ export default function ClearanceRequirementsPage() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        setShowSaveFlowConfirm(false);
         setShowFlowModal(false);
         fetchFlows(activeTermId);
       } else {
@@ -533,26 +556,68 @@ export default function ClearanceRequirementsPage() {
         </div>
       )}
 
-      {/* Term Tabs */}
-      <div className="flex gap-6 border-b border-surface-container-high mb-8 relative overflow-x-auto whitespace-nowrap scrollbar-none">
-        {Array.isArray(terms) && terms.map((term) => (
-          <button
-            key={term.id}
-            onClick={() => setActiveTermId(term.id)}
-            className={`pb-3 font-title-md text-title-md border-b-2 transition-colors flex items-center gap-2 shrink-0 ${
-              activeTermId === term.id
-                ? "text-brand-red border-brand-red"
-                : "text-secondary hover:text-on-surface border-transparent"
-            }`}
-          >
-            {term.name}
-            {term.status === "Active" && (
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-label-md text-[10px] uppercase tracking-wider">
+      {/* Term Selector Custom Dropdown */}
+      <div className="relative mb-8 z-20">
+        <label className="block font-label-md text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
+          Select Academic Term
+        </label>
+        <button
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className="flex items-center justify-between min-w-[280px] px-4 py-2.5 rounded-xl border border-surface-container-high bg-surface-container-lowest text-on-surface hover:bg-surface-container-low/30 transition-all font-title-md text-title-md text-left shadow-[0px_2px_8px_rgba(0,0,0,0.02)] outline-none cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <span>{terms.find((t) => t.id === activeTermId)?.name || "Select Term"}</span>
+            {terms.find((t) => t.id === activeTermId)?.status === "Active" && (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-label-md text-[10px] uppercase tracking-wider font-semibold">
                 Active
               </span>
             )}
-          </button>
-        ))}
+          </div>
+          <span className={`material-symbols-outlined text-secondary transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}>
+            expand_more
+          </span>
+        </button>
+
+        {dropdownOpen && (
+          <>
+            {/* Click backdrop to close */}
+            <div className="fixed inset-0 z-10" onClick={() => setDropdownOpen(false)} />
+            
+            <div className="absolute left-0 mt-2 min-w-[280px] bg-surface-container-lowest border border-surface-container-high rounded-xl shadow-xl z-20 py-2 animate-fade-in">
+              {Array.isArray(terms) && terms.map((term) => {
+                const isSelected = activeTermId === term.id;
+                return (
+                  <button
+                    key={term.id}
+                    onClick={() => {
+                      setActiveTermId(term.id);
+                      setDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors font-body-md text-body-md cursor-pointer ${
+                      isSelected
+                        ? "bg-brand-red/5 text-brand-red font-bold"
+                        : "text-secondary hover:bg-surface-container-low/50 hover:text-on-surface"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-medium">
+                      <span>{term.name}</span>
+                      {term.status === "Active" && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-label-md text-[10px] uppercase tracking-wider font-semibold">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    {isSelected && (
+                      <span className="material-symbols-outlined text-brand-red text-lg">
+                        check
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Flow Cards */}
@@ -1120,6 +1185,29 @@ export default function ClearanceRequirementsPage() {
           setShowConfirmPublish(false);
           setPendingPublishFlow(null);
         }}
+      />
+      <ConfirmationDialog
+        isOpen={showDeleteStepConfirm}
+        title="Delete Signatory Node?"
+        message="Are you sure you want to delete this signatory node from the clearance flow? This will also remove any prerequisites configured on other nodes referencing this signatory."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        onConfirm={executeRemoveStep}
+        onCancel={() => {
+          setShowDeleteStepConfirm(false);
+          setPendingDeleteStepIdx(null);
+        }}
+      />
+      <ConfirmationDialog
+        isOpen={showSaveFlowConfirm}
+        title="Save Clearance Flow?"
+        message="Are you sure you want to save the changes made to this clearance flow? If the flow is already published, this will instantly update the active clearance structure for targeted students."
+        confirmText="Save"
+        cancelText="Cancel"
+        confirmButtonClass="bg-brand-red hover:bg-primary"
+        onConfirm={executeSaveFlow}
+        onCancel={() => setShowSaveFlowConfirm(false)}
       />
     </div>
   );

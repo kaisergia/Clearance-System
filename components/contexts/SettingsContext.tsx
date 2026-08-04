@@ -31,7 +31,60 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [mounted, setMounted] = useState(false);
 
+  const syncActiveTermFromDb = async () => {
+    try {
+      const res = await fetch("/api/terms");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const activeTerm = data.find((t: any) => t.status === "Active");
+          if (activeTerm) {
+            const name = activeTerm.name;
+            const match = name.match(/(.*)\s(\d{4}-\d{4})/);
+            if (match) {
+              const sem = match[1].trim(); // e.g. "Summer" or "1st Semester"
+              const ay = match[2].trim();  // e.g. "2025-2026"
+              
+              setSettings((prev) => {
+                let updatedYears = prev.academicYears;
+                if (!updatedYears.includes(ay)) {
+                  updatedYears = [...updatedYears, ay].sort((a, b) => b.localeCompare(a));
+                }
+                
+                let updatedSems = prev.activeSemesters;
+                if (!updatedSems.includes(sem)) {
+                  updatedSems = [...updatedSems, sem];
+                }
+
+                if (
+                  prev.currentAcademicYear !== ay ||
+                  prev.currentSemester !== sem ||
+                  JSON.stringify(prev.academicYears) !== JSON.stringify(updatedYears) ||
+                  JSON.stringify(prev.activeSemesters) !== JSON.stringify(updatedSems)
+                ) {
+                  const updated = {
+                    ...prev,
+                    currentAcademicYear: ay,
+                    currentSemester: sem,
+                    academicYears: updatedYears,
+                    activeSemesters: updatedSems,
+                  };
+                  localStorage.setItem("system_settings", JSON.stringify(updated));
+                  return updated;
+                }
+                return prev;
+              });
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to sync active term from database:", err);
+    }
+  };
+
   useEffect(() => {
+    // 1. Load from localStorage
     const stored = localStorage.getItem("system_settings");
     if (stored) {
       try {
@@ -41,17 +94,60 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       }
     }
     setMounted(true);
+
+    // 2. Fetch and sync from database
+    syncActiveTermFromDb();
+
+    // 3. Listen to term updates
+    const handleSyncEvent = () => {
+      syncActiveTermFromDb();
+    };
+    window.addEventListener("clearanceTermsUpdated", handleSyncEvent);
+    return () => window.removeEventListener("clearanceTermsUpdated", handleSyncEvent);
   }, []);
 
   const saveSettings = (newSettings: Settings) => {
-    setSettings(newSettings);
-    localStorage.setItem("system_settings", JSON.stringify(newSettings));
+    // Sort academic years descending (e.g. 2026-2027 > 2025-2026)
+    const sortedYears = [...newSettings.academicYears].sort((a, b) => b.localeCompare(a));
+    
+    // Sort semesters descending: Summer (3) > 2nd Semester (2) > 1st Semester (1)
+    const semWeight = (sem: string) => {
+      const lower = sem.toLowerCase();
+      if (lower.includes("summer")) return 3;
+      if (lower.includes("2nd") || lower.includes("second")) return 2;
+      if (lower.includes("1st") || lower.includes("first")) return 1;
+      return 0;
+    };
+    const sortedSems = [...newSettings.activeSemesters].sort((a, b) => semWeight(b) - semWeight(a));
+
+    const sortedSettings = {
+      ...newSettings,
+      academicYears: sortedYears,
+      activeSemesters: sortedSems,
+    };
+
+    setSettings(sortedSettings);
+    localStorage.setItem("system_settings", JSON.stringify(sortedSettings));
   };
 
   const getAvailableTerms = () => {
     const list: string[] = [];
-    settings.academicYears.forEach((ay) => {
-      settings.activeSemesters.forEach((sem) => {
+    
+    // Sort academic years descending
+    const sortedYears = [...settings.academicYears].sort((a, b) => b.localeCompare(a));
+    
+    // Sort semesters descending
+    const semWeight = (sem: string) => {
+      const lower = sem.toLowerCase();
+      if (lower.includes("summer")) return 3;
+      if (lower.includes("2nd") || lower.includes("second")) return 2;
+      if (lower.includes("1st") || lower.includes("first")) return 1;
+      return 0;
+    };
+    const sortedSems = [...settings.activeSemesters].sort((a, b) => semWeight(b) - semWeight(a));
+
+    sortedYears.forEach((ay) => {
+      sortedSems.forEach((sem) => {
         list.push(`${sem} ${ay}`);
       });
     });

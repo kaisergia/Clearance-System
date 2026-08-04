@@ -53,3 +53,119 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Database error" }, { status: 500 });
   }
 }
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { studentId, requirementId, type, uploadedFileUrls, paymentReference, surveyAnswers, acknowledged } = body;
+
+    if (!studentId || !requirementId) {
+      return NextResponse.json({ error: "studentId and requirementId are required" }, { status: 400 });
+    }
+
+    // Lookup requirement in Office, Department, and Org models to find autoApprove setting
+    let isAutoApprove = false;
+    let entityType: "office" | "department" | "org" | null = null;
+    let entityId: number | null = null;
+
+    const officeReq = await prisma.officeRequirement.findUnique({ where: { id: requirementId } });
+    if (officeReq) {
+      isAutoApprove = !!officeReq.autoApprove;
+      entityType = "office";
+      entityId = officeReq.officeId;
+    } else {
+      const deptReq = await prisma.departmentRequirement.findUnique({ where: { id: requirementId } });
+      if (deptReq) {
+        isAutoApprove = !!deptReq.autoApprove;
+        entityType = "department";
+        entityId = deptReq.departmentId;
+      } else {
+        const orgReq = await prisma.orgRequirement.findUnique({ where: { id: requirementId } });
+        if (orgReq) {
+          isAutoApprove = !!orgReq.autoApprove;
+          entityType = "org";
+          entityId = orgReq.orgId;
+        }
+      }
+    }
+
+    const submissionStatus = isAutoApprove ? "approved" : "pending";
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    // Create or update the requirement submission
+    const submission = await prisma.requirementSubmission.upsert({
+      where: {
+        studentId_requirementId: { studentId, requirementId },
+      },
+      update: {
+        type: type || "MANUAL",
+        uploadedFileUrls: uploadedFileUrls || [],
+        paymentReference: paymentReference || null,
+        surveyAnswers: surveyAnswers || [],
+        acknowledged: !!acknowledged,
+        status: submissionStatus,
+        submittedAt: new Date(),
+      },
+      create: {
+        studentId,
+        requirementId,
+        type: type || "MANUAL",
+        uploadedFileUrls: uploadedFileUrls || [],
+        paymentReference: paymentReference || null,
+        surveyAnswers: surveyAnswers || [],
+        acknowledged: !!acknowledged,
+        status: submissionStatus,
+      },
+    });
+
+    // If auto-approved, automatically mark the student's ClearanceRecord as Cleared
+    if (isAutoApprove && entityType && entityId) {
+      const activeTerm = await prisma.academicTerm.findFirst({
+        where: { status: "Active" },
+      });
+      const termId = activeTerm?.id || null;
+
+      if (entityType === "office") {
+        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, officeId: entityId, termId } });
+        if (existing) {
+          await prisma.clearanceRecord.update({ where: { id: existing.id }, data: { status: "Cleared", dateCleared: todayStr } });
+        } else {
+          await prisma.clearanceRecord.create({ data: { studentId, officeId: entityId, termId, status: "Cleared", dateCleared: todayStr } });
+        }
+      } else if (entityType === "department") {
+        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, departmentId: entityId, termId } });
+        if (existing) {
+          await prisma.clearanceRecord.update({ where: { id: existing.id }, data: { status: "Cleared", dateCleared: todayStr } });
+        } else {
+          await prisma.clearanceRecord.create({ data: { studentId, departmentId: entityId, termId, status: "Cleared", dateCleared: todayStr } });
+        }
+      } else if (entityType === "org") {
+        const existing = await prisma.clearanceRecord.findFirst({ where: { studentId, orgId: entityId, termId } });
+        if (existing) {
+          await prisma.clearanceRecord.update({ where: { id: existing.id }, data: { status: "Cleared", dateCleared: todayStr } });
+        } else {
+          await prisma.clearanceRecord.create({ data: { studentId, orgId: entityId, termId, status: "Cleared", dateCleared: todayStr } });
+        }
+      }
+    }
+
+    // Trigger alert if auto-approved
+    if (isAutoApprove) {
+      sendEvaluationResultAlert(studentId, requirementId, "Cleared", undefined, "Auto-Approve System Engine").catch(
+        (err) => console.error("[SubmissionAlertError]", err)
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      submission,
+      autoApproved: isAutoApprove,
+      message: isAutoApprove
+        ? "Requirement submitted and auto-approved by rule policy!"
+        : "Requirement submitted successfully. Pending staff evaluation.",
+    });
+  } catch (err: any) {
+    console.error("[POST /api/submissions]", err);
+    return NextResponse.json({ error: "Failed to submit requirement", details: err.message }, { status: 500 });
+  }
+}

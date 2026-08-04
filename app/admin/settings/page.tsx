@@ -2,32 +2,105 @@
 
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { useState, useEffect } from "react";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
 export default function AdminSettingsPage() {
   const { settings, saveSettings } = useSettings();
 
   const [instName, setInstName] = useState("");
-  const [currentAY, setCurrentAY] = useState("");
-  const [currentSem, setCurrentSem] = useState("");
-  const [ayList, setAyList] = useState<string[]>([]);
-  const [activeSems, setActiveSems] = useState<string[]>([]);
   const [newAy, setNewAy] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Confirmation dialog states
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  // Sync local instName state with settings context
   useEffect(() => {
     if (settings) {
       setInstName(settings.institutionName);
-      setCurrentAY(settings.currentAcademicYear);
-      setCurrentSem(settings.currentSemester);
-      setAyList(settings.academicYears);
-      setActiveSems(settings.activeSemesters);
     }
-  }, [settings]);
+  }, [settings?.institutionName]);
+
+  const triggerSuccessBanner = () => {
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const requestConfirmation = (config: {
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  }) => {
+    setConfirmConfig(config);
+    setConfirmOpen(true);
+  };
+
+  const handleInstNameBlur = () => {
+    if (instName.trim() && instName !== settings.institutionName) {
+      saveSettings({
+        ...settings,
+        institutionName: instName.trim(),
+      });
+      triggerSuccessBanner();
+    }
+  };
+
+  const handleActiveTermChange = async (ay: string, sem: string) => {
+    saveSettings({
+      ...settings,
+      currentAcademicYear: ay,
+      currentSemester: sem,
+    });
+    triggerSuccessBanner();
+
+    try {
+      const termName = `${sem} ${ay}`;
+      const res = await fetch("/api/terms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: termName, status: "Active" }),
+      });
+      if (!res.ok) {
+        console.error("Failed to sync active term to database");
+      } else {
+        window.dispatchEvent(new Event("clearanceTermsUpdated"));
+      }
+    } catch (err) {
+      console.error("Error syncing active term to database:", err);
+    }
+  };
+
+  const handleActiveYearChangeClick = (newAy: string) => {
+    if (newAy === settings.currentAcademicYear) return;
+    requestConfirmation({
+      title: "Change Active Academic Year",
+      message: `Are you sure you want to change the active academic year to "${newAy}"? This will archive the current active term and activate the new term in the database.\n\n⚠️ WARNING: This will automatically unpublish (set to Draft) all clearance flows in the previously active term.`,
+      confirmText: "Change Year",
+      onConfirm: () => handleActiveTermChange(newAy, settings.currentSemester),
+    });
+  };
+
+  const handleActiveSemChangeClick = (newSem: string) => {
+    if (newSem === settings.currentSemester) return;
+    requestConfirmation({
+      title: "Change Active Semester",
+      message: `Are you sure you want to change the active semester to "${newSem}"? This will archive the current active term and activate the new term in the database.\n\n⚠️ WARNING: This will automatically unpublish (set to Draft) all clearance flows in the previously active term.`,
+      confirmText: "Change Semester",
+      onConfirm: () => handleActiveTermChange(settings.currentAcademicYear, newSem),
+    });
+  };
 
   const handleAddAy = () => {
     const trimmed = newAy.trim();
     if (!trimmed) return;
-    if (ayList.includes(trimmed)) {
+    if (settings.academicYears.includes(trimmed)) {
       alert("Academic Year already exists.");
       return;
     }
@@ -37,21 +110,61 @@ export default function AdminSettingsPage() {
       alert("Please use YYYY-YYYY format (e.g., 2025-2026).");
       return;
     }
-    setAyList([...ayList, trimmed]);
+    const updatedYears = [...settings.academicYears, trimmed];
+    saveSettings({
+      ...settings,
+      academicYears: updatedYears,
+    });
     setNewAy("");
+    triggerSuccessBanner();
   };
 
-  const handleRemoveAy = (ay: string) => {
-    if (ay === currentAY) {
+  const handleRemoveAy = async (ay: string) => {
+    try {
+      const res = await fetch(`/api/terms?ay=${ay}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.skippedCount > 0) {
+          alert(
+            `Removed academic year from settings. However, the database records for:\n- ${data.skippedTerms.join(
+              "\n- "
+            )}\nwere preserved to prevent deleting historical student clearance records.`
+          );
+        }
+      } else {
+        console.error("Failed to clean up terms from database");
+      }
+    } catch (err) {
+      console.error("Error cleaning up terms from database:", err);
+    }
+
+    const updatedYears = settings.academicYears.filter((item) => item !== ay);
+    saveSettings({
+      ...settings,
+      academicYears: updatedYears,
+    });
+    triggerSuccessBanner();
+  };
+
+  const handleRemoveAyClick = (ay: string) => {
+    if (ay === settings.currentAcademicYear) {
       alert("Cannot remove the active academic year.");
       return;
     }
-    setAyList(ayList.filter((item) => item !== ay));
+    requestConfirmation({
+      title: "Remove Academic Year",
+      message: `Are you sure you want to remove the academic year "${ay}" from the settings?\n\n⚠️ WARNING: This will permanently delete any associated term records in the database that do not contain clearance data. This action cannot be undone.`,
+      confirmText: "Remove",
+      onConfirm: () => handleRemoveAy(ay),
+    });
   };
 
   const handleToggleSem = (sem: string) => {
+    const activeSems = settings.activeSemesters;
     if (activeSems.includes(sem)) {
-      if (sem === currentSem) {
+      if (sem === settings.currentSemester) {
         alert("Cannot deactivate the current active semester.");
         return;
       }
@@ -59,36 +172,24 @@ export default function AdminSettingsPage() {
         alert("At least one semester must remain active.");
         return;
       }
-      setActiveSems(activeSems.filter((s) => s !== sem));
+      const updatedSems = activeSems.filter((s) => s !== sem);
+      saveSettings({
+        ...settings,
+        activeSemesters: updatedSems,
+      });
     } else {
-      setActiveSems([...activeSems, sem]);
+      const updatedSems = [...activeSems, sem];
+      saveSettings({
+        ...settings,
+        activeSemesters: updatedSems,
+      });
     }
+    triggerSuccessBanner();
   };
 
-  const handleSave = () => {
-    if (!instName.trim()) {
-      alert("Institution Name cannot be empty.");
-      return;
-    }
-    if (!ayList.includes(currentAY)) {
-      alert("Active Academic Year must be in the list of academic years.");
-      return;
-    }
-    if (!activeSems.includes(currentSem)) {
-      alert("Active Semester must be in the active semesters list.");
-      return;
-    }
-
-    saveSettings({
-      institutionName: instName,
-      currentAcademicYear: currentAY,
-      currentSemester: currentSem,
-      academicYears: ayList,
-      activeSemesters: activeSems,
-    });
-
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+  const handleSaveAll = () => {
+    handleInstNameBlur();
+    handleActiveTermChange(settings.currentAcademicYear, settings.currentSemester);
   };
 
   return (
@@ -118,6 +219,7 @@ export default function AdminSettingsPage() {
                 className="custom-ring w-full px-4 py-2.5 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none"
                 value={instName}
                 onChange={(e) => setInstName(e.target.value)}
+                onBlur={handleInstNameBlur}
                 placeholder="Enter Institution Name"
               />
             </div>
@@ -127,10 +229,10 @@ export default function AdminSettingsPage() {
                 <label className="block font-body-sm text-body-sm text-on-surface mb-1 font-semibold">Current Academic Year</label>
                 <select
                   className="custom-ring w-full px-4 py-2.5 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none cursor-pointer"
-                  value={currentAY}
-                  onChange={(e) => setCurrentAY(e.target.value)}
+                  value={settings.currentAcademicYear}
+                  onChange={(e) => handleActiveYearChangeClick(e.target.value)}
                 >
-                  {ayList.map((ay) => (
+                  {settings.academicYears.map((ay) => (
                     <option key={ay} value={ay}>
                       {ay}
                     </option>
@@ -142,10 +244,10 @@ export default function AdminSettingsPage() {
                 <label className="block font-body-sm text-body-sm text-on-surface mb-1 font-semibold">Current Semester</label>
                 <select
                   className="custom-ring w-full px-4 py-2.5 rounded-lg border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface outline-none cursor-pointer"
-                  value={currentSem}
-                  onChange={(e) => setCurrentSem(e.target.value)}
+                  value={settings.currentSemester}
+                  onChange={(e) => handleActiveSemChangeClick(e.target.value)}
                 >
-                  {activeSems.map((sem) => (
+                  {settings.activeSemesters.map((sem) => (
                     <option key={sem} value={sem}>
                       {sem}
                     </option>
@@ -187,11 +289,11 @@ export default function AdminSettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container-high font-body-sm text-sm">
-                {ayList.map((ay) => (
+                {settings.academicYears.map((ay) => (
                   <tr key={ay} className="hover:bg-surface-container-low/20">
                     <td className="py-3 px-4 font-medium flex items-center gap-2">
                       {ay}
-                      {ay === currentAY && (
+                      {ay === settings.currentAcademicYear && (
                         <span className="bg-brand-red/10 text-brand-red text-[10px] font-bold px-2 py-0.5 rounded-full border border-brand-red/20">
                           Active
                         </span>
@@ -199,9 +301,9 @@ export default function AdminSettingsPage() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
-                        onClick={() => handleRemoveAy(ay)}
-                        disabled={ay === currentAY}
-                        className={`text-error hover:text-red-700 font-semibold text-xs ${ay === currentAY ? "opacity-30 cursor-not-allowed" : ""}`}
+                        onClick={() => handleRemoveAyClick(ay)}
+                        disabled={ay === settings.currentAcademicYear}
+                        className={`text-error hover:text-red-700 font-semibold text-xs cursor-pointer ${ay === settings.currentAcademicYear ? "opacity-30 cursor-not-allowed" : ""}`}
                       >
                         Remove
                       </button>
@@ -222,12 +324,12 @@ export default function AdminSettingsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-md pt-2">
             {["1st Semester", "2nd Semester", "Summer"].map((sem) => {
-              const isActive = activeSems.includes(sem);
+              const isActive = settings.activeSemesters.includes(sem);
               return (
                 <button
                   key={sem}
                   onClick={() => handleToggleSem(sem)}
-                  className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                  className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all cursor-pointer ${
                     isActive
                       ? "border-brand-red bg-brand-red/5 text-on-surface ring-2 ring-brand-red/10"
                       : "border-outline-variant hover:bg-surface-container-low text-secondary"
@@ -251,8 +353,8 @@ export default function AdminSettingsPage() {
         {/* Actions Bar */}
         <div className="flex justify-end gap-sm pt-4">
           <button
-            onClick={handleSave}
-            className="px-lg py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md hover:bg-primary transition-colors btn-hover shadow-sm font-semibold"
+            onClick={handleSaveAll}
+            className="px-lg py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md hover:bg-primary transition-colors btn-hover shadow-sm font-semibold cursor-pointer"
           >
             Save All Changes
           </button>
@@ -265,15 +367,29 @@ export default function AdminSettingsPage() {
             These actions are irreversible. Please proceed with caution.
           </p>
           <div className="flex gap-sm">
-            <button className="px-md py-sm border border-error text-error rounded-lg font-label-md text-label-md hover:bg-error-container transition-colors">
+            <button className="px-md py-sm border border-error text-error rounded-lg font-label-md text-label-md hover:bg-error-container transition-colors cursor-pointer">
               Reset All Clearances
             </button>
-            <button className="px-md py-sm border border-error text-error rounded-lg font-label-md text-label-md hover:bg-error-container transition-colors">
+            <button className="px-md py-sm border border-error text-error rounded-lg font-label-md text-label-md hover:bg-error-container transition-colors cursor-pointer">
               Archive Semester Data
             </button>
           </div>
         </div>
       </div>
+
+      {confirmConfig && (
+        <ConfirmationDialog
+          isOpen={confirmOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          confirmText={confirmConfig.confirmText}
+          onConfirm={() => {
+            confirmConfig.onConfirm();
+            setConfirmOpen(false);
+          }}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
     </div>
   );
 }

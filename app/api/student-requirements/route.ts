@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensureRequirementsForTerm } from "@/lib/requirementCloner";
 
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
@@ -171,6 +172,16 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+    }
+
+    // Ensure all resolved signatories have their requirements copied to the active term if not already done
+    if (activeTerm) {
+      await ensureRequirementsForTerm(
+        activeTerm.id,
+        Array.from(resolvedOffices),
+        Array.from(resolvedDepartments),
+        Array.from(resolvedOrgs)
+      );
     }
 
     // 1. Get resolved offices and their requirements for this term

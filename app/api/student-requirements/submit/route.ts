@@ -101,10 +101,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (officeId || departmentId || orgId) {
+      const activeTerm = await prisma.academicTerm.findFirst({
+        where: { status: "Active" },
+      });
+      const termId = activeTerm?.id || null;
+
       // Find the existing ClearanceRecord
       const clearanceRecord = await prisma.clearanceRecord.findFirst({
         where: {
           studentId,
+          termId,
           ...(officeId && { officeId }),
           ...(departmentId && { departmentId }),
           ...(orgId && { orgId }),
