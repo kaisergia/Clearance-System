@@ -68,6 +68,7 @@ function ClearanceItemRow({
   onStatusChange,
   tasks = [],
   onRequestPin,
+  requirements = [],
 }: {
   item: ClearanceItem;
   isLast: boolean;
@@ -76,12 +77,38 @@ function ClearanceItemRow({
   onStatusChange: (status: ClearanceItem["status"], data?: any, bypassPin?: boolean) => void;
   tasks?: any[];
   onRequestPin?: (action: () => void) => void;
+  requirements?: ClearanceItem[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const styles = itemStatusStyles[item.status] || itemStatusStyles.Pending;
 
   // Track completed tasks locally for MANUAL tasks
   const [completedTasks, setCompletedTasks] = useState<number[]>(item.completedTasks || []);
+
+  // Map prerequisite signatories to their status
+  const prereqsMapped = (item.prerequisiteSignatories || [])
+    .map((p: any) => {
+      const found = requirements.find((r) => r.type === p.type && r.id === p.id);
+      if (!found) return null;
+      let displayName = found.responsible;
+      if (found.type === "department") {
+        displayName = `${found.responsible} Department`;
+      } else if (found.type === "org") {
+        if (found.name.toLowerCase().includes("student government")) {
+          displayName = "Student Government";
+        } else {
+          displayName = `${found.responsible} Club`;
+        }
+      }
+      return {
+        id: `${found.type}-${found.id}`,
+        name: displayName,
+        status: found.status, // "Cleared", "Pending", "Rejected", "Submitted"
+      };
+    })
+    .filter(Boolean);
+
+  const hasUnclearedPrereq = prereqsMapped.some((p: any) => p.status !== "Cleared");
 
   // Local submission states
   const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null);
@@ -327,6 +354,12 @@ function ClearanceItemRow({
               <span className="text-[12px] text-secondary mt-0.5 block">{item.responsible}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {hasUnclearedPrereq && item.status !== "Cleared" && (
+                <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                  <span className="material-symbols-outlined text-[12px] font-bold">lock</span>
+                  Locked
+                </span>
+              )}
               <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap uppercase tracking-wider ${styles.badge}`}>
                 {styles.label}
               </span>
@@ -343,6 +376,45 @@ function ClearanceItemRow({
           {/* Expanded Drawer content */}
           {expanded && (
             <div className="mt-3 pt-3 border-t border-surface-container-high space-y-4 animate-fadeIn">
+              {/* Prerequisite signatories display */}
+              {prereqsMapped.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-secondary uppercase tracking-wider block">Prerequisite Signatories</span>
+                  <div className="space-y-2 bg-surface-container-low/20 p-3 rounded-xl border border-surface-container-high/40">
+                    {prereqsMapped.map((p: any) => {
+                      const isPrereqCleared = p.status === "Cleared";
+                      return (
+                        <div key={p.id} className="flex items-center justify-between text-xs py-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`material-symbols-outlined text-[16px] leading-none shrink-0 ${isPrereqCleared ? "text-green-500 font-extrabold" : "text-amber-500"}`}>
+                              {isPrereqCleared ? "check_circle" : "lock"}
+                            </span>
+                            <span className={isPrereqCleared ? "text-secondary font-medium" : "text-on-surface font-semibold"}>
+                              {p.name}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            isPrereqCleared
+                              ? "bg-green-50 text-green-700 border border-green-100"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}>
+                            {isPrereqCleared ? "Cleared" : "Pending"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Locked warning banner */}
+              {hasUnclearedPrereq && item.status !== "Cleared" && (
+                <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-xl flex items-start gap-2 text-[11px] text-amber-800 leading-relaxed font-medium">
+                  <span className="material-symbols-outlined text-[16px] text-amber-600 shrink-0">info</span>
+                  <span>This office is locked. You must clear all prerequisite signatories before this office can sign your clearance.</span>
+                </div>
+              )}
+
               <div className="space-y-3">
                 <span className="text-[11px] font-bold text-secondary uppercase tracking-wider block">Requirements Checklist</span>
 
@@ -1257,6 +1329,7 @@ export function ClearanceStatusView({
                           setPendingPinAction(() => action);
                           setShowPinModal(true);
                         }}
+                        requirements={requirements}
                       />
                     );
                   })}
@@ -1291,6 +1364,7 @@ export function ClearanceStatusView({
                           setPendingPinAction(() => action);
                           setShowPinModal(true);
                         }}
+                        requirements={requirements}
                       />
                     );
                   })}
@@ -1325,6 +1399,7 @@ export function ClearanceStatusView({
                           setPendingPinAction(() => action);
                           setShowPinModal(true);
                         }}
+                        requirements={requirements}
                       />
                     );
                   })}
