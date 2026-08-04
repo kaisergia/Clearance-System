@@ -288,9 +288,8 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
       const matchedReq = requirements.find(r => r.type === "org" && r.id === viewingOrgId);
       return matchedReq ? step.office.includes(matchedReq.responsible) : false;
     }
-    // For overall student timeline view: hide steps that are displayed as nested sub-clearances (prerequisites)
-    const stepKey = step.id;
-    return !prerequisiteKeys.has(stepKey);
+    // For overall student timeline view: show all signatories at the top level
+    return true;
   });
 
   const allCleared = visibleSteps.length > 0 && visibleSteps.every((s) => s.status === "cleared");
