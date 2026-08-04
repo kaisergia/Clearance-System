@@ -159,26 +159,6 @@ export async function POST(req: NextRequest) {
       data: { status: overallCleared ? "Cleared" : "Pending" },
     });
 
-    // 6. Trigger In-App & Email Notification Alert
-    const targetReq = applicableReqs[taskIndex];
-    const taskName = targetReq ? targetReq.name : `Requirement Task #${taskIndex + 1}`;
-    const newStatus = completed ? "Cleared" : "Pending";
-    sendEvaluationResultAlert(studentId, taskName, newStatus, undefined, `${entityType.toUpperCase()} Evaluator`).catch((err) =>
-      console.error("[ManualTaskAlertError]", err)
-    );
-
-    // 7. Record Audit Log Entry
-    logClearanceAction(
-      `${entityType.toUpperCase()} Evaluator`,
-      entityType,
-      studentId,
-      completed,
-      entityType,
-      entityId,
-      `${entityType.toUpperCase()} #${entityId}`,
-      completed ? undefined : `Unmarked task: ${taskName}`
-    ).catch((err) => console.error("[AuditTaskLogError]", err));
-
     return NextResponse.json({ ok: true, record: updatedRecord, completedTasks: updated, allCleared });
   } catch (err) {
     console.error("[POST /api/clearance-records/manual-task]", err);
