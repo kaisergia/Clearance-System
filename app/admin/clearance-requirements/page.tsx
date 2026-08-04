@@ -84,8 +84,6 @@ export default function ClearanceRequirementsPage() {
   const [flowName, setFlowName] = useState("");
   const [flowDesc, setFlowDesc] = useState("");
   const [flowStatus, setFlowStatus] = useState("Draft");
-  const [targetYears, setTargetYears] = useState<string[]>([]);
-  const [targetDepts, setTargetDepts] = useState<string[]>([]);
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([]);
   const [prereqFormStates, setPrereqFormStates] = useState<{[key: number]: { type: string; entityId: string }}>({});
 
@@ -241,8 +239,6 @@ export default function ClearanceRequirementsPage() {
       setFlowName(flow.name);
       setFlowDesc(flow.description || "");
       setFlowStatus(flow.status);
-      setTargetYears(flow.targetCriteria?.years || []);
-      setTargetDepts(flow.targetCriteria?.departments || []);
 
       // Filter to only main steps (isPrerequisiteOnly === false)
       const mainSteps = flow.steps.filter((s) => !s.isPrerequisiteOnly);
@@ -289,8 +285,6 @@ export default function ClearanceRequirementsPage() {
       setFlowName("");
       setFlowDesc("");
       setFlowStatus("Draft");
-      setTargetYears([]);
-      setTargetDepts([]);
       setFlowSteps([]);
     }
     setPrereqFormStates({});
@@ -447,10 +441,7 @@ export default function ClearanceRequirementsPage() {
       description: flowDesc,
       termId: activeTermId,
       status: flowStatus,
-      targetCriteria: {
-        years: targetYears,
-        departments: targetDepts,
-      },
+      targetCriteria: null,
       steps: flatSteps,
     };
 
@@ -474,21 +465,7 @@ export default function ClearanceRequirementsPage() {
     }
   };
 
-  const toggleYearFilter = (year: string) => {
-    if (targetYears.includes(year)) {
-      setTargetYears(targetYears.filter((y) => y !== year));
-    } else {
-      setTargetYears([...targetYears, year]);
-    }
-  };
 
-  const toggleDeptFilter = (deptAbbr: string) => {
-    if (targetDepts.includes(deptAbbr)) {
-      setTargetDepts(targetDepts.filter((d) => d !== deptAbbr));
-    } else {
-      setTargetDepts([...targetDepts, deptAbbr]);
-    }
-  };
 
   const getStepName = (step: any) => {
     if (step.officeId) {
@@ -632,7 +609,7 @@ export default function ClearanceRequirementsPage() {
               <div>
                 <h3 className="font-title-md text-title-md text-on-surface font-semibold">{flow.name}</h3>
                 <span className="font-label-md text-label-md text-secondary block mt-1">
-                  Target: {flow.targetCriteria?.years?.join(", ") || "All Years"}
+                  Target: All Students
                 </span>
               </div>
               <button
@@ -811,53 +788,7 @@ export default function ClearanceRequirementsPage() {
                   </div>
                 </div>
 
-                {/* Targeting Filters */}
-                <div className="p-4 bg-surface-container-low rounded-xl">
-                  <h4 className="font-title-sm text-title-sm text-on-surface font-bold mb-3 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[20px] text-brand-red">group</span>
-                    Audience Targeting Criteria
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-body-sm text-body-sm text-secondary font-semibold mb-2">Target Year Levels (Empty = All)</label>
-                      <div className="flex flex-wrap gap-2">
-                        {["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "Irregular"].map((year) => (
-                          <button
-                            key={year}
-                            type="button"
-                            onClick={() => toggleYearFilter(year)}
-                            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
-                              targetYears.includes(year)
-                                ? "bg-brand-red/10 border-brand-red text-brand-red"
-                                : "bg-surface-container-lowest border-surface-container-high text-secondary"
-                            }`}
-                          >
-                            {year}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block font-body-sm text-body-sm text-secondary font-semibold mb-2">Target Departments (Empty = All)</label>
-                      <div className="flex flex-wrap gap-2">
-                        {departments.map((dept) => (
-                          <button
-                            key={dept.id}
-                            type="button"
-                            onClick={() => toggleDeptFilter(dept.abbreviation)}
-                            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
-                              targetDepts.includes(dept.abbreviation)
-                                ? "bg-brand-red/10 border-brand-red text-brand-red"
-                                : "bg-surface-container-lowest border-surface-container-high text-secondary"
-                            }`}
-                          >
-                            {dept.abbreviation}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+
 
                 {/* Signatory Hierarchy Builder */}
                 <div className="border border-surface-container-high rounded-xl overflow-hidden">
