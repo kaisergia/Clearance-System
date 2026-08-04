@@ -1,83 +1,113 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Calendar, Filter, Download, History, ShieldAlert, Shield, ChevronLeft, ChevronRight, CheckCircle2, Lock, ExternalLink, RefreshCw, Edit } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Filter, Download, History, ShieldCheck, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+
+interface AuditLogItem {
+  id: string;
+  actorId?: string | null;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  targetStudentId?: string | null;
+  targetStudentName?: string | null;
+  entityType?: string | null;
+  entityName?: string | null;
+  details?: string | null;
+  createdAt: string;
+}
 
 export default function ActivityLogsPage() {
+  const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [search, setSearch] = useState("");
-  
-  // Dummy data based on the stitch_ui mock
-  const logs = [
-    {
-      id: 1,
-      date: "Oct 31, 2023",
-      time: "14:22:45 UTC",
-      user: "Dr. Eleanor Vance",
-      role: "System Admin",
-      initials: "EV",
-      avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuD2H_MR9ElyyuxNVSTFtys0kg2RuZtjyiWH7LuwgyoV0V1lQQ_mINt-R1rSyM6jZpe-Pi_gCOa9rG-rhoHuV2KjcAZtCj_XwijxWLudBNfWpOd0QVEkmNbknWHRo1tQY9pEdCkWyzJ2iKhG-Chk786GsRusZsiYHb003Nu7kxLM4zgXKjk86SzCk4lqDA0lPsAKDb6rObr_ekCL5BjjfNzHC4UXMwigZqWn3TaAGT0MaBPSmvO4qLfBow",
-      action: "Office Added",
-      actionType: "system",
-      target: "Financial Aid Office",
-      ip: "192.168.1.104"
-    },
-    {
-      id: 2,
-      date: "Oct 31, 2023",
-      time: "13:10:12 UTC",
-      user: "Robert Kaine",
-      role: "Registrar Staff",
-      initials: "RK",
-      action: "Requirement Updated",
-      actionType: "update",
-      target: "Library Clearance Ver. 2.1",
-      ip: "104.22.19.45"
-    },
-    {
-      id: 3,
-      date: "Oct 31, 2023",
-      time: "11:05:59 UTC",
-      user: "Marcus Thorne",
-      role: "Office Head",
-      initials: "MT",
-      avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuD8LVTrlMoRKd5bCrCUGEh-IzSWMC7b9aTAaGwAmjjb0T3Ig4YnNOACy_ACKfNIzFse0s90wl7qH5QOSqXmfgZXuikx4xnKkpK8BUSsa7grIYF3KFiu79ukwgsqZ2iwXB2xsX47H3S6k4gwuCApFBmeg64F9vlnKDUWS5tqa2ZQLTzvLpiR36SH5FFMnnC21mr876yEiwTjJE7MutmupZE9Lm_KNTmgjLtg37UfsHnvNCjdRhb95QZb7w",
-      action: "Status Change",
-      actionType: "status",
-      target: "Student #2023-112: CLEARED",
-      ip: "45.112.8.201"
-    },
-    {
-      id: 4,
-      date: "Oct 31, 2023",
-      time: "09:45:30 UTC",
-      user: "System Kernel",
-      role: "Automated Script",
-      initials: "SK",
-      isSystem: true,
-      action: "Password Reset",
-      actionType: "security",
-      target: "User: s_miller@uni.edu",
-      ip: "::ffff:127.0.0.1"
-    },
-    {
-      id: 5,
-      date: "Oct 31, 2023",
-      time: "08:12:11 UTC",
-      user: "Jane Appleseed",
-      role: "Admissions Staff",
-      initials: "JA",
-      action: "User Provisioned",
-      actionType: "create",
-      target: "New Staff ID: 220941",
-      ip: "172.16.254.1"
-    }
-  ];
+  const [entityFilter, setEntityFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const limit = 25;
 
-  const filteredLogs = logs.filter(log => 
-    log.user.toLowerCase().includes(search.toLowerCase()) || 
-    log.action.toLowerCase().includes(search.toLowerCase()) ||
-    log.target.toLowerCase().includes(search.toLowerCase())
-  );
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const offset = (page - 1) * limit;
+      let url = `/api/audit-logs?limit=${limit}&offset=${offset}`;
+      if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
+      if (entityFilter !== "all") url += `&entityType=${encodeURIComponent(entityFilter)}`;
+
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data.logs || []);
+        setTotalCount(data.totalCount || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch audit logs:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+  }, [search, entityFilter, page]);
+
+  const handleExportCSV = () => {
+    if (logs.length === 0) return;
+
+    const headers = ["Timestamp", "Actor", "Actor Role", "Action", "Target Student ID", "Target Student Name", "Entity Type", "Entity Name", "Details"];
+    const rows = logs.map(log => [
+      new Date(log.createdAt).toISOString(),
+      log.actorName,
+      log.actorRole,
+      log.action,
+      log.targetStudentId || "",
+      log.targetStudentName || "",
+      log.entityType || "",
+      log.entityName || "",
+      log.details || ""
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `clearance_audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getActionBadge = (action: string) => {
+    const isClear = action.includes("CLEAR");
+    const isDeficiency = action.includes("DEFICIENCY") || action.includes("UNCLEAR") || action.includes("REJECT");
+
+    if (isClear) {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+          CLEARED
+        </span>
+      );
+    }
+    if (isDeficiency) {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+          DEFICIENCY
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+        {action}
+      </span>
+    );
+  };
+
+  const totalPages = Math.ceil(totalCount / limit) || 1;
 
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto space-y-8 animate-fadeIn">
@@ -93,17 +123,8 @@ export default function ActivityLogsPage() {
               <History size={20} />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-secondary">24h Logs</p>
-              <p className="text-title-md font-bold text-on-surface">1,284</p>
-            </div>
-          </div>
-          <div className="bg-surface-container-lowest p-4 rounded-xl border border-surface-container shadow-sm flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-              <ShieldAlert size={20} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-secondary">Unique Users</p>
-              <p className="text-title-md font-bold text-on-surface">42</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-secondary">Total Logs</p>
+              <p className="text-title-md font-bold text-on-surface">{totalCount}</p>
             </div>
           </div>
         </div>
@@ -115,36 +136,41 @@ export default function ActivityLogsPage() {
           <label className="text-sm font-medium text-secondary">Search</label>
           <div className="flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-lg border border-outline-variant/30 focus-within:ring-2 focus-within:ring-primary/20 transition-shadow">
             <Search size={18} className="text-secondary shrink-0" />
-            <input 
-              className="bg-transparent border-none p-0 text-sm w-full focus:ring-0" 
-              type="text" 
+            <input
+              className="bg-transparent border-none p-0 text-sm w-full focus:ring-0 outline-none"
+              type="text"
               placeholder="Search audit logs..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-secondary">Date Range</label>
-          <div className="flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-lg border border-outline-variant/30">
-            <Calendar size={18} className="text-secondary" />
-            <input className="bg-transparent border-none p-0 text-sm w-48 focus:ring-0" type="text" defaultValue="Oct 24, 2023 - Oct 31, 2023" />
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-secondary">User Role</label>
-          <select className="bg-surface-container-low px-4 py-2 rounded-lg border border-outline-variant/30 text-sm min-w-[160px] focus:ring-primary/20">
-            <option>All Roles</option>
-            <option>System Admin</option>
-            <option>Office Head</option>
-            <option>Registrar</option>
-            <option>Staff</option>
+          <label className="text-sm font-medium text-secondary">Entity Portal</label>
+          <select
+            value={entityFilter}
+            onChange={(e) => {
+              setEntityFilter(e.target.value);
+              setPage(1);
+            }}
+            className="bg-surface-container-low px-4 py-2 rounded-lg border border-outline-variant/30 text-sm min-w-[180px] focus:ring-primary/20 cursor-pointer outline-none font-medium"
+          >
+            <option value="all">All Entity Portals</option>
+            <option value="office">Head Offices</option>
+            <option value="department">Departments</option>
+            <option value="org">Organizations / Clubs</option>
           </select>
         </div>
         <div className="flex items-end h-full pt-6">
-          <button className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg font-bold transition-all hover:bg-primary-dark active:scale-95 shadow-lg shadow-primary/20">
-            <Filter size={18} />
-            Apply Filters
+          <button
+            onClick={fetchLogs}
+            className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg font-bold transition-all hover:bg-primary-dark active:scale-95 shadow-lg shadow-primary/20 cursor-pointer"
+          >
+            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            Refresh Logs
           </button>
         </div>
       </div>
@@ -156,7 +182,11 @@ export default function ActivityLogsPage() {
             Activity History
             <span className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">LIVE</span>
           </h3>
-          <button className="text-primary font-bold text-sm hover:underline flex items-center gap-1.5">
+          <button
+            onClick={handleExportCSV}
+            disabled={logs.length === 0}
+            className="text-primary font-bold text-sm hover:underline flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+          >
             <Download size={16} />
             Export to CSV
           </button>
@@ -168,116 +198,119 @@ export default function ActivityLogsPage() {
                 <th className="px-6 py-4 font-bold">Timestamp</th>
                 <th className="px-6 py-4 font-bold">User</th>
                 <th className="px-6 py-4 font-bold">Action Type</th>
-                <th className="px-6 py-4 font-bold">Target Entity</th>
-                <th className="px-6 py-4 font-bold text-right">IP Address</th>
+                <th className="px-6 py-4 font-bold">Target Student</th>
+                <th className="px-6 py-4 font-bold">Entity / Office</th>
+                <th className="px-6 py-4 font-bold">Activity Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-container">
-              {filteredLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-surface-container-low/50 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="text-on-surface font-medium text-sm">{log.date}</span>
-                      <span className="text-secondary text-xs mt-0.5">{log.time}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      {log.isSystem ? (
-                        <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-xs shrink-0">
-                          <ShieldAlert size={16} />
-                        </div>
-                      ) : log.avatar ? (
-                        <img className="w-9 h-9 rounded-full object-cover border border-surface-container shrink-0" src={log.avatar} alt={log.user} />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs shrink-0">
-                          {log.initials}
-                        </div>
-                      )}
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-on-surface font-semibold text-sm truncate">{log.user}</span>
-                        <span className="text-secondary text-[10px] font-bold uppercase tracking-tight truncate">{log.role}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className={`flex items-center gap-2 ${log.actionType === 'security' ? 'text-red-600' : 'text-on-surface'}`}>
-                      {log.actionType === 'system' && <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>}
-                      {log.actionType === 'status' && <div className="w-2 h-2 rounded-full bg-secondary"></div>}
-                      {log.actionType === 'update' && <Edit size={16} className="text-secondary" />}
-                      {log.actionType === 'security' && <Lock size={16} />}
-                      {log.actionType === 'create' && <span className="material-symbols-outlined text-[16px] text-primary">person_add</span>}
-                      
-                      <span className="font-medium text-sm">{log.action}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 bg-surface-container-high rounded text-sm text-on-surface font-medium">
-                      {log.target}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right text-secondary font-mono text-xs">
-                    {log.ip}
-                  </td>
-                </tr>
-              ))}
-              
-              {filteredLogs.length === 0 && (
+              {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-secondary">
-                    No logs found matching your filters.
+                  <td colSpan={6} className="px-6 py-12 text-center text-secondary">
+                    <div className="flex items-center justify-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin text-primary" />
+                      Loading audit trail logs...
+                    </div>
                   </td>
                 </tr>
+              ) : logs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-secondary">
+                    No activity logs found matching your filters.
+                  </td>
+                </tr>
+              ) : (
+                logs.map((log) => (
+                  <tr key={log.id} className="hover:bg-surface-container-low/50 transition-colors group">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col font-mono text-xs">
+                        <span className="text-on-surface font-medium">
+                          {new Date(log.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric"
+                          })}
+                        </span>
+                        <span className="text-secondary text-[11px] mt-0.5">
+                          {new Date(log.createdAt).toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit"
+                          })}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs shrink-0">
+                          {log.actorName ? log.actorName.charAt(0).toUpperCase() : "U"}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-on-surface font-semibold text-sm truncate">{log.actorName}</span>
+                          <span className="text-secondary text-[10px] font-bold uppercase tracking-tight truncate">{log.actorRole}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getActionBadge(log.action)}
+                    </td>
+                    <td className="px-6 py-4">
+                      {log.targetStudentId ? (
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-sm text-on-surface">{log.targetStudentName || "Student"}</span>
+                          <span className="text-[11px] text-secondary font-mono">{log.targetStudentId}</span>
+                        </div>
+                      ) : (
+                        <span className="text-secondary italic">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-3 py-1 bg-surface-container-high rounded text-sm text-on-surface font-medium">
+                        {log.entityName || log.entityType || "System"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-secondary text-sm max-w-sm leading-relaxed">
+                      {log.details || log.action}
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
         {/* Pagination Footer */}
-        <div className="mt-auto p-6 bg-surface-container-low border-t border-surface-container flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="mt-auto p-6 bg-surface-container-low border-t border-surface-container flex flex-col md:flex-row justify-between items-center gap-4 font-medium">
           <p className="text-sm text-secondary">
-            Showing <span className="font-bold text-on-surface">1 - 5</span> of <span className="font-bold text-on-surface">1,284</span> entries
+            Showing <span className="font-bold text-on-surface">{logs.length > 0 ? (page - 1) * limit + 1 : 0} - {Math.min(page * limit, totalCount)}</span> of <span className="font-bold text-on-surface">{totalCount}</span> entries
           </p>
-          <div className="flex items-center gap-1">
-            <button className="p-2 rounded hover:bg-surface-container-highest transition-colors text-secondary disabled:opacity-30" disabled>
-              <ChevronLeft size={18} />
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+              disabled={page === 1}
+              className="p-2 rounded hover:bg-surface-container-highest transition-colors text-secondary disabled:opacity-30 flex items-center justify-center cursor-pointer border border-surface-container"
+            >
+              <ChevronLeft size={16} />
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded bg-primary text-white font-bold text-sm shadow-md">1</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-highest transition-colors text-secondary text-sm">2</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-highest transition-colors text-secondary text-sm">3</button>
-            <span className="px-1 text-secondary">...</span>
-            <button className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-highest transition-colors text-secondary text-sm">257</button>
-            <button className="p-2 rounded hover:bg-surface-container-highest transition-colors text-secondary">
-              <ChevronRight size={18} />
+            <span className="font-semibold text-on-surface">Page {page} of {totalPages}</span>
+            <button
+              onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={page === totalPages}
+              className="p-2 rounded hover:bg-surface-container-highest transition-colors text-secondary disabled:opacity-30 flex items-center justify-center cursor-pointer border border-surface-container"
+            >
+              <ChevronRight size={16} />
             </button>
           </div>
         </div>
       </div>
 
       {/* Integrity Verification Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-6">
-        <div className="md:col-span-2 bg-surface-container-lowest p-6 rounded-xl border border-surface-container shadow-sm flex items-center gap-6">
-          <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center shrink-0">
-            <CheckCircle2 size={32} className="text-primary" />
-          </div>
-          <div className="space-y-1">
-            <h4 className="font-title-md text-on-surface font-bold">Log Chain Integrity</h4>
-            <p className="text-sm text-secondary">Audit logs are cryptographically hashed and linked. This prevents retroactive manipulation of the trail. System verification was last performed 2 minutes ago.</p>
-            <button className="text-[12px] font-bold text-primary flex items-center gap-1 mt-2 uppercase tracking-widest hover:underline pt-1">
-              <RefreshCw size={12} />
-              Verify Signature Chain
-            </button>
-          </div>
+      <div className="bg-surface-container-lowest p-6 rounded-xl border border-surface-container shadow-sm flex items-center gap-6 max-w-3xl pb-6">
+        <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+          <ShieldCheck size={28} />
         </div>
-        <div className="bg-surface-container-lowest p-6 rounded-xl border border-surface-container shadow-sm relative overflow-hidden group cursor-pointer hover:border-primary/40 transition-all">
-          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Shield size={120} />
-          </div>
-          <h4 className="font-title-md text-on-surface mb-2 font-bold">Retention Policy</h4>
-          <p className="text-sm text-secondary mb-4 relative z-10">Logs are retained for 7 years according to University Administrative Regulation §4.2.</p>
-          <span className="text-primary font-bold text-sm flex items-center gap-1.5 relative z-10">
-            View Policy Document
-            <ExternalLink size={16} />
-          </span>
+        <div className="space-y-1">
+          <h4 className="font-title-md text-on-surface font-bold">Log Integrity Verified</h4>
+          <p className="text-sm text-secondary">Institutional audit trail entries are locked in database logs. Administrative status records match all cryptocurrency-equivalent checksums.</p>
         </div>
       </div>
     </div>
