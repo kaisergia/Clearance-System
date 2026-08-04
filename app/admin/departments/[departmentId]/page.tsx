@@ -22,7 +22,7 @@ export default function DepartmentDetailPage() {
         <span className="material-symbols-outlined text-6xl text-surface-container-high mb-4">account_balance</span>
         <h3 className="font-title-md text-title-md text-on-surface mb-2">Department Not Found</h3>
         <p className="font-body-sm text-body-sm text-secondary mb-6">This department doesn't exist or was removed.</p>
-        <Link href="/admin/departments" className="px-md py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md hover:bg-primary transition-colors">
+        <Link href="/admin/user-management?tab=departments" className="px-md py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md hover:bg-primary transition-colors">
           Back to Departments
         </Link>
       </div>
@@ -33,7 +33,7 @@ export default function DepartmentDetailPage() {
     <div className="p-margin-desktop max-w-5xl mx-auto">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 font-body-sm text-body-sm text-secondary mb-lg">
-        <Link href="/admin/departments" className="hover:text-primary transition-colors">Departments</Link>
+        <Link href="/admin/user-management?tab=departments" className="hover:text-primary transition-colors">Departments</Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
         <span className="text-on-surface font-medium">{department.name}</span>
       </nav>

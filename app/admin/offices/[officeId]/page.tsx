@@ -23,7 +23,7 @@ export default function OfficeDetailPage() {
         <span className="material-symbols-outlined text-6xl text-surface-container-high mb-4">domain_disabled</span>
         <h3 className="font-title-md text-title-md text-on-surface mb-2">Office Not Found</h3>
         <p className="font-body-sm text-body-sm text-secondary mb-6">This office doesn't exist or was removed.</p>
-        <Link href="/admin/offices" className="px-md py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md hover:bg-primary transition-colors">
+        <Link href="/admin/user-management?tab=offices" className="px-md py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md hover:bg-primary transition-colors">
           Back to Offices
         </Link>
       </div>
@@ -36,7 +36,7 @@ export default function OfficeDetailPage() {
     <div className="p-margin-desktop max-w-5xl mx-auto">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 font-body-sm text-body-sm text-secondary mb-lg">
-        <Link href="/admin/offices" className="hover:text-primary transition-colors">Offices</Link>
+        <Link href="/admin/user-management?tab=offices" className="hover:text-primary transition-colors">Offices</Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
         <span className="text-on-surface font-medium">{office.name}</span>
       </nav>
