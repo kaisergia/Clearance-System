@@ -66,10 +66,15 @@ export async function GET(req: NextRequest) {
       where: { studentId },
     });
 
-    // Find the active academic term
-    const activeTerm = await prisma.academicTerm.findFirst({
-      where: { status: "Active" },
-    });
+    // Find the academic term (support historical switcher)
+    const termIdParam = searchParams.get("termId");
+    const activeTerm = termIdParam
+      ? await prisma.academicTerm.findUnique({
+          where: { id: parseInt(termIdParam, 10) },
+        })
+      : await prisma.academicTerm.findFirst({
+          where: { status: "Active" },
+        });
 
     // Find the published clearance flows for this term
     const activeFlows = activeTerm

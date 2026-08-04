@@ -836,6 +836,28 @@ export function ClearanceStatusView({
   const [orgReqs, setOrgReqs] = useState<Record<number, any[]>>({});
   const [deptReqs, setDeptReqs] = useState<Record<number, any[]>>({});
   const [triggerSync, setTriggerSync] = useState(0);
+  const [terms, setTerms] = useState<any[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
+
+  // Fetch all academic terms on mount
+  useEffect(() => {
+    const loadTerms = async () => {
+      try {
+        const res = await fetch("/api/terms");
+        if (res.ok) {
+          const data = await res.json();
+          setTerms(data);
+          const active = data.find((t: any) => t.status === "Active");
+          if (active) {
+            setSelectedTermId(active.id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load academic terms:", err);
+      }
+    };
+    loadTerms();
+  }, []);
   const [viewMode, setViewMode] = useState<"office" | "all">("office");
   const [showCertModal, setShowCertModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -891,7 +913,7 @@ export function ClearanceStatusView({
         const currentStudent = await clearanceService.getStudentById(resolvedId);
         if (currentStudent) setStudent(currentStudent);
 
-        const mergedReqs = await clearanceService.getStudentRequirements(resolvedId);
+        const mergedReqs = await clearanceService.getStudentRequirements(resolvedId, selectedTermId || undefined);
         setRequirements(mergedReqs);
       } catch (err) {
         console.error("Failed to load student requirements from DB, falling back to mock", err);
@@ -946,7 +968,7 @@ export function ClearanceStatusView({
     };
 
     loadData();
-  }, [targetStudentId, triggerSync]);
+  }, [targetStudentId, triggerSync, selectedTermId]);
 
   const executeStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
     const updatedReqs = requirements.map(req => req.id === reqId ? { ...req, status: newStatus, ...data } : req);
@@ -1125,7 +1147,27 @@ export function ClearanceStatusView({
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {terms.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-secondary whitespace-nowrap flex items-center gap-1 uppercase tracking-wider">
+                <span className="material-symbols-outlined text-[15px] font-bold leading-none">calendar_today</span>
+                Period:
+              </span>
+              <select
+                value={selectedTermId || ""}
+                onChange={(e) => setSelectedTermId(Number(e.target.value))}
+                className="px-3 py-1.5 text-xs border border-surface-container-high rounded-xl bg-surface-container-lowest focus:ring-2 focus:ring-primary outline-none font-semibold text-on-surface cursor-pointer"
+              >
+                {terms.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.status === "Active" ? "(Active)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {isSysAdminView && !isOfficeView && (
             <Link
               href="/admin/user-management?tab=users"

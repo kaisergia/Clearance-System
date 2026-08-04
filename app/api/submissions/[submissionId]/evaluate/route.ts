@@ -7,6 +7,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkPrerequisites } from "@/lib/clearancePrereqs";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
+import { recordAuditLog } from "@/services/auditService";
 
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
@@ -64,16 +67,20 @@ export async function POST(
     let officeId: number | null = null;
     let departmentId: number | null = null;
     let orgId: number | null = null;
-
-    const officeReq = await prisma.officeRequirement.findUnique({ where: { id: requirementId } });
+ 
+    let officeReq = null;
+    let deptReq = null;
+    let orgReq = null;
+ 
+    officeReq = await prisma.officeRequirement.findUnique({ where: { id: requirementId } });
     if (officeReq) {
       officeId = officeReq.officeId;
     } else {
-      const deptReq = await prisma.departmentRequirement.findUnique({ where: { id: requirementId } });
+      deptReq = await prisma.departmentRequirement.findUnique({ where: { id: requirementId } });
       if (deptReq) {
         departmentId = deptReq.departmentId;
       } else {
-        const orgReq = await prisma.orgRequirement.findUnique({ where: { id: requirementId } });
+        orgReq = await prisma.orgRequirement.findUnique({ where: { id: requirementId } });
         if (orgReq) {
           orgId = orgReq.orgId;
         }
@@ -211,6 +218,51 @@ export async function POST(
           }
         }
       }
+    }
+
+    // 3. Record Audit Log
+    try {
+      const session = await getServerSession(authOptions);
+      const actorName = session?.user?.name || session?.user?.email || reviewedBy || "Signatory Evaluator";
+      const actorRole = (session?.user as any)?.role || "head_office";
+
+      const reqObj = officeReq || deptReq || orgReq;
+      const reqName = reqObj?.name || "Requirement";
+
+      const student = await prisma.student.findUnique({ where: { id: studentId }, select: { name: true } });
+      const studentName = student?.name || "Student";
+
+      const entityType = officeId ? "office" : departmentId ? "department" : "org";
+      const entityVal = officeId || departmentId || orgId;
+      let entityName = "Signatory";
+      if (officeId) {
+        const o = await prisma.office.findUnique({ where: { id: officeId }, select: { name: true } });
+        if (o) entityName = o.name;
+      } else if (departmentId) {
+        const d = await prisma.department.findUnique({ where: { id: departmentId }, select: { name: true } });
+        if (d) entityName = d.name;
+      } else if (orgId) {
+        const og = await prisma.org.findUnique({ where: { id: orgId }, select: { name: true } });
+        if (og) entityName = og.name;
+      }
+
+      const actionText = status === "approved" ? "approved" : "rejected";
+      const details = `${actorName} (${actorRole}) ${actionText} requirement "${reqName}" for Student ${studentId} (${studentName}).${reviewNotes ? ` Remarks: "${reviewNotes}"` : ""}`;
+
+      await recordAuditLog({
+        actorId: session?.user?.email || undefined,
+        actorName,
+        actorRole,
+        action: status === "approved" ? "CLEAR_STUDENT" : "FLAG_DEFICIENCY",
+        targetStudentId: studentId,
+        targetStudentName: studentName,
+        entityType,
+        entityId: entityVal ? String(entityVal) : undefined,
+        entityName,
+        details,
+      });
+    } catch (auditErr) {
+      console.error("[Evaluate API] Failed to log audit event:", auditErr);
     }
 
     return NextResponse.json({ ok: true, submission });

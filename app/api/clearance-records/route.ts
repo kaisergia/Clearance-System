@@ -7,6 +7,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkPrerequisites } from "@/lib/clearancePrereqs";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
+import { recordAuditLog } from "@/services/auditService";
 
 export async function GET(req: NextRequest) {
   try {
@@ -141,6 +144,45 @@ export async function POST(req: NextRequest) {
       where: { id: studentId },
       data: { status: allCleared ? "Cleared" : "Pending" },
     });
+
+    // Record Audit Log
+    try {
+      const session = await getServerSession(authOptions);
+      const actorName = session?.user?.name || session?.user?.email || "Signatory Evaluator";
+      const actorRole = (session?.user as any)?.role || "head_office";
+
+      const student = await prisma.student.findUnique({ where: { id: studentId }, select: { name: true } });
+      const studentName = student?.name || "Student";
+
+      let entityName = "Signatory";
+      if (type === "office") {
+        const o = await prisma.office.findUnique({ where: { id: Number(entityId) }, select: { name: true } });
+        if (o) entityName = o.name;
+      } else if (type === "department") {
+        const d = await prisma.department.findUnique({ where: { id: Number(entityId) }, select: { name: true } });
+        if (d) entityName = d.name;
+      } else if (type === "org") {
+        const og = await prisma.org.findUnique({ where: { id: Number(entityId) }, select: { name: true } });
+        if (og) entityName = og.name;
+      }
+
+      const details = `${actorName} (${actorRole}) updated overall clearance status to "${status}" for Student ${studentId} (${studentName}) at ${entityName}.${data.remarks ? ` Remarks: "${data.remarks}"` : ""}`;
+
+      await recordAuditLog({
+        actorId: session?.user?.email || undefined,
+        actorName,
+        actorRole,
+        action: status === "Cleared" ? "CLEAR_STUDENT" : status === "Rejected" ? "FLAG_DEFICIENCY" : "UNCLEAR_STUDENT",
+        targetStudentId: studentId,
+        targetStudentName: studentName,
+        entityType: type,
+        entityId: String(entityId),
+        entityName,
+        details,
+      });
+    } catch (auditErr) {
+      console.error("[ClearanceRecords POST] Failed to log audit event:", auditErr);
+    }
 
     return NextResponse.json({ ok: true, record });
   } catch (err) {

@@ -15,6 +15,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logBatchClearanceAction } from "@/services/auditService";
 import { checkPrerequisites } from "@/lib/clearancePrereqs";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
 
 export async function POST(req: NextRequest) {
   try {
@@ -104,15 +106,23 @@ export async function POST(req: NextRequest) {
     });
 
     // Record audit log for batch operation
-    logBatchClearanceAction(
-      `${entityType.toUpperCase()} Evaluator`,
-      entityType,
-      updatedCount,
-      "auto",
-      entityType,
-      numEntityId,
-      `${entityType.toUpperCase()} #${numEntityId}`
-    ).catch((err) => console.error("[AuditBatchLogError]", err));
+    try {
+      const session = await getServerSession(authOptions);
+      const actorName = session?.user?.name || session?.user?.email || `${entityType.toUpperCase()} Evaluator`;
+      const actorRole = (session?.user as any)?.role || entityType;
+
+      logBatchClearanceAction(
+        actorName,
+        actorRole,
+        updatedCount,
+        "auto",
+        entityType,
+        numEntityId,
+        `${entityType.toUpperCase()} #${numEntityId}`
+      ).catch((err) => console.error("[AuditBatchLogError]", err));
+    } catch (auditErr) {
+      console.error("[Batch API] Failed to log audit event:", auditErr);
+    }
 
     return NextResponse.json({
       success: true,

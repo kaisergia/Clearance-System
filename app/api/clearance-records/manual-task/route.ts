@@ -10,8 +10,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEvaluationResultAlert } from "@/services/notificationService";
-import { logClearanceAction } from "@/services/auditService";
+import { logClearanceAction, recordAuditLog } from "@/services/auditService";
 import { checkPrerequisites } from "@/lib/clearancePrereqs";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
 
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
@@ -158,6 +160,46 @@ export async function POST(req: NextRequest) {
       where: { id: studentId },
       data: { status: overallCleared ? "Cleared" : "Pending" },
     });
+
+    // 6. Record Audit Log
+    try {
+      const session = await getServerSession(authOptions);
+      const actorName = session?.user?.name || session?.user?.email || "Signatory Evaluator";
+      const actorRole = (session?.user as any)?.role || "head_office";
+
+      const taskName = applicableReqs[taskIndex]?.name || `Manual Task #${taskIndex + 1}`;
+      const studentName = student?.name || "Student";
+
+      let entityName = "Signatory";
+      if (entityType === "office") {
+        const o = await prisma.office.findUnique({ where: { id: Number(entityId) }, select: { name: true } });
+        if (o) entityName = o.name;
+      } else if (entityType === "department") {
+        const d = await prisma.department.findUnique({ where: { id: Number(entityId) }, select: { name: true } });
+        if (d) entityName = d.name;
+      } else if (entityType === "org") {
+        const og = await prisma.org.findUnique({ where: { id: Number(entityId) }, select: { name: true } });
+        if (og) entityName = og.name;
+      }
+
+      const actionText = completed ? "completed" : "incomplete";
+      const details = `${actorName} (${actorRole}) marked manual task "${taskName}" as ${actionText} for Student ${studentId} (${studentName}).`;
+
+      await recordAuditLog({
+        actorId: session?.user?.email || undefined,
+        actorName,
+        actorRole,
+        action: completed ? "CLEAR_STUDENT" : "UNCLEAR_STUDENT",
+        targetStudentId: studentId,
+        targetStudentName: studentName,
+        entityType,
+        entityId: String(entityId),
+        entityName,
+        details,
+      });
+    } catch (auditErr) {
+      console.error("[ManualTask API] Failed to log audit event:", auditErr);
+    }
 
     return NextResponse.json({ ok: true, record: updatedRecord, completedTasks: updated, allCleared });
   } catch (err) {

@@ -178,8 +178,10 @@ export async function getStudentClearanceRecords(studentId: string): Promise<any
   return records[studentId] || [];
 }
 
-export async function getStudentRequirements(studentId: string): Promise<ClearanceItem[]> {
-  const dbResult = await apiFetch<ClearanceItem[]>(`/api/student-requirements?studentId=${studentId}`);
+export async function getStudentRequirements(studentId: string, termId?: number): Promise<ClearanceItem[]> {
+  let url = `/api/student-requirements?studentId=${studentId}`;
+  if (termId != null) url += `&termId=${termId}`;
+  const dbResult = await apiFetch<ClearanceItem[]>(url);
   if (dbResult) return dbResult;
 
   // FALLBACK — original localStorage logic
