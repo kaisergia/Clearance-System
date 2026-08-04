@@ -363,7 +363,26 @@ export async function GET(req: NextRequest) {
       return 999; // Fallback for any unmatched steps
     };
 
-    combined.sort((a, b) => getSequenceOrder(a) - getSequenceOrder(b));
+    combined.sort((a, b) => {
+      const seqA = getSequenceOrder(a);
+      const seqB = getSequenceOrder(b);
+      if (seqA !== seqB) {
+        return seqA - seqB;
+      }
+
+      // If they share the same sequence order, check if one is a prerequisite of the other
+      const isAPrereqOfB = (b.prerequisiteSignatories || []).some(
+        (p: any) => p.type === a.type && p.id === a.id
+      );
+      if (isAPrereqOfB) return -1;
+
+      const isBPrereqOfA = (a.prerequisiteSignatories || []).some(
+        (p: any) => p.type === b.type && p.id === b.id
+      );
+      if (isBPrereqOfA) return 1;
+
+      return 0;
+    });
 
     return NextResponse.json(combined);
   } catch (err) {
