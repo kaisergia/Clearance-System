@@ -396,7 +396,15 @@ export default function ClearanceRequirementsPage() {
   };
 
   const handleSaveFlow = () => {
-    if (!flowName || activeTermId === null) return;
+    if (!flowName.trim()) {
+      setModalError("Flow name is required.");
+      return;
+    }
+    if (activeTermId === null) {
+      setModalError("No active academic term selected.");
+      return;
+    }
+    setModalError(null);
     setShowSaveFlowConfirm(true);
   };
 

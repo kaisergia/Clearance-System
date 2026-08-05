@@ -86,6 +86,28 @@ export async function POST(
       });
       const termId = activeTerm?.id || null;
 
+      if (!termId) {
+        return NextResponse.json({ error: "No active academic term exists." }, { status: 403 });
+      }
+
+      // Check if the signatory is declared in the active published clearance flow
+      const activeFlows = await prisma.clearanceFlow.findMany({
+        where: { termId, status: "Published" },
+        include: { steps: true },
+      });
+
+      const isDeclared = activeFlows.some((flow) =>
+        flow.steps.some((step) => 
+          (officeId && step.officeId === officeId) ||
+          (departmentId && (step.departmentId === departmentId || step.isDynamicDept)) ||
+          (orgId && (step.orgId === orgId || step.isDynamicOrgs))
+        )
+      );
+
+      if (!isDeclared) {
+        return NextResponse.json({ error: "This signatory is not declared in the active published clearance flow. Evaluation is locked." }, { status: 403 });
+      }
+
       // Find the corresponding ClearanceRecord for the active term
       const clearanceRecord = await prisma.clearanceRecord.findFirst({
         where: {
