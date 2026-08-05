@@ -193,7 +193,7 @@ export async function POST(
             }
 
             // Update ClearanceRecord status based on allCleared check
-            if (allCleared && termId) {
+            if (status === "approved" && termId) {
               const entityType = officeId ? "office" : departmentId ? "department" : "org";
               const entityVal = officeId || departmentId || orgId;
               if (entityVal) {

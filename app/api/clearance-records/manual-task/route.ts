@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (completed && allCleared && termId) {
+    if (completed && termId) {
       const prereqCheck = await checkPrerequisites(studentId, termId, entityType as any, Number(entityId));
       if (!prereqCheck.allowed) {
         return NextResponse.json(

@@ -230,6 +230,8 @@ export async function GET(req: NextRequest) {
         dateCleared: clearance ? clearance.dateCleared : (hasReqs ? null : "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
+        completedTasks: clearance?.completedTasks ? (clearance.completedTasks as number[]) : [],
+        uploadedFiles: clearance?.uploadedFiles ? (clearance.uploadedFiles as any) : null,
         prerequisiteSignatories: getPrerequisitesForSignatory("office", o.id),
       };
     });
@@ -289,6 +291,8 @@ export async function GET(req: NextRequest) {
         dateCleared: clearance ? clearance.dateCleared : (hasReqs ? null : "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
+        completedTasks: clearance?.completedTasks ? (clearance.completedTasks as number[]) : [],
+        uploadedFiles: clearance?.uploadedFiles ? (clearance.uploadedFiles as any) : null,
         prerequisiteSignatories: getPrerequisitesForSignatory("org", org.id),
       };
     });
@@ -339,6 +343,8 @@ export async function GET(req: NextRequest) {
         dateCleared: clearance ? clearance.dateCleared : (hasReqs ? null : "Auto-Cleared"),
         remarks: clearance?.remarks || "",
         tasks: applicableRequirements,
+        completedTasks: clearance?.completedTasks ? (clearance.completedTasks as number[]) : [],
+        uploadedFiles: clearance?.uploadedFiles ? (clearance.uploadedFiles as any) : null,
         prerequisiteSignatories: getPrerequisitesForSignatory("department", dept.id),
       };
     });

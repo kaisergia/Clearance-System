@@ -141,7 +141,10 @@ function ClearanceItemRow({
             completed: willBeCompleted,
           }),
         });
-        if (!res.ok) throw new Error("Failed");
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to save requirement status.");
+        }
         const data = await res.json();
         if (data.allCleared) {
           onStatusChange("Cleared", { completedTasks: newCompleted }, true);
@@ -149,10 +152,10 @@ function ClearanceItemRow({
           onStatusChange(item.status === "Cleared" ? "Submitted" : item.status, { completedTasks: newCompleted });
         }
         window.dispatchEvent(new Event("clearanceRecordsUpdated"));
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
         setCompletedTasks(completedTasks); // revert
-        alert("Failed to save. Please try again.");
+        alert(err.message || "Failed to save. Please try again.");
       }
     };
 
@@ -283,14 +286,15 @@ function ClearanceItemRow({
         });
 
         if (!res.ok) {
-          throw new Error("Evaluation failed");
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Evaluation failed");
         }
 
         // Trigger re-sync
         window.dispatchEvent(new Event("clearanceRecordsUpdated"));
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        alert("Evaluation failed. Please try again.");
+        alert(err.message || "Evaluation failed. Please try again.");
       }
     };
 
