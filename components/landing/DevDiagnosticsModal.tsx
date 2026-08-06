@@ -68,39 +68,45 @@ export function DevDiagnosticsModal({ isOpen, onClose }: DevDiagnosticsModalProp
   const [isResetting, setIsResetting] = useState(false);
 
   // PIN Debug States
-  const [currentPins, setCurrentPins] = useState<{ key: string; value: string }[]>([]);
+  const [currentPins, setCurrentPins] = useState<{ email: string; displayName: string; role: string; pin: string }[]>([]);
   const [pinStatus, setPinStatus] = useState<string | null>(null);
+  const [isLoadingPins, setIsLoadingPins] = useState(false);
 
-  const loadCurrentPins = () => {
-    if (typeof window === "undefined") return;
-    const pins: { key: string; value: string }[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("office_clearance_pin_")) {
-        pins.push({
-          key: key.replace("office_clearance_pin_", ""),
-          value: localStorage.getItem(key) || "1234"
-        });
-      }
+  const loadCurrentPins = async () => {
+    setIsLoadingPins(true);
+    try {
+      const res = await fetch("/api/users");
+      if (!res.ok) throw new Error("Failed to fetch users");
+      const users: any[] = await res.json();
+      // Show only staff users (not students) and include their pin
+      const staffPins = users
+        .filter((u) => u.role && u.role !== "student" && typeof u.id === "number")
+        .map((u) => ({
+          email: u.email,
+          displayName: u.displayName,
+          role: u.role,
+          pin: u.pin ?? "1234",
+        }));
+      setCurrentPins(staffPins);
+    } catch (err) {
+      console.error("[DevDiagnosticsModal] Error loading PINs:", err);
+    } finally {
+      setIsLoadingPins(false);
     }
-    // Always guarantee showing default
-    if (!pins.some(p => p.key === "default")) {
-      pins.push({ key: "default", value: localStorage.getItem("office_clearance_pin_default") || "1234" });
-    }
-    setCurrentPins(pins);
   };
 
-  const handleResetPins = () => {
-    if (!confirm("Reset all office clearance security PINs to their default value ('1234')?\n\nThis will clear customized office PINs in localStorage.")) return;
+  const handleResetPins = async () => {
+    if (!confirm("Reset all security PINs to default ('1234') in the database?\n\nThis will affect all admin, office, department, and org accounts.")) return;
 
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith("office_clearance_pin_")) {
-        localStorage.removeItem(key);
-      }
-    });
-
-    setPinStatus("All clearance PINs have been successfully reset to default ('1234')!");
-    loadCurrentPins();
+    try {
+      const res = await fetch("/api/users/pin/reset", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Reset failed");
+      setPinStatus(data.message || "All PINs reset to '1234' successfully!");
+      await loadCurrentPins();
+    } catch (err: any) {
+      setPinStatus(`Error: ${err.message}`);
+    }
     setTimeout(() => setPinStatus(null), 4000);
   };
 
@@ -376,17 +382,26 @@ export function DevDiagnosticsModal({ isOpen, onClose }: DevDiagnosticsModalProp
               </h4>
             </div>
 
-            {/* List current localStorage PINs */}
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-[11px] font-mono space-y-1">
-              <span className="text-[10px] text-gray-500 font-bold block mb-1">Stored Security PINs (localStorage):</span>
-              {currentPins.map((p) => (
-                <div key={p.key} className="flex justify-between items-center text-slate-700">
-                  <span className="font-semibold text-slate-800">Key: office_{p.key}</span>
-                  <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-900 tracking-wider">
-                    {p.value}
-                  </span>
+            {/* List current DB PINs */}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-[11px] font-mono space-y-1 max-h-40 overflow-y-auto">
+              <span className="text-[10px] text-gray-500 font-bold block mb-1">Staff Security PINs (database):</span>
+              {isLoadingPins ? (
+                <div className="flex items-center gap-1.5 text-gray-400">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>Loading…</span>
                 </div>
-              ))}
+              ) : currentPins.length === 0 ? (
+                <span className="text-gray-400">No staff accounts found.</span>
+              ) : (
+                currentPins.map((p) => (
+                  <div key={p.email} className="flex justify-between items-center text-slate-700 gap-2">
+                    <span className="font-semibold text-slate-800 truncate" title={p.email}>{p.displayName} <span className="text-gray-400 font-normal">({p.role})</span></span>
+                    <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-900 tracking-wider shrink-0">
+                      {p.pin}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
 
             {pinStatus && (

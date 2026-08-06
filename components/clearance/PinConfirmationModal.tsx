@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Lock, KeyRound, X, Check, ShieldAlert } from "lucide-react";
+import { Lock, KeyRound, X, Check, ShieldAlert, Loader2 } from "lucide-react";
 
 interface PinConfirmationModalProps {
   isOpen: boolean;
@@ -10,7 +10,10 @@ interface PinConfirmationModalProps {
   onConfirm: () => void;
   title?: string;
   description?: string;
+  /** @deprecated No longer used — PINs are now stored per-user in the database */
   officeIdOrKey?: string | number;
+  /** Optional: dev-bypass email header for testing without a session */
+  devEmail?: string;
 }
 
 export function PinConfirmationModal({
@@ -19,33 +22,59 @@ export function PinConfirmationModal({
   onConfirm,
   title = "Security PIN Required",
   description = "Please enter your Office Approval PIN to clear this student requirement.",
-  officeIdOrKey = "default",
+  devEmail,
 }: PinConfirmationModalProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
 
   if (!isOpen) return null;
 
-  // Retrieve stored office PIN or default to "1234"
-  const storedPin = typeof window !== "undefined" 
-    ? localStorage.getItem(`office_clearance_pin_${officeIdOrKey}`) || localStorage.getItem("office_clearance_pin_default") || "1234"
-    : "1234";
-
-  const handleVerify = (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin.trim() === storedPin) {
-      setError("");
-      setPin("");
-      onConfirm();
-      onClose();
-    } else {
-      setError("Incorrect PIN. Please try again (Default: 1234).");
+    if (!pin.trim()) return;
+
+    setIsVerifying(true);
+    setError("");
+
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (devEmail) headers["x-dev-email"] = devEmail;
+
+      const res = await fetch("/api/users/pin/verify", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ pin: pin.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Verification failed. Please try again.");
+        return;
+      }
+
+      if (data.valid) {
+        setError("");
+        setPin("");
+        onConfirm();
+        onClose();
+      } else {
+        setError("Incorrect PIN. Please try again.");
+      }
+    } catch (err) {
+      console.error("[PinConfirmationModal] Error verifying PIN:", err);
+      setError("Unable to verify PIN. Check your connection and try again.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn" onClick={onClose}>
-      <div 
+      <div
         className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-scaleUp font-sans"
         onClick={(e) => e.stopPropagation()}
       >
@@ -94,7 +123,8 @@ export function PinConfirmationModal({
                   setPin(e.target.value);
                   if (error) setError("");
                 }}
-                className="w-full h-12 px-4 text-center tracking-[0.5em] text-lg font-mono font-bold bg-white border border-gray-300 rounded-2xl outline-none focus:border-[#c82333]"
+                disabled={isVerifying}
+                className="w-full h-12 px-4 text-center tracking-[0.5em] text-lg font-mono font-bold bg-white border border-gray-300 rounded-2xl outline-none focus:border-[#c82333] disabled:opacity-60"
               />
               <KeyRound className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
             </div>
@@ -104,15 +134,21 @@ export function PinConfirmationModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 h-11 rounded-2xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 text-xs"
+              disabled={isVerifying}
+              className="flex-1 h-11 rounded-2xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 text-xs disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 h-11 rounded-2xl bg-[#c82333] hover:bg-[#a71d2a] text-white font-bold shadow-md text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+              disabled={isVerifying || !pin.trim()}
+              className="flex-1 h-11 rounded-2xl bg-[#c82333] hover:bg-[#a71d2a] text-white font-bold shadow-md text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Check className="w-4 h-4" /> Confirm & Clear
+              {isVerifying ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</>
+              ) : (
+                <><Check className="w-4 h-4" /> Confirm &amp; Authorize</>
+              )}
             </button>
           </div>
         </form>
@@ -125,36 +161,35 @@ export function PinConfirmationModal({
 export function SetPinModal({
   isOpen,
   onClose,
-  officeIdOrKey = "default",
+  devEmail,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  /** @deprecated officeIdOrKey no longer used */
   officeIdOrKey?: string | number;
+  devEmail?: string;
 }) {
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   if (!isOpen) return null;
 
-  const existingPin = typeof window !== "undefined" 
-    ? localStorage.getItem(`office_clearance_pin_${officeIdOrKey}`) || localStorage.getItem("office_clearance_pin_default") || "1234"
-    : "1234";
-
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    if (currentPin !== existingPin) {
-      setError("Current PIN is incorrect.");
+    if (newPin.length < 4) {
+      setError("New PIN must be at least 4 digits.");
       return;
     }
 
-    if (newPin.length < 4) {
-      setError("New PIN must be at least 4 digits.");
+    if (!/^\d+$/.test(newPin)) {
+      setError("PIN must contain digits only.");
       return;
     }
 
@@ -163,22 +198,45 @@ export function SetPinModal({
       return;
     }
 
-    localStorage.setItem(`office_clearance_pin_${officeIdOrKey}`, newPin);
-    localStorage.setItem("office_clearance_pin_default", newPin);
-    setSuccess("Office Clearance PIN updated successfully!");
+    setIsSaving(true);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (devEmail) headers["x-dev-email"] = devEmail;
 
-    setTimeout(() => {
-      onClose();
-      setSuccess("");
-      setCurrentPin("");
-      setNewPin("");
-      setConfirmPin("");
-    }, 1200);
+      const res = await fetch("/api/users/pin/update", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ currentPin: currentPin.trim(), newPin: newPin.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to update PIN.");
+        return;
+      }
+
+      setSuccess("Security PIN updated successfully!");
+      setTimeout(() => {
+        onClose();
+        setSuccess("");
+        setCurrentPin("");
+        setNewPin("");
+        setConfirmPin("");
+      }, 1200);
+    } catch (err) {
+      console.error("[SetPinModal] Error updating PIN:", err);
+      setError("Unable to update PIN. Check your connection and try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn" onClick={onClose}>
-      <div 
+      <div
         className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-scaleUp font-sans"
         onClick={(e) => e.stopPropagation()}
       >
@@ -188,8 +246,8 @@ export function SetPinModal({
               <KeyRound className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-gray-900">Set Office PIN</h3>
-              <p className="text-xs text-gray-500">Configure clearance PIN</p>
+              <h3 className="font-bold text-base text-gray-900">Set Security PIN</h3>
+              <p className="text-xs text-gray-500">Persisted securely in database</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100">
@@ -219,12 +277,13 @@ export function SetPinModal({
               placeholder="Current PIN (Default: 1234)"
               value={currentPin}
               onChange={(e) => setCurrentPin(e.target.value)}
-              className="w-full h-11 px-4 tracking-widest text-center font-mono font-bold bg-white border border-gray-300 rounded-2xl outline-none focus:border-blue-600"
+              disabled={isSaving}
+              className="w-full h-11 px-4 tracking-widest text-center font-mono font-bold bg-white border border-gray-300 rounded-2xl outline-none focus:border-blue-600 disabled:opacity-60"
             />
           </div>
 
           <div>
-            <label className="block font-bold text-gray-800 mb-1">New PIN (4-6 Digits)</label>
+            <label className="block font-bold text-gray-800 mb-1">New PIN (4–6 Digits)</label>
             <input
               type="password"
               maxLength={6}
@@ -232,7 +291,8 @@ export function SetPinModal({
               placeholder="Enter new PIN"
               value={newPin}
               onChange={(e) => setNewPin(e.target.value)}
-              className="w-full h-11 px-4 tracking-widest text-center font-mono font-bold bg-white border border-gray-300 rounded-2xl outline-none focus:border-blue-600"
+              disabled={isSaving}
+              className="w-full h-11 px-4 tracking-widest text-center font-mono font-bold bg-white border border-gray-300 rounded-2xl outline-none focus:border-blue-600 disabled:opacity-60"
             />
           </div>
 
@@ -245,7 +305,8 @@ export function SetPinModal({
               placeholder="Confirm new PIN"
               value={confirmPin}
               onChange={(e) => setConfirmPin(e.target.value)}
-              className="w-full h-11 px-4 tracking-widest text-center font-mono font-bold bg-white border border-gray-300 rounded-2xl outline-none focus:border-blue-600"
+              disabled={isSaving}
+              className="w-full h-11 px-4 tracking-widest text-center font-mono font-bold bg-white border border-gray-300 rounded-2xl outline-none focus:border-blue-600 disabled:opacity-60"
             />
           </div>
 
@@ -253,15 +314,21 @@ export function SetPinModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 h-11 rounded-2xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50"
+              disabled={isSaving}
+              className="flex-1 h-11 rounded-2xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md"
+              disabled={isSaving}
+              className="flex-1 h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md flex items-center justify-center gap-1.5 disabled:opacity-60"
             >
-              Save PIN
+              {isSaving ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+              ) : (
+                "Save PIN"
+              )}
             </button>
           </div>
         </form>
