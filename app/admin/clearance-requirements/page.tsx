@@ -95,6 +95,8 @@ export default function ClearanceRequirementsPage() {
   // Confirmation state for saving the clearance flow
   const [showSaveFlowConfirm, setShowSaveFlowConfirm] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingFlowToOpen, setPendingFlowToOpen] = useState<{ flow: ClearanceFlow | null } | null>(null);
+  const [pinActionType, setPinActionType] = useState<"open" | "save">("save");
 
   // Fetch initial data
   useEffect(() => {
@@ -397,6 +399,23 @@ export default function ClearanceRequirementsPage() {
     setFlowSteps(updated);
   };
 
+  const preOpenFlowModalPinCheck = (flow: ClearanceFlow | null = null) => {
+    setPendingFlowToOpen({ flow });
+    setPinActionType("open");
+    setShowPinModal(true);
+  };
+
+  const handlePinConfirm = () => {
+    if (pinActionType === "open") {
+      if (pendingFlowToOpen) {
+        handleOpenFlowModal(pendingFlowToOpen.flow);
+        setPendingFlowToOpen(null);
+      }
+    } else {
+      executeSaveFlow();
+    }
+  };
+
   const handleSaveFlow = () => {
     if (!flowName || activeTermId === null) return;
     setShowSaveFlowConfirm(true);
@@ -503,7 +522,7 @@ export default function ClearanceRequirementsPage() {
             New Term
           </button>
           <button
-            onClick={() => handleOpenFlowModal()}
+            onClick={() => preOpenFlowModalPinCheck(null)}
             className="px-5 py-2 bg-brand-red text-white rounded font-label-md text-label-md shadow-sm hover:bg-primary transition-all flex items-center gap-2 btn-hover"
           >
             <span className="material-symbols-outlined text-sm">add</span>
@@ -660,7 +679,7 @@ export default function ClearanceRequirementsPage() {
 
             <div className="flex justify-end gap-2 border-t border-surface-container-high pt-4 mt-auto">
               <button
-                onClick={() => handleOpenFlowModal(flow)}
+                onClick={() => preOpenFlowModalPinCheck(flow)}
                 className="text-brand-red hover:underline text-sm font-semibold flex items-center gap-1"
               >
                 Edit Flow Config
@@ -678,7 +697,7 @@ export default function ClearanceRequirementsPage() {
               Get started by creating a signatory hierarchy for this term.
             </p>
             <button
-              onClick={() => handleOpenFlowModal()}
+              onClick={() => preOpenFlowModalPinCheck(null)}
               className="px-4 py-2 bg-brand-red text-white rounded font-label-md text-label-md hover:bg-primary transition-all"
             >
               Add First Flow
@@ -1141,16 +1160,24 @@ export default function ClearanceRequirementsPage() {
         confirmButtonClass="bg-brand-red hover:bg-primary"
         onConfirm={() => {
           setShowSaveFlowConfirm(false);
+          setPinActionType("save");
           setShowPinModal(true);
         }}
         onCancel={() => setShowSaveFlowConfirm(false)}
       />
       <PinConfirmationModal
         isOpen={showPinModal}
-        onClose={() => setShowPinModal(false)}
-        onConfirm={executeSaveFlow}
+        onClose={() => {
+          setShowPinModal(false);
+          setPendingFlowToOpen(null);
+        }}
+        onConfirm={handlePinConfirm}
         title="Admin PIN Verification"
-        description="Please enter your System Administrator Security PIN to verify and authorize saving/publishing this clearance flow structure."
+        description={
+          pinActionType === "open"
+            ? "Please enter your System Administrator Security PIN to open the clearance flow designer."
+            : "Please enter your System Administrator Security PIN to verify and authorize saving/publishing this clearance flow structure."
+        }
         officeIdOrKey="default"
       />
     </div>
