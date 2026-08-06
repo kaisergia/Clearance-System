@@ -80,6 +80,9 @@ export async function PATCH(
         if (existingUser.role === "admin") {
           return NextResponse.json({ error: `The email ${emailClean} is already registered as a System Administrator.` }, { status: 400 });
         }
+        if (existingUser.role === "student" || existingUser.studentId) {
+          return NextResponse.json({ error: `The email ${emailClean} is already registered as a student account.` }, { status: 400 });
+        }
         if (existingUser.officeId && existingUser.officeId !== id) {
           return NextResponse.json({ error: `The email ${emailClean} is already assigned to another office.` }, { status: 400 });
         }

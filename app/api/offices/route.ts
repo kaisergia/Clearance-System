@@ -74,6 +74,9 @@ export async function POST(req: Request) {
       if (existingUser.role === "admin") {
         return NextResponse.json({ error: `The email ${emailLower} is already registered as a System Administrator.` }, { status: 400 });
       }
+      if (existingUser.role === "student" || existingUser.studentId) {
+        return NextResponse.json({ error: `The email ${emailLower} is already registered as a student account.` }, { status: 400 });
+      }
       if (existingUser.officeId) {
         return NextResponse.json({ error: `The email ${emailLower} is already assigned as head/staff of another office.` }, { status: 400 });
       }
