@@ -59,12 +59,50 @@ export function DevDiagnosticsModal({ isOpen, onClose }: DevDiagnosticsModalProp
     };
 
     fetchDropdownData();
+    loadCurrentPins();
   }, [isOpen]);
 
   // Debug Reset States
   const [resetStudentId, setResetStudentId] = useState("__all__");
   const [resetStatus, setResetStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+
+  // PIN Debug States
+  const [currentPins, setCurrentPins] = useState<{ key: string; value: string }[]>([]);
+  const [pinStatus, setPinStatus] = useState<string | null>(null);
+
+  const loadCurrentPins = () => {
+    if (typeof window === "undefined") return;
+    const pins: { key: string; value: string }[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("office_clearance_pin_")) {
+        pins.push({
+          key: key.replace("office_clearance_pin_", ""),
+          value: localStorage.getItem(key) || "1234"
+        });
+      }
+    }
+    // Always guarantee showing default
+    if (!pins.some(p => p.key === "default")) {
+      pins.push({ key: "default", value: localStorage.getItem("office_clearance_pin_default") || "1234" });
+    }
+    setCurrentPins(pins);
+  };
+
+  const handleResetPins = () => {
+    if (!confirm("Reset all office clearance security PINs to their default value ('1234')?\n\nThis will clear customized office PINs in localStorage.")) return;
+
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("office_clearance_pin_")) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    setPinStatus("All clearance PINs have been successfully reset to default ('1234')!");
+    loadCurrentPins();
+    setTimeout(() => setPinStatus(null), 4000);
+  };
 
   if (!isOpen) return null;
 
@@ -326,6 +364,45 @@ export function DevDiagnosticsModal({ isOpen, onClose }: DevDiagnosticsModalProp
                   <span>Reset Clearance Submissions &amp; Statuses</span>
                 </>
               )}
+            </button>
+          </div>
+
+          {/* Section 3: Security PIN Diagnostics & Reset */}
+          <div className="space-y-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+              <RefreshCw className="w-4 h-4 text-blue-500" />
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                3. Security PIN Diagnostics &amp; Reset
+              </h4>
+            </div>
+
+            {/* List current localStorage PINs */}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-[11px] font-mono space-y-1">
+              <span className="text-[10px] text-gray-500 font-bold block mb-1">Stored Security PINs (localStorage):</span>
+              {currentPins.map((p) => (
+                <div key={p.key} className="flex justify-between items-center text-slate-700">
+                  <span className="font-semibold text-slate-800">Key: office_{p.key}</span>
+                  <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-900 tracking-wider">
+                    {p.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {pinStatus && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl border border-green-200 bg-green-50 text-green-700 text-xs font-medium">
+                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                <span>{pinStatus}</span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetPins}
+              className="w-full py-2.5 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs rounded-xl transition-colors duration-150 flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Reset All Security PINs to Default ('1234')</span>
             </button>
           </div>
 
