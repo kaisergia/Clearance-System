@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useOffices } from "@/components/contexts/OfficesContext";
 import { useDepartments } from "@/components/contexts/DepartmentsContext";
+import { DEPARTMENTS, DEPT_PROGRAMS } from "@/lib/constants";
 import * as clearanceService from "@/services/clearanceService";
 import AddUserModal from "@/components/constituents/AddUserModal";
 import { 
@@ -999,24 +1000,44 @@ export default function UnifiedUserManagementPage() {
                 )}
 
                 {editUserRole === "student" && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-gray-600">
                     <div>
                       <label className="block font-bold text-gray-700 mb-1">Department</label>
-                      <input
-                        type="text"
+                      <select
                         value={editUserDept}
-                        onChange={(e) => setEditUserDept(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium outline-none"
-                      />
+                        onChange={(e) => {
+                          const newDept = e.target.value;
+                          setEditUserDept(newDept);
+                          const newCourses = DEPT_PROGRAMS[newDept] || [];
+                          if (newCourses.length > 0) {
+                            setEditUserProgram(newCourses[0]);
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
+                      >
+                        {DEPARTMENTS.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block font-bold text-gray-700 mb-1">Program</label>
-                      <input
-                        type="text"
+                      <select
                         value={editUserProgram}
                         onChange={(e) => setEditUserProgram(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium outline-none"
-                      />
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
+                      >
+                        {(DEPT_PROGRAMS[editUserDept] || []).map((prog) => (
+                          <option key={prog} value={prog}>
+                            {prog}
+                          </option>
+                        ))}
+                        {(!DEPT_PROGRAMS[editUserDept] || DEPT_PROGRAMS[editUserDept].length === 0) && (
+                          <option value={editUserProgram}>{editUserProgram}</option>
+                        )}
+                      </select>
                     </div>
                   </div>
                 )}
