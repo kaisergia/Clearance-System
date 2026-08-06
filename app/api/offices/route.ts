@@ -46,3 +46,35 @@ export async function GET() {
     return NextResponse.json({ error: "Database error" }, { status: 500 });
   }
 }
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { name, head, email, description } = body;
+
+    if (!name || !head || !email) {
+      return NextResponse.json({ error: "Name, head name, and email are required." }, { status: 400 });
+    }
+
+    const existing = await prisma.office.findFirst({
+      where: { name }
+    });
+
+    if (existing) {
+      return NextResponse.json({ error: "Office with this name already exists." }, { status: 400 });
+    }
+
+    const newOffice = await prisma.office.create({
+      data: {
+        name,
+        head,
+        email,
+      }
+    });
+
+    return NextResponse.json(newOffice, { status: 201 });
+  } catch (err: any) {
+    console.error("[POST /api/offices]", err);
+    return NextResponse.json({ error: err.message || "Failed to create office" }, { status: 500 });
+  }
+}

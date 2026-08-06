@@ -15,9 +15,27 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     // Check if ID is numeric User ID or synthetic student ID
     const userIdNum = parseInt(id, 10);
 
-    const parsedOfficeId = officeId ? parseInt(String(officeId), 10) : null;
-    const parsedDeptId = departmentId ? parseInt(String(departmentId), 10) : null;
-    const parsedOrgId = orgId ? parseInt(String(orgId), 10) : null;
+    // Role Normalization (e.g. office_staff -> head_office, org_adviser -> org)
+    let normalizedRole = role;
+    if (role === "office_staff") normalizedRole = "head_office";
+    if (role === "org_adviser") normalizedRole = "org";
+
+    let parsedOfficeId = officeId ? parseInt(String(officeId), 10) : null;
+    let parsedDeptId = departmentId ? parseInt(String(departmentId), 10) : null;
+    let parsedOrgId = orgId ? parseInt(String(orgId), 10) : null;
+
+    if (!parsedOfficeId && normalizedRole === "head_office" && departmentName) {
+      const office = await prisma.office.findFirst({ where: { name: departmentName } });
+      if (office) parsedOfficeId = office.id;
+    }
+    if (!parsedDeptId && normalizedRole === "department" && departmentName) {
+      const dept = await prisma.department.findFirst({ where: { OR: [{ name: departmentName }, { abbreviation: departmentName }] } });
+      if (dept) parsedDeptId = dept.id;
+    }
+    if (!parsedOrgId && normalizedRole === "org" && departmentName) {
+      const org = await prisma.org.findFirst({ where: { name: departmentName } });
+      if (org) parsedOrgId = org.id;
+    }
 
     if (!isNaN(userIdNum)) {
       const updatedUser = await prisma.user.update({
@@ -25,10 +43,10 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         data: {
           ...(displayName ? { displayName } : {}),
           ...(email ? { email } : {}),
-          ...(role ? { role } : {}),
-          officeId: role === "head_office" ? parsedOfficeId : role === "admin" ? null : parsedOfficeId,
-          departmentId: role === "department" ? parsedDeptId : role === "admin" ? null : parsedDeptId,
-          orgId: role === "org" ? parsedOrgId : role === "admin" ? null : parsedOrgId,
+          ...(normalizedRole ? { role: normalizedRole } : {}),
+          officeId: normalizedRole === "head_office" ? parsedOfficeId : normalizedRole === "admin" ? null : parsedOfficeId,
+          departmentId: normalizedRole === "department" ? parsedDeptId : normalizedRole === "admin" ? null : parsedDeptId,
+          orgId: normalizedRole === "org" ? parsedOrgId : normalizedRole === "admin" ? null : parsedOrgId,
         },
         include: {
           student: true,
@@ -81,23 +99,23 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
           data: {
             ...(displayName ? { displayName } : {}),
             ...(email ? { email } : {}),
-            ...(role ? { role } : {}),
-            officeId: role === "head_office" ? parsedOfficeId : null,
-            departmentId: role === "department" ? parsedDeptId : null,
-            orgId: role === "org" ? parsedOrgId : null,
+            ...(normalizedRole ? { role: normalizedRole } : {}),
+            officeId: normalizedRole === "head_office" ? parsedOfficeId : null,
+            departmentId: normalizedRole === "department" ? parsedDeptId : null,
+            orgId: normalizedRole === "org" ? parsedOrgId : null,
           },
         });
-      } else if (role && role !== "student") {
+      } else if (normalizedRole && normalizedRole !== "student") {
         // Create user account if upgraded to staff/admin
         await prisma.user.create({
           data: {
             email: updatedStudent.email,
             displayName: updatedStudent.name,
-            role: role,
+            role: normalizedRole,
             studentId: cleanStudentId,
-            officeId: role === "head_office" ? parsedOfficeId : null,
-            departmentId: role === "department" ? parsedDeptId : null,
-            orgId: role === "org" ? parsedOrgId : null,
+            officeId: normalizedRole === "head_office" ? parsedOfficeId : null,
+            departmentId: normalizedRole === "department" ? parsedDeptId : null,
+            orgId: normalizedRole === "org" ? parsedOrgId : null,
           },
         });
       }

@@ -60,6 +60,8 @@ export default function AddUserModal({
   // Metadata lists
   const [departmentsList, setDepartmentsList] = useState<any[]>([]);
   const [clubsList, setClubsList] = useState<any[]>([]);
+  const [officesList, setOfficesList] = useState<any[]>([]);
+  const [orgsList, setOrgsList] = useState<any[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -70,13 +72,31 @@ export default function AddUserModal({
     const loadMetadata = async () => {
       try {
         const depts = await clearanceService.getDepartments();
-        if (depts && depts.length > 0) setDepartmentsList(depts);
+        if (depts && depts.length > 0) {
+          setDepartmentsList(depts);
+          // Set default department
+          setDepartment(depts[0].abbreviation || depts[0].name);
+        }
 
         const orgs = await clearanceService.getOrgs();
+        if (orgs && orgs.length > 0) {
+          setOrgsList(orgs);
+          setAssignedOrg(orgs[0].name);
+        }
         const filteredClubs = (orgs || []).filter(
           (o) => o.type === "AcademicClub" || o.type === "NonAcademicClub"
         );
         setClubsList(filteredClubs);
+
+        // Fetch offices dynamically
+        const officesRes = await fetch("/api/offices");
+        if (officesRes.ok) {
+          const officesData = await officesRes.json();
+          setOfficesList(officesData);
+          if (officesData.length > 0) {
+            setAssignedOffice(officesData[0].name);
+          }
+        }
       } catch (err) {
         console.error("Error loading metadata for Add User modal:", err);
       }
@@ -354,16 +374,11 @@ export default function AddUserModal({
                         disabled={isSubmitting}
                         className="w-full h-12 px-4 pr-10 bg-white border border-gray-300 rounded-2xl text-sm font-semibold text-gray-800 outline-none appearance-none cursor-pointer focus:border-red-600"
                       >
-                        <option value="Registrar">Registrar's Office</option>
-                        <option value="Library">University Library</option>
-                        <option value="Accounting">Accounting & Finance Office</option>
-                        <option value="Guidance Office">Guidance & Counseling Center</option>
-                        <option value="Discipline Office">Office of Student Discipline</option>
-                        <option value="Clinic">Medical & Dental Clinic</option>
-                        <option value="OSA">Office of Student Affairs (OSA)</option>
-                        <option value="Property Custodian">Property Custodian Office</option>
-                        <option value="Campus Ministry">Campus Ministry</option>
-                        <option value="IT Center">Information Technology Center</option>
+                        {officesList.map((o) => (
+                          <option key={o.id} value={o.name}>
+                            {o.name}
+                          </option>
+                        ))}
                       </select>
                       <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
@@ -381,14 +396,11 @@ export default function AddUserModal({
                         disabled={isSubmitting}
                         className="w-full h-12 px-4 pr-10 bg-white border border-gray-300 rounded-2xl text-sm font-semibold text-gray-800 outline-none appearance-none cursor-pointer focus:border-red-600"
                       >
-                        <option value="Association Of Computer Studies Students">Association Of Computer Studies Students (ACSS)</option>
-                        <option value="College Red Cross Youth Council">College Red Cross Youth Council</option>
-                        <option value="Computer Science Society">Computer Science Society</option>
-                        <option value="Junior Marketing Association">Junior Marketing Association</option>
-                        <option value="Engineering Society">Engineering Society</option>
-                        <option value="University Dance Troupe">University Dance Troupe</option>
-                        <option value="Student Government">Student Government</option>
-                        <option value="CCIS LGU">CCIS LGU</option>
+                        {orgsList.map((o) => (
+                          <option key={o.id} value={o.name}>
+                            {o.name}
+                          </option>
+                        ))}
                       </select>
                       <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
@@ -407,11 +419,11 @@ export default function AddUserModal({
                         className="w-full h-12 px-4 pr-10 bg-white border border-gray-300 rounded-2xl text-sm font-semibold text-gray-800 outline-none appearance-none cursor-pointer focus:border-red-600"
                       >
                         <option value="">Select Department</option>
-                        <option value="CCIS">College of Computing and Information Sciences</option>
-                        <option value="CABE">College of Business and Governance</option>
-                        <option value="COE">College of Engineering</option>
-                        <option value="CHS">College of Health Sciences</option>
-                        <option value="CEDAS">College of Education, Arts and Sciences</option>
+                        {departmentsList.map((d) => (
+                          <option key={d.id} value={d.abbreviation || d.name}>
+                            {d.name} ({d.abbreviation})
+                          </option>
+                        ))}
                       </select>
                       <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>

@@ -60,10 +60,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email, Name, and Role are required." }, { status: 400 });
     }
 
+    // Role Normalization (e.g. office_staff -> head_office, org_adviser -> org)
+    let normalizedRole = role;
+    if (role === "office_staff") normalizedRole = "head_office";
+    if (role === "org_adviser") normalizedRole = "org";
+
     let finalStudentId = studentId || null;
 
     // If role is student, ensure Student record exists or is created
-    if (role === "student") {
+    if (normalizedRole === "student") {
       if (!finalStudentId) {
         finalStudentId = `2026-${Math.floor(1000 + Math.random() * 9000)}`;
       }
@@ -84,15 +89,41 @@ export async function POST(req: Request) {
       }
     }
 
+    // Resolve Entity IDs dynamically by name if ID was not directly supplied
+    let resolvedOfficeId = officeId ? Number(officeId) : null;
+    let resolvedDepartmentId = departmentId ? Number(departmentId) : null;
+    let resolvedOrgId = orgId ? Number(orgId) : null;
+
+    if (!resolvedOfficeId && normalizedRole === "head_office" && departmentName) {
+      const office = await prisma.office.findFirst({
+        where: { name: departmentName }
+      });
+      if (office) resolvedOfficeId = office.id;
+    }
+
+    if (!resolvedDepartmentId && normalizedRole === "department" && departmentName) {
+      const dept = await prisma.department.findFirst({
+        where: { OR: [{ name: departmentName }, { abbreviation: departmentName }] }
+      });
+      if (dept) resolvedDepartmentId = dept.id;
+    }
+
+    if (!resolvedOrgId && normalizedRole === "org" && departmentName) {
+      const org = await prisma.org.findFirst({
+        where: { name: departmentName }
+      });
+      if (org) resolvedOrgId = org.id;
+    }
+
     const newUser = await prisma.user.create({
       data: {
         email,
         displayName,
-        role,
+        role: normalizedRole,
         studentId: finalStudentId,
-        officeId: officeId ? Number(officeId) : null,
-        departmentId: departmentId ? Number(departmentId) : null,
-        orgId: orgId ? Number(orgId) : null,
+        officeId: resolvedOfficeId,
+        departmentId: resolvedDepartmentId,
+        orgId: resolvedOrgId,
       },
       include: {
         student: true,

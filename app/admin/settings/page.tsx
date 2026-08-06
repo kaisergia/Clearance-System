@@ -3,6 +3,8 @@
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { useState, useEffect } from "react";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { SetPinModal } from "@/components/clearance/PinConfirmationModal";
+import { ShieldCheck, KeyRound } from "lucide-react";
 
 export default function AdminSettingsPage() {
   const { settings, saveSettings } = useSettings();
@@ -10,6 +12,7 @@ export default function AdminSettingsPage() {
   const [instName, setInstName] = useState("");
   const [newAy, setNewAy] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showSetPinModal, setShowSetPinModal] = useState(false);
 
   // Confirmation dialog states
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -257,6 +260,34 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         </div>
+ 
+        {/* Security Approval PIN Section */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-headline-lg text-on-surface flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-brand-red" />
+            Security Clearance Authorization
+          </h2>
+          <div className="bg-surface-container-lowest p-6 rounded-2xl border border-surface-container-high flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-red-50 text-brand-red flex items-center justify-center font-bold shrink-0">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-on-surface">Admin Clearance Approval PIN</h3>
+                <p className="text-xs text-secondary mt-0.5 leading-relaxed">
+                  System administrators must enter this security passcode when manually overriding or toggling student clearance status.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowSetPinModal(true)}
+              className="px-5 py-2.5 bg-brand-red hover:bg-primary text-white text-xs font-bold rounded-xl transition-all shadow-sm hover:shadow flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <KeyRound className="w-4 h-4" />
+              Configure PIN
+            </button>
+          </div>
+        </div>
 
         {/* Academic Years Management */}
         <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm p-lg space-y-md">
@@ -390,6 +421,12 @@ export default function AdminSettingsPage() {
           onCancel={() => setConfirmOpen(false)}
         />
       )}
+
+      <SetPinModal
+        isOpen={showSetPinModal}
+        onClose={() => setShowSetPinModal(false)}
+        officeIdOrKey="default"
+      />
     </div>
   );
 }

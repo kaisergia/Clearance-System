@@ -42,16 +42,62 @@ function mapInitial() {
 }
 
 export function OfficesProvider({ children }: { children: React.ReactNode }) {
-  const [offices, setOffices] = useState<Office[]>(mapInitial);
+  const [offices, setOffices] = useState<Office[]>([]);
   const [openAddOfficeModal, setOpenAddOfficeModal] = useState(false);
   const [officeToDelete, setOfficeToDelete] = useState<number | null>(null);
 
-  const addOffice = (o: Omit<Office, "id" | "staff">) => {
-    setOffices((prev) => {
-      const nextId = prev.length ? Math.max(...prev.map((p) => p.id)) + 1 : 1;
-      const newO: Office = { id: nextId, staff: [], ...o } as Office;
-      return [...prev, newO];
-    });
+  const fetchOffices = async () => {
+    try {
+      const res = await fetch("/api/offices");
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((o: any) => ({
+          id: o.id,
+          name: o.name,
+          description: o.description || "",
+          head: {
+            name: o.headUser?.name || o.head || "",
+            email: o.headUser?.email || o.email || "",
+          },
+          staff: o.users || [],
+          pending: o.pending || 0,
+          approved: o.approved || 0,
+          rejected: o.rejected || 0,
+          active: true,
+        }));
+        setOffices(mapped);
+      }
+    } catch (err) {
+      console.error("Failed to load offices from API:", err);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchOffices();
+  }, []);
+
+  const addOffice = async (o: Omit<Office, "id" | "staff">) => {
+    try {
+      const res = await fetch("/api/offices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: o.name,
+          head: o.head.name,
+          email: o.head.email,
+          description: o.description || "",
+        }),
+      });
+      if (res.ok) {
+        await fetchOffices();
+        window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to create office");
+      }
+    } catch (err) {
+      console.error("Error adding office:", err);
+    }
     setOpenAddOfficeModal(false);
   };
 
@@ -67,10 +113,24 @@ export function OfficesProvider({ children }: { children: React.ReactNode }) {
     setOfficeToDelete(id);
   };
 
-  const confirmDeleteOffice = () => {
+  const confirmDeleteOffice = async () => {
     if (officeToDelete !== null) {
-      setOffices((prev) => prev.filter((o) => o.id !== officeToDelete));
-      setOfficeToDelete(null);
+      try {
+        const res = await fetch(`/api/offices/${officeToDelete}`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          await fetchOffices();
+          window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+        } else {
+          const err = await res.json();
+          alert(err.error || "Failed to delete office");
+        }
+      } catch (err) {
+        console.error("Error deleting office:", err);
+      } finally {
+        setOfficeToDelete(null);
+      }
     }
   };
 

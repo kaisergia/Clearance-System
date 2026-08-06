@@ -68,3 +68,47 @@ export async function PATCH(
     return NextResponse.json({ error: "Failed to update office" }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ officeId: string }> }
+) {
+  try {
+    const { officeId } = await params;
+    const id = parseInt(officeId, 10);
+
+    if (isNaN(id)) {
+      return NextResponse.json({ error: "Invalid office ID" }, { status: 400 });
+    }
+
+    // Clean up related records in a transaction to prevent constraint violations
+    await prisma.$transaction([
+      // 1. Delete associated office requirements
+      prisma.officeRequirement.deleteMany({
+        where: { officeId: id }
+      }),
+      // 2. Delete associated clearance records
+      prisma.clearanceRecord.deleteMany({
+        where: { officeId: id }
+      }),
+      // 3. Delete associated flow steps
+      prisma.flowStep.deleteMany({
+        where: { officeId: id }
+      }),
+      // 4. Set officeId to null for linked users
+      prisma.user.updateMany({
+        where: { officeId: id },
+        data: { officeId: null }
+      }),
+      // 5. Delete the office
+      prisma.office.delete({
+        where: { id }
+      })
+    ]);
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("DELETE /api/offices/[officeId] error:", err);
+    return NextResponse.json({ error: err.message || "Failed to delete office" }, { status: 500 });
+  }
+}
