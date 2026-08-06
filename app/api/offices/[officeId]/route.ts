@@ -67,32 +67,33 @@ export async function PATCH(
     }
 
     let parsedEmail = currentOffice.email;
-    if (headEmail && headEmail !== currentOffice.email) {
-      parsedEmail = headEmail.trim().toLowerCase();
+    if (headEmail) {
+      const emailClean = headEmail.trim().toLowerCase();
+      parsedEmail = emailClean;
 
       // Check role collision
       const existingUser = await prisma.user.findUnique({
-        where: { email: parsedEmail }
+        where: { email: emailClean }
       });
 
       if (existingUser) {
         if (existingUser.role === "admin") {
-          return NextResponse.json({ error: `The email ${parsedEmail} is already registered as a System Administrator.` }, { status: 400 });
+          return NextResponse.json({ error: `The email ${emailClean} is already registered as a System Administrator.` }, { status: 400 });
         }
         if (existingUser.officeId && existingUser.officeId !== id) {
-          return NextResponse.json({ error: `The email ${parsedEmail} is already assigned to another office.` }, { status: 400 });
+          return NextResponse.json({ error: `The email ${emailClean} is already assigned to another office.` }, { status: 400 });
         }
         if (existingUser.departmentId) {
-          return NextResponse.json({ error: `The email ${parsedEmail} is already assigned as head of a department.` }, { status: 400 });
+          return NextResponse.json({ error: `The email ${emailClean} is already assigned as head of a department.` }, { status: 400 });
         }
         if (existingUser.orgId) {
-          return NextResponse.json({ error: `The email ${parsedEmail} is already assigned as adviser of an organization.` }, { status: 400 });
+          return NextResponse.json({ error: `The email ${emailClean} is already assigned as adviser of an organization.` }, { status: 400 });
         }
       }
 
       // Safe update user records:
-      // 1. Unlink the old head user if they exist
-      if (currentOffice.email) {
+      // 1. Unlink the old head user if the email is changing
+      if (emailClean !== currentOffice.email && currentOffice.email) {
         await prisma.user.updateMany({
           where: { email: currentOffice.email, officeId: id },
           data: { officeId: null }
@@ -113,7 +114,7 @@ export async function PATCH(
       } else {
         await prisma.user.create({
           data: {
-            email: parsedEmail,
+            email: emailClean,
             displayName: headName || "Office Head",
             role: "head_office",
             officeId: id,
