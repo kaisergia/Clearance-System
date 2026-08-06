@@ -535,22 +535,34 @@ export default function AddUserModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-gray-900 text-xs sm:text-sm mb-1.5">Course</label>
-                    <div className="relative">
-                      <select
+                    {department && currentCourses.length === 0 ? (
+                      <input
+                        type="text"
+                        required
                         value={course}
                         onChange={(e) => setCourse(e.target.value)}
-                        disabled={isSubmitting || (studentType === "regular" && !department)}
-                        className="w-full h-12 px-3.5 pr-8 bg-white border border-gray-300 rounded-2xl text-xs font-semibold text-gray-800 outline-none appearance-none cursor-pointer focus:border-red-600 disabled:bg-gray-50 disabled:text-gray-400"
-                      >
-                        <option value="">
-                          {!department && studentType === "regular" ? "Select Department First" : "Select Course"}
-                        </option>
-                        {currentCourses.map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
+                        placeholder="e.g. BS Custom Course"
+                        disabled={isSubmitting}
+                        className="w-full h-12 px-3.5 bg-white border border-gray-300 rounded-2xl text-xs font-semibold text-gray-800 outline-none focus:border-red-600 disabled:bg-gray-50"
+                      />
+                    ) : (
+                      <div className="relative">
+                        <select
+                          value={course}
+                          onChange={(e) => setCourse(e.target.value)}
+                          disabled={isSubmitting || (studentType === "regular" && !department)}
+                          className="w-full h-12 px-3.5 pr-8 bg-white border border-gray-300 rounded-2xl text-xs font-semibold text-gray-800 outline-none appearance-none cursor-pointer focus:border-red-600 disabled:bg-gray-50 disabled:text-gray-400"
+                        >
+                          <option value="">
+                            {!department && studentType === "regular" ? "Select Department First" : "Select Course"}
+                          </option>
+                          {currentCourses.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    )}
                   </div>
 
                   <div>

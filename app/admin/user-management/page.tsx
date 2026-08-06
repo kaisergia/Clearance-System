@@ -59,6 +59,7 @@ export default function UnifiedUserManagementPage() {
   // Real Database Lists
   const [allUsersList, setAllUsersList] = useState<any[]>([]);
   const [orgsList, setOrgsList] = useState<any[]>([]);
+  const [dbDepartmentsList, setDbDepartmentsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Search & Filters
@@ -115,12 +116,14 @@ export default function UnifiedUserManagementPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [fetchedUsers, fetchedOrgs] = await Promise.all([
+      const [fetchedUsers, fetchedOrgs, fetchedDepts] = await Promise.all([
         clearanceService.getUsers(),
         clearanceService.getOrgs(),
+        clearanceService.getDepartments(),
       ]);
       setAllUsersList(fetchedUsers || []);
       setOrgsList(fetchedOrgs || []);
+      setDbDepartmentsList(fetchedDepts || []);
     } catch (err) {
       console.error("Failed to load user management data from DB:", err);
     } finally {
@@ -1011,33 +1014,49 @@ export default function UnifiedUserManagementPage() {
                           const newCourses = DEPT_PROGRAMS[newDept] || [];
                           if (newCourses.length > 0) {
                             setEditUserProgram(newCourses[0]);
+                          } else {
+                            setEditUserProgram("");
                           }
                         }}
                         className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
                       >
-                        {DEPARTMENTS.map((dept) => (
-                          <option key={dept} value={dept}>
-                            {dept}
-                          </option>
-                        ))}
+                        {dbDepartmentsList.map((dept: any) => {
+                          const code = dept.abbreviation || dept.name;
+                          return (
+                            <option key={dept.id} value={code}>
+                              {dept.name} ({code})
+                            </option>
+                          );
+                        })}
+                        {dbDepartmentsList.length === 0 && (
+                          <option value="CCIS">CCIS</option>
+                        )}
                       </select>
                     </div>
                     <div>
                       <label className="block font-bold text-gray-700 mb-1">Program</label>
-                      <select
-                        value={editUserProgram}
-                        onChange={(e) => setEditUserProgram(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
-                      >
-                        {(DEPT_PROGRAMS[editUserDept] || []).map((prog) => (
-                          <option key={prog} value={prog}>
-                            {prog}
-                          </option>
-                        ))}
-                        {(!DEPT_PROGRAMS[editUserDept] || DEPT_PROGRAMS[editUserDept].length === 0) && (
-                          <option value={editUserProgram}>{editUserProgram}</option>
-                        )}
-                      </select>
+                      {(!editUserDept || !DEPT_PROGRAMS[editUserDept] || DEPT_PROGRAMS[editUserDept].length === 0) ? (
+                        <input
+                          type="text"
+                          required
+                          value={editUserProgram}
+                          onChange={(e) => setEditUserProgram(e.target.value)}
+                          placeholder="e.g. BS Custom Program"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium outline-none focus:ring-1 focus:ring-[#b51b15]"
+                        />
+                      ) : (
+                        <select
+                          value={editUserProgram}
+                          onChange={(e) => setEditUserProgram(e.target.value)}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800 outline-none focus:ring-1 focus:ring-[#b51b15]"
+                        >
+                          {(DEPT_PROGRAMS[editUserDept] || []).map((prog) => (
+                            <option key={prog} value={prog}>
+                              {prog}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   </div>
                 )}
