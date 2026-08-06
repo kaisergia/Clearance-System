@@ -48,6 +48,79 @@ export async function PATCH(
 
     const body = await request.json();
     const { logoUrl, coverUrl, themeColor, name, head, email } = body;
+
+    // Fetch existing office state
+    const currentOffice = await prisma.office.findUnique({
+      where: { id }
+    });
+
+    if (!currentOffice) {
+      return NextResponse.json({ error: "Office not found" }, { status: 404 });
+    }
+
+    let parsedEmail = currentOffice.email;
+    if (email !== undefined && email !== currentOffice.email) {
+      parsedEmail = email.trim().toLowerCase();
+
+      // Check role collision
+      const existingUser = await prisma.user.findUnique({
+        where: { email: parsedEmail }
+      });
+
+      if (existingUser) {
+        if (existingUser.role === "admin") {
+          return NextResponse.json({ error: `The email ${parsedEmail} is already registered as a System Administrator.` }, { status: 400 });
+        }
+        if (existingUser.officeId && existingUser.officeId !== id) {
+          return NextResponse.json({ error: `The email ${parsedEmail} is already assigned to another office.` }, { status: 400 });
+        }
+        if (existingUser.departmentId) {
+          return NextResponse.json({ error: `The email ${parsedEmail} is already assigned as head of a department.` }, { status: 400 });
+        }
+        if (existingUser.orgId) {
+          return NextResponse.json({ error: `The email ${parsedEmail} is already assigned as adviser of an organization.` }, { status: 400 });
+        }
+      }
+
+      // Safe update user records:
+      // 1. Unlink the old head user if they exist
+      if (currentOffice.email) {
+        await prisma.user.updateMany({
+          where: { email: currentOffice.email, officeId: id },
+          data: { officeId: null }
+        });
+      }
+
+      // 2. Link/promote the new head user
+      if (existingUser) {
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            role: "head_office",
+            officeId: id,
+            displayName: head || existingUser.displayName,
+            studentId: null, // Clear student association if they were promoted from student
+          }
+        });
+      } else {
+        await prisma.user.create({
+          data: {
+            email: parsedEmail,
+            displayName: head || "Office Head",
+            role: "head_office",
+            officeId: id,
+          }
+        });
+      }
+    } else if (head !== undefined && head !== currentOffice.head) {
+      // Just update display name for the current head user
+      if (currentOffice.email) {
+        await prisma.user.updateMany({
+          where: { email: currentOffice.email, officeId: id },
+          data: { displayName: head }
+        });
+      }
+    }
     
     const updateData: any = {};
     if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
@@ -55,7 +128,7 @@ export async function PATCH(
     if (themeColor !== undefined) updateData.themeColor = themeColor;
     if (name !== undefined) updateData.name = name;
     if (head !== undefined) updateData.head = head;
-    if (email !== undefined) updateData.email = email;
+    if (email !== undefined) updateData.email = parsedEmail;
 
     const updated = await prisma.office.update({
       where: { id },
