@@ -199,17 +199,19 @@ export default function UnifiedUserManagementPage() {
     if (!editingOffice || !editOfficeName.trim() || !editOfficeHeadName.trim() || !editOfficeHeadEmail.trim()) return;
 
     try {
-      await updateOffice(editingOffice.id, {
+      const success = await updateOffice(editingOffice.id, {
         name: editOfficeName.trim(),
         head: {
           name: editOfficeHeadName.trim(),
           email: editOfficeHeadEmail.trim()
         }
       });
-      showToast(`Office ${editOfficeName} updated successfully!`);
-      setShowEditOfficeModal(false);
-      setEditingOffice(null);
-      loadData();
+      if (success) {
+        showToast(`Office ${editOfficeName} updated successfully!`);
+        setShowEditOfficeModal(false);
+        setEditingOffice(null);
+        loadData();
+      }
     } catch (err: any) {
       showToast(err.message || "Failed to update office");
     }

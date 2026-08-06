@@ -23,7 +23,7 @@ type OfficesContextType = {
   setOpenAddOfficeModal: (v: boolean) => void;
   addStaff: (officeId: number, staff: Omit<Staff, "id">) => void;
   deleteOffice: (id: number) => void;
-  updateOffice: (id: number, data: Partial<Omit<Office, "id" | "staff">>) => Promise<void>;
+  updateOffice: (id: number, data: Partial<Omit<Office, "id" | "staff">>) => Promise<boolean>;
 };
 
 const OfficesContext = createContext<OfficesContextType | undefined>(undefined);
@@ -153,12 +153,15 @@ export function OfficesProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         await fetchOffices();
         window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+        return true;
       } else {
         const err = await res.json();
         alert(err.error || "Failed to update office");
+        return false;
       }
     } catch (err) {
       console.error("Error updating office:", err);
+      return false;
     }
   };
 
