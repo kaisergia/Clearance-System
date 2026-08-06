@@ -1,7 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
-import { mockDepartments as rawMockDepartments } from "@/mock/mockData";
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 type Staff = { id: number; name: string; email: string; role: string; status: string };
 type Department = {
@@ -24,40 +23,70 @@ type DepartmentsContextType = {
   setOpenAddDepartmentModal: (v: boolean) => void;
   addStaff: (departmentId: number, staff: Omit<Staff, "id">) => void;
   deleteDepartment: (id: number) => void;
+  updateDepartment: (id: number, data: Partial<Omit<Department, "id" | "staff">>) => Promise<boolean>;
 };
 
 const DepartmentsContext = createContext<DepartmentsContextType | undefined>(undefined);
 
-function mapInitial() {
-  return rawMockDepartments.map((d) => ({
-    id: d.id,
-    name: d.name,
-    abbreviation: (d as any).abbreviation || "",
-    description: (d as any).description || "",
-    head: { name: (d as any).head || "", email: (d as any).email || "" },
-    staff: [],
-    pending: (d as any).pending || 0,
-    approved: (d as any).approved || 0,
-    rejected: (d as any).rejected || 0,
-    active: true,
-  }));
-}
-
 export function DepartmentsProvider({ children }: { children: React.ReactNode }) {
-  const [departments, setDepartments] = useState<Department[]>(mapInitial);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [openAddDepartmentModal, setOpenAddDepartmentModal] = useState(false);
   const [departmentToDelete, setDepartmentToDelete] = useState<number | null>(null);
 
-  const addDepartment = (d: Omit<Department, "id" | "staff">) => {
-    setDepartments((prev) => {
-      const nextId = prev.length ? Math.max(...prev.map((p) => p.id)) + 1 : 1;
-      const newD: Department = { id: nextId, staff: [], ...d } as Department;
-      return [...prev, newD];
-    });
-    setOpenAddDepartmentModal(false);
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch("/api/departments");
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          abbreviation: d.abbreviation || "",
+          description: d.description || "",
+          head: { name: d.head || "", email: d.email || "" },
+          staff: [],
+          pending: d.pending || 0,
+          approved: d.approved || 0,
+          rejected: d.rejected || 0,
+          active: true,
+        }));
+        setDepartments(mapped);
+      }
+    } catch (err) {
+      console.error("Error fetching departments from database:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  const addDepartment = async (d: Omit<Department, "id" | "staff">) => {
+    try {
+      const res = await fetch("/api/departments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: d.name,
+          abbreviation: d.abbreviation,
+          head: d.head.name,
+          email: d.head.email
+        })
+      });
+      if (res.ok) {
+        await fetchDepartments();
+        setOpenAddDepartmentModal(false);
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to create department");
+      }
+    } catch (err) {
+      console.error("Error adding department:", err);
+    }
   };
 
   const addStaff = (departmentId: number, staff: Omit<Staff, "id">) => {
+    // Left as in-memory or can be extended when staff functionality is hooked to backend
     setDepartments((prev) => prev.map((d) => {
       if (d.id !== departmentId) return d;
       const nextId = d.staff.length ? Math.max(...d.staff.map((s) => s.id)) + 1 : 1;
@@ -69,10 +98,23 @@ export function DepartmentsProvider({ children }: { children: React.ReactNode })
     setDepartmentToDelete(id);
   };
 
-  const confirmDeleteDepartment = () => {
+  const confirmDeleteDepartment = async () => {
     if (departmentToDelete !== null) {
-      setDepartments((prev) => prev.filter((d) => d.id !== departmentToDelete));
-      setDepartmentToDelete(null);
+      try {
+        const res = await fetch(`/api/departments/${departmentToDelete}`, {
+          method: "DELETE"
+        });
+        if (res.ok) {
+          await fetchDepartments();
+        } else {
+          const err = await res.json();
+          alert(err.error || "Failed to delete department");
+        }
+      } catch (err) {
+        console.error("Error deleting department:", err);
+      } finally {
+        setDepartmentToDelete(null);
+      }
     }
   };
 
@@ -80,8 +122,39 @@ export function DepartmentsProvider({ children }: { children: React.ReactNode })
     setDepartmentToDelete(null);
   };
 
+  const updateDepartment = async (id: number, data: Partial<Omit<Department, "id" | "staff">>) => {
+    try {
+      const payload: any = {};
+      if (data.name !== undefined) payload.name = data.name;
+      if (data.description !== undefined) payload.description = data.description;
+      if (data.abbreviation !== undefined) payload.abbreviation = data.abbreviation;
+      if (data.head !== undefined) {
+        if (data.head.name !== undefined) payload.head = data.head.name;
+        if (data.head.email !== undefined) payload.email = data.head.email;
+      }
+
+      const res = await fetch(`/api/departments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        await fetchDepartments();
+        return true;
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to update department");
+        return false;
+      }
+    } catch (err) {
+      console.error("Error updating department:", err);
+      return false;
+    }
+  };
+
   return (
-    <DepartmentsContext.Provider value={{ departments, addDepartment, openAddDepartmentModal, setOpenAddDepartmentModal, addStaff, deleteDepartment }}>
+    <DepartmentsContext.Provider value={{ departments, addDepartment, openAddDepartmentModal, setOpenAddDepartmentModal, addStaff, deleteDepartment, updateDepartment }}>
       {children}
       {departmentToDelete !== null && (
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={cancelDeleteDepartment}>

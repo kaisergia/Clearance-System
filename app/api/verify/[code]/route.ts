@@ -122,13 +122,49 @@ export async function GET(
       );
     }
 
+    // Resolve entity names dynamically from database
+    const [allOffices, allDepts, allOrgs] = await Promise.all([
+      prisma.office.findMany({ select: { id: true, name: true } }),
+      prisma.department.findMany({ select: { id: true, name: true, abbreviation: true } }),
+      prisma.org.findMany({ select: { id: true, name: true } }),
+    ]);
+
+    const officeMap = new Map(allOffices.map((o) => [o.id, o.name]));
+    const deptMap = new Map(allDepts.map((d) => [d.id, d.abbreviation || d.name]));
+    const orgMap = new Map(allOrgs.map((o) => [o.id, o.name]));
+
+    const formattedRecords = recordsData.map((r: any) => {
+      let entityName = "Unknown";
+      let entityType = r.entityType || "office";
+      if (r.officeId) {
+        entityName = officeMap.get(r.officeId) || `Office #${r.officeId}`;
+        entityType = "office";
+      } else if (r.departmentId) {
+        entityName = deptMap.get(r.departmentId) || `Department #${r.departmentId}`;
+        entityType = "department";
+      } else if (r.orgId) {
+        entityName = orgMap.get(r.orgId) || `Organization #${r.orgId}`;
+        entityType = "org";
+      } else if (r.entityName) {
+        entityName = r.entityName;
+      }
+      return {
+        id: r.id,
+        entityId: r.officeId || r.departmentId || r.orgId || r.entityId,
+        entityType,
+        entityName,
+        status: r.status,
+        dateCleared: r.dateCleared,
+      };
+    });
+
     // Evaluate clearance status
-    const totalRecords = recordsData.length;
-    const clearedRecords = recordsData.filter((r) => r.status === "Cleared").length;
+    const totalRecords = formattedRecords.length;
+    const clearedRecords = formattedRecords.filter((r) => r.status === "Cleared").length;
     const isFullyCleared = studentData.status === "Cleared" || (totalRecords > 0 && clearedRecords === totalRecords);
 
     const formattedCode = `CJC-CLR-2026-${studentData.id}`;
-    const dateCleared = recordsData.find((r) => r.dateCleared)?.dateCleared || "July 2026";
+    const dateCleared = formattedRecords.find((r) => r.dateCleared)?.dateCleared || "July 2026";
 
     return NextResponse.json({
       valid: isFullyCleared,
@@ -141,7 +177,7 @@ export async function GET(
         cleared: clearedRecords,
         isFullyCleared,
       },
-      records: recordsData,
+      records: formattedRecords,
     });
   } catch (err: any) {
     console.error("[GET /api/verify/[code]] Error", err);

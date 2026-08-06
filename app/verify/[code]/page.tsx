@@ -158,7 +158,7 @@ export default function VerificationResultPage() {
                     data.records.map((rec: any, idx: number) => (
                       <div key={idx} className="px-4 py-3 flex items-center justify-between text-sm">
                         <span className="font-semibold text-slate-800 capitalize">
-                          {rec.entityType} Signatory #{rec.entityId}
+                          {rec.entityName || `${rec.entityType} Signatory #${rec.entityId}`}
                         </span>
                         <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full ${
                           rec.status === "Cleared" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"

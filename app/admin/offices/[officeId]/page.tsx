@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { mockRequirementsByOffice } from "@/mock/mockData";
 import { useOffices } from "@/components/contexts/OfficesContext";
 
 export default function OfficeDetailPage() {
@@ -13,9 +12,26 @@ export default function OfficeDetailPage() {
   const { offices } = useOffices();
   const office = offices.find((o) => o.id === officeId);
 
-  const [requirements, setRequirements] = useState<string[]>(
-    mockRequirementsByOffice[officeId] || ["Submit clearance form"]
-  );
+  const [requirements, setRequirements] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!officeId || isNaN(officeId)) return;
+
+    fetch(`/api/requirements/office/${officeId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch requirements");
+        return res.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setRequirements(data.map((r: any) => r.name || r));
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load office requirements:", err);
+        setRequirements(["Submit clearance form"]);
+      });
+  }, [officeId]);
 
   if (!office) {
     return (
