@@ -36,7 +36,7 @@ export default function UnifiedUserManagementPage() {
   const router = useRouter();
   const tabParam = searchParams.get("tab") || "users";
 
-  const { offices, deleteOffice, setOpenAddOfficeModal } = useOffices();
+  const { offices, deleteOffice, setOpenAddOfficeModal, updateOffice } = useOffices();
   const { departments } = useDepartments();
 
   // Active Tab: "users" | "offices" | "departments" | "orgs"
@@ -81,6 +81,13 @@ export default function UnifiedUserManagementPage() {
   const [showAddOrgModal, setShowAddOrgModal] = useState(false);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<any | null>(null);
   const [resetConfirmUser, setResetConfirmUser] = useState<any | null>(null);
+
+  // Edit Office Modal States
+  const [showEditOfficeModal, setShowEditOfficeModal] = useState(false);
+  const [editingOffice, setEditingOffice] = useState<any | null>(null);
+  const [editOfficeName, setEditOfficeName] = useState("");
+  const [editOfficeHeadName, setEditOfficeHeadName] = useState("");
+  const [editOfficeHeadEmail, setEditOfficeHeadEmail] = useState("");
 
   // Edit User Form State
   const [editUserName, setEditUserName] = useState("");
@@ -175,6 +182,36 @@ export default function UnifiedUserManagementPage() {
       loadData();
     } catch (err: any) {
       showToast(`Error: ${err.message || "Failed to update user"}`);
+    }
+  };
+
+  const handleOpenEditOffice = (office: any) => {
+    setEditingOffice(office);
+    setEditOfficeName(office.name);
+    const headObj = office.headUser || office.head;
+    setEditOfficeHeadName(typeof headObj === "string" ? headObj : headObj?.name || office.head || "");
+    setEditOfficeHeadEmail(typeof headObj === "object" ? headObj?.email || office.email : office.email || "");
+    setShowEditOfficeModal(true);
+  };
+
+  const handleEditOfficeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOffice || !editOfficeName.trim() || !editOfficeHeadName.trim() || !editOfficeHeadEmail.trim()) return;
+
+    try {
+      await updateOffice(editingOffice.id, {
+        name: editOfficeName.trim(),
+        head: {
+          name: editOfficeHeadName.trim(),
+          email: editOfficeHeadEmail.trim()
+        }
+      });
+      showToast(`Office ${editOfficeName} updated successfully!`);
+      setShowEditOfficeModal(false);
+      setEditingOffice(null);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to update office");
     }
   };
 
@@ -676,7 +713,10 @@ export default function UnifiedUserManagementPage() {
                           {/* ACTIONS */}
                           <td className="px-6 py-3.5 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => deleteOffice(office.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600 transition-colors">
+                              <button onClick={() => handleOpenEditOffice(office)} className="p-1.5 hover:bg-blue-50 rounded text-gray-400 hover:text-blue-600 transition-colors" title="Edit Office">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => deleteOffice(office.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600 transition-colors" title="Delete Office">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -1193,6 +1233,79 @@ export default function UnifiedUserManagementPage() {
                   className="flex-1 py-2.5 rounded-xl bg-[#b51b15] hover:bg-[#961410] text-white font-bold transition-all shadow-md active:scale-95"
                 >
                   Create Organization
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          MODAL 7: EDIT OFFICE
+         ───────────────────────────────────────────────────────────────────────────── */}
+      {showEditOfficeModal && editingOffice && (
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={() => { setShowEditOfficeModal(false); setEditingOffice(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-scaleUp font-sans" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-bold text-base text-gray-900">Edit Office</h3>
+                <p className="text-xs text-gray-500">Update office name, head, and contact details</p>
+              </div>
+              <button onClick={() => { setShowEditOfficeModal(false); setEditingOffice(null); }} className="text-gray-400 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditOfficeSubmit} className="space-y-4 text-xs font-semibold text-gray-600">
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Office Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Registrar's Office"
+                  value={editOfficeName}
+                  onChange={(e) => setEditOfficeName(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium focus:ring-1 focus:ring-[#b51b15] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Office Head Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Dr. Jane Doe"
+                  value={editOfficeHeadName}
+                  onChange={(e) => setEditOfficeHeadName(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium focus:ring-1 focus:ring-[#b51b15] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Office Head Email *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. officehead@g.cjc.edu.ph"
+                  value={editOfficeHeadEmail}
+                  onChange={(e) => setEditOfficeHeadEmail(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium focus:ring-1 focus:ring-[#b51b15] outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditOfficeModal(false); setEditingOffice(null); }}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-600 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-[#b51b15] hover:bg-[#961410] text-white font-bold transition-all shadow-md active:scale-95"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

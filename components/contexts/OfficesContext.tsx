@@ -23,6 +23,7 @@ type OfficesContextType = {
   setOpenAddOfficeModal: (v: boolean) => void;
   addStaff: (officeId: number, staff: Omit<Staff, "id">) => void;
   deleteOffice: (id: number) => void;
+  updateOffice: (id: number, data: Partial<Omit<Office, "id" | "staff">>) => Promise<void>;
 };
 
 const OfficesContext = createContext<OfficesContextType | undefined>(undefined);
@@ -134,12 +135,31 @@ export function OfficesProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateOffice = async (id: number, data: Partial<Omit<Office, "id" | "staff">>) => {
+    try {
+      const res = await fetch(`/api/offices/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await fetchOffices();
+        window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to update office");
+      }
+    } catch (err) {
+      console.error("Error updating office:", err);
+    }
+  };
+
   const cancelDeleteOffice = () => {
     setOfficeToDelete(null);
   };
 
   return (
-    <OfficesContext.Provider value={{ offices, addOffice, openAddOfficeModal, setOpenAddOfficeModal, addStaff, deleteOffice }}>
+    <OfficesContext.Provider value={{ offices, addOffice, openAddOfficeModal, setOpenAddOfficeModal, addStaff, deleteOffice, updateOffice }}>
       {children}
       {officeToDelete !== null && (
         <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={cancelDeleteOffice}>
