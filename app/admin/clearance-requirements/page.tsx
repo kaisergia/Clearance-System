@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
 
 interface AcademicTerm {
   id: number;
@@ -93,6 +94,7 @@ export default function ClearanceRequirementsPage() {
 
   // Confirmation state for saving the clearance flow
   const [showSaveFlowConfirm, setShowSaveFlowConfirm] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   // Fetch initial data
   useEffect(() => {
@@ -1137,8 +1139,19 @@ export default function ClearanceRequirementsPage() {
         confirmText="Save"
         cancelText="Cancel"
         confirmButtonClass="bg-brand-red hover:bg-primary"
-        onConfirm={executeSaveFlow}
+        onConfirm={() => {
+          setShowSaveFlowConfirm(false);
+          setShowPinModal(true);
+        }}
         onCancel={() => setShowSaveFlowConfirm(false)}
+      />
+      <PinConfirmationModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        onConfirm={executeSaveFlow}
+        title="Admin PIN Verification"
+        description="Please enter your System Administrator Security PIN to verify and authorize saving/publishing this clearance flow structure."
+        officeIdOrKey="default"
       />
     </div>
   );

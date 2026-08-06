@@ -62,6 +62,9 @@ export default function AddUserModal({
   const [clubsList, setClubsList] = useState<any[]>([]);
   const [officesList, setOfficesList] = useState<any[]>([]);
   const [orgsList, setOrgsList] = useState<any[]>([]);
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
+  const [showEmailDropdown, setShowEmailDropdown] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -97,6 +100,13 @@ export default function AddUserModal({
             setAssignedOffice(officesData[0].name);
           }
         }
+
+        // Fetch users dynamically for auto-complete
+        const usersRes = await fetch("/api/users");
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          setUsersList(usersData.filter((u: any) => u.email && u.displayName));
+        }
       } catch (err) {
         console.error("Error loading metadata for Add User modal:", err);
       }
@@ -104,6 +114,42 @@ export default function AddUserModal({
 
     loadMetadata();
   }, []);
+
+  // Workspace Auto-complete Filter Effect
+  useEffect(() => {
+    if (email.trim().length >= 2) {
+      const q = email.toLowerCase();
+      const filtered = usersList.filter(
+        (u) =>
+          u.email.toLowerCase().includes(q) ||
+          u.displayName.toLowerCase().includes(q)
+      );
+      setFilteredUsers(filtered);
+    } else {
+      setFilteredUsers([]);
+    }
+  }, [email, usersList]);
+
+  const handleSelectUser = (u: any) => {
+    setEmail(u.email);
+    const parts = (u.displayName || "").trim().split(/\s+/);
+    if (parts.length > 0) {
+      setFirstName(parts[0]);
+    }
+    if (parts.length > 2) {
+      setMiddleName(parts[1]);
+      setLastName(parts.slice(2).join(" "));
+    } else if (parts.length === 2) {
+      setMiddleName("");
+      setLastName(parts[1]);
+    } else {
+      setMiddleName("");
+      setLastName("");
+    }
+    if (u.role) setRole(u.role);
+    if (u.studentId) setStudentId(u.studentId);
+    setShowEmailDropdown(false);
+  };
 
   // Pre-fill email in first-login mode
   useEffect(() => {
@@ -269,7 +315,7 @@ export default function AddUserModal({
             </div>
 
             {/* Email Address */}
-            <div>
+            <div className="relative">
               <label className="block font-bold text-gray-900 text-xs mb-1.5">Email</label>
               <div className="relative">
                 <input
@@ -277,7 +323,12 @@ export default function AddUserModal({
                   required
                   placeholder="username@g.cjc.edu.ph"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setShowEmailDropdown(true);
+                  }}
+                  onFocus={() => setShowEmailDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowEmailDropdown(false), 200)}
                   disabled={isFirstLoginMode || isSubmitting}
                   className="w-full h-12 px-4 pr-10 bg-white border border-gray-300 rounded-2xl text-sm font-medium text-gray-800 placeholder-gray-400 outline-none focus:border-red-600"
                 />
@@ -291,6 +342,31 @@ export default function AddUserModal({
                   </button>
                 )}
               </div>
+              
+              {/* Autocomplete Dropdown */}
+              {showEmailDropdown && filteredUsers.length > 0 && (
+                <ul className="absolute z-50 w-full bg-white border border-gray-200 mt-1 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-gray-50">
+                  {filteredUsers.map((u) => (
+                    <li
+                      key={u.id}
+                      className="px-4 py-2 hover:bg-slate-50 cursor-pointer flex items-center gap-3 transition-colors"
+                      onMouseDown={() => handleSelectUser(u)}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-xs shrink-0 overflow-hidden">
+                        {u.avatarUrl ? (
+                          <img src={u.avatarUrl} alt={u.displayName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span>{u.displayName ? u.displayName.charAt(0).toUpperCase() : "U"}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-semibold text-xs text-gray-900 truncate">{u.displayName}</span>
+                        <span className="text-[10px] text-gray-500 truncate font-mono">{u.email}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="text-[11px] text-gray-500 font-normal mt-1">Must be a @g.cjc.edu.ph email address</p>
             </div>
 

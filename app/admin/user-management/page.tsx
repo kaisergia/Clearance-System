@@ -99,6 +99,7 @@ export default function UnifiedUserManagementPage() {
   const [newOrgCategory, setNewOrgCategory] = useState("Academic");
   const [newOrgDept, setNewOrgDept] = useState("CCIS");
   const [newOrgAdviser, setNewOrgAdviser] = useState("");
+  const [newOrgAdviserEmail, setNewOrgAdviserEmail] = useState("");
   const [newOrgDescription, setNewOrgDescription] = useState("");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
@@ -249,29 +250,43 @@ export default function UnifiedUserManagementPage() {
     }
   };
 
-  const handleCreateOrg = (e: React.FormEvent) => {
+  const handleCreateOrg = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOrgName.trim()) return;
 
-    const created = {
-      id: Date.now(),
-      name: newOrgName.trim(),
-      type: newOrgType,
-      category: newOrgCategory,
-      department: newOrgDept === "CSG" ? null : newOrgDept,
-      adviser: newOrgAdviser || "Prof. Adviser",
-      description: newOrgDescription,
-      status: "Active",
-      memberCount: 1,
-      logoUrl: logoPreview || null,
-    };
+    try {
+      const res = await fetch("/api/orgs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newOrgName.trim(),
+          type: newOrgType,
+          category: newOrgCategory,
+          department: newOrgDept === "CSG" ? null : newOrgDept,
+          adviser: newOrgAdviser.trim() || null,
+          adviserEmail: newOrgAdviserEmail.trim() || null,
+          description: newOrgDescription,
+          logoUrl: logoPreview || null,
+        }),
+      });
 
-    setOrgsList((prev) => [...prev, created]);
-    setShowAddOrgModal(false);
-    showToast(`Organization ${newOrgName} created!`);
-    setNewOrgName("");
-    setNewOrgDescription("");
-    setLogoPreview(null);
+      if (res.ok) {
+        showToast(`Organization ${newOrgName} created!`);
+        setShowAddOrgModal(false);
+        setNewOrgName("");
+        setNewOrgDescription("");
+        setNewOrgAdviser("");
+        setNewOrgAdviserEmail("");
+        setLogoPreview(null);
+        // Reload all data to refresh constituents list
+        loadData();
+      } else {
+        const err = await res.json();
+        showToast(err.error || "Failed to create organization");
+      }
+    } catch (err: any) {
+      showToast(`Error creating organization: ${err.message}`);
+    }
   };
 
   // Format real users for Manage Constituents table
@@ -398,7 +413,7 @@ export default function UnifiedUserManagementPage() {
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#b51b15] hover:bg-[#961410] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add User</span>
+                <span>Add Constituent</span>
               </button>
             </div>
           </div>
@@ -1150,6 +1165,17 @@ export default function UnifiedUserManagementPage() {
                   placeholder="e.g. Prof. Juan Dela Cruz"
                   value={newOrgAdviser}
                   onChange={(e) => setNewOrgAdviser(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium focus:ring-1 focus:ring-[#b51b15] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Adviser Email (Optional)</label>
+                <input
+                  type="email"
+                  placeholder="e.g. adviser@uni.edu.ph"
+                  value={newOrgAdviserEmail}
+                  onChange={(e) => setNewOrgAdviserEmail(e.target.value)}
                   className="w-full px-3.5 py-2 bg-gray-50 border border-gray-300 rounded-lg font-medium focus:ring-1 focus:ring-[#b51b15] outline-none"
                 />
               </div>
