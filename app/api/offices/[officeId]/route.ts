@@ -47,7 +47,15 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { logoUrl, coverUrl, themeColor, name, head, email } = body;
+    let { logoUrl, coverUrl, themeColor, name, head, email } = body;
+
+    // Robust Unpacking Safeguard: If head is passed as an object, unpack its fields
+    let headName = typeof head === "string" ? head : "";
+    let headEmail = typeof email === "string" ? email : "";
+    if (head && typeof head === "object") {
+      if (head.name) headName = head.name;
+      if (head.email) headEmail = head.email;
+    }
 
     // Fetch existing office state
     const currentOffice = await prisma.office.findUnique({
@@ -59,8 +67,8 @@ export async function PATCH(
     }
 
     let parsedEmail = currentOffice.email;
-    if (email !== undefined && email !== currentOffice.email) {
-      parsedEmail = email.trim().toLowerCase();
+    if (headEmail && headEmail !== currentOffice.email) {
+      parsedEmail = headEmail.trim().toLowerCase();
 
       // Check role collision
       const existingUser = await prisma.user.findUnique({
@@ -98,7 +106,7 @@ export async function PATCH(
           data: {
             role: "head_office",
             officeId: id,
-            displayName: head || existingUser.displayName,
+            displayName: headName || existingUser.displayName,
             studentId: null, // Clear student association if they were promoted from student
           }
         });
@@ -106,18 +114,18 @@ export async function PATCH(
         await prisma.user.create({
           data: {
             email: parsedEmail,
-            displayName: head || "Office Head",
+            displayName: headName || "Office Head",
             role: "head_office",
             officeId: id,
           }
         });
       }
-    } else if (head !== undefined && head !== currentOffice.head) {
+    } else if (headName && headName !== currentOffice.head) {
       // Just update display name for the current head user
       if (currentOffice.email) {
         await prisma.user.updateMany({
           where: { email: currentOffice.email, officeId: id },
-          data: { displayName: head }
+          data: { displayName: headName }
         });
       }
     }
@@ -127,8 +135,8 @@ export async function PATCH(
     if (coverUrl !== undefined) updateData.coverUrl = coverUrl;
     if (themeColor !== undefined) updateData.themeColor = themeColor;
     if (name !== undefined) updateData.name = name;
-    if (head !== undefined) updateData.head = head;
-    if (email !== undefined) updateData.email = parsedEmail;
+    if (headName !== "") updateData.head = headName;
+    if (headEmail !== "") updateData.email = parsedEmail;
 
     const updated = await prisma.office.update({
       where: { id },

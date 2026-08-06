@@ -137,10 +137,18 @@ export function OfficesProvider({ children }: { children: React.ReactNode }) {
 
   const updateOffice = async (id: number, data: Partial<Omit<Office, "id" | "staff">>) => {
     try {
+      const payload: any = {};
+      if (data.name !== undefined) payload.name = data.name;
+      if (data.description !== undefined) payload.description = data.description;
+      if (data.head !== undefined) {
+        if (data.head.name !== undefined) payload.head = data.head.name;
+        if (data.head.email !== undefined) payload.email = data.head.email;
+      }
+
       const res = await fetch(`/api/offices/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         await fetchOffices();
