@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Terminal, Zap, Trash2, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
 
 interface DevDiagnosticsModalProps {
@@ -14,6 +14,52 @@ export function DevDiagnosticsModal({ isOpen, onClose }: DevDiagnosticsModalProp
   const [selectedOfficeId, setSelectedOfficeId] = useState("1");
   const [selectedDeptId, setSelectedDeptId] = useState("1");
   const [selectedOrgId, setSelectedOrgId] = useState("1");
+
+  const [officesList, setOfficesList] = useState<any[]>([]);
+  const [departmentsList, setDepartmentsList] = useState<any[]>([]);
+  const [orgsList, setOrgsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchDropdownData = async () => {
+      try {
+        const [officesRes, deptsRes, orgsRes] = await Promise.all([
+          fetch("/api/offices"),
+          fetch("/api/departments"),
+          fetch("/api/orgs"),
+        ]);
+
+        if (officesRes.ok) {
+          const officesData = await officesRes.json();
+          setOfficesList(officesData);
+          if (officesData.length > 0) {
+            setSelectedOfficeId(String(officesData[0].id));
+          }
+        }
+
+        if (deptsRes.ok) {
+          const deptsData = await deptsRes.json();
+          setDepartmentsList(deptsData);
+          if (deptsData.length > 0) {
+            setSelectedDeptId(String(deptsData[0].id));
+          }
+        }
+
+        if (orgsRes.ok) {
+          const orgsData = await orgsRes.json();
+          setOrgsList(orgsData);
+          if (orgsData.length > 0) {
+            setSelectedOrgId(String(orgsData[0].id));
+          }
+        }
+      } catch (err) {
+        console.error("Error loading dev diagnostics dropdown options:", err);
+      }
+    };
+
+    fetchDropdownData();
+  }, [isOpen]);
 
   // Debug Reset States
   const [resetStudentId, setResetStudentId] = useState("__all__");
@@ -145,11 +191,20 @@ export function DevDiagnosticsModal({ isOpen, onClose }: DevDiagnosticsModalProp
                     onChange={(e) => setSelectedOfficeId(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-medium text-gray-800 outline-none focus:border-[#c41e2a] focus:ring-1 focus:ring-[#c41e2a] transition-all"
                   >
-                    <option value="1">Registrar (ID: 1)</option>
-                    <option value="2">Library (ID: 2)</option>
-                    <option value="3">Guidance Office (ID: 3)</option>
-                    <option value="4">Accounting (ID: 4)</option>
-                    <option value="5">Discipline Office (ID: 5)</option>
+                    {officesList.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name} (ID: {o.id})
+                      </option>
+                    ))}
+                    {officesList.length === 0 && (
+                      <>
+                        <option value="1">Registrar (ID: 1)</option>
+                        <option value="2">Library (ID: 2)</option>
+                        <option value="3">Guidance Office (ID: 3)</option>
+                        <option value="4">Accounting (ID: 4)</option>
+                        <option value="5">Discipline Office (ID: 5)</option>
+                      </>
+                    )}
                   </select>
                 </div>
               )}
@@ -162,8 +217,17 @@ export function DevDiagnosticsModal({ isOpen, onClose }: DevDiagnosticsModalProp
                     onChange={(e) => setSelectedDeptId(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-medium text-gray-800 outline-none focus:border-[#c41e2a] focus:ring-1 focus:ring-[#c41e2a] transition-all"
                   >
-                    <option value="1">CCIS (ID: 1)</option>
-                    <option value="2">COE (ID: 2)</option>
+                    {departmentsList.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.abbreviation || d.name}) (ID: {d.id})
+                      </option>
+                    ))}
+                    {departmentsList.length === 0 && (
+                      <>
+                        <option value="1">CCIS (ID: 1)</option>
+                        <option value="2">COE (ID: 2)</option>
+                      </>
+                    )}
                   </select>
                 </div>
               )}
@@ -176,10 +240,19 @@ export function DevDiagnosticsModal({ isOpen, onClose }: DevDiagnosticsModalProp
                     onChange={(e) => setSelectedOrgId(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-medium text-gray-800 outline-none focus:border-[#c41e2a] focus:ring-1 focus:ring-[#c41e2a] transition-all"
                   >
-                    <option value="1">Computer Science Society (ID: 1)</option>
-                    <option value="6">CCIS LGU (ID: 6)</option>
-                    <option value="4">Engineering Society (ID: 4)</option>
-                    <option value="5">Student Government (ID: 5)</option>
+                    {orgsList.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name} (ID: {o.id})
+                      </option>
+                    ))}
+                    {orgsList.length === 0 && (
+                      <>
+                        <option value="1">Computer Science Society (ID: 1)</option>
+                        <option value="6">CCIS LGU (ID: 6)</option>
+                        <option value="4">Engineering Society (ID: 4)</option>
+                        <option value="5">Student Government (ID: 5)</option>
+                      </>
+                    )}
                   </select>
                 </div>
               )}
