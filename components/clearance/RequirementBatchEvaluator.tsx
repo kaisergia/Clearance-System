@@ -71,6 +71,11 @@ export function RequirementBatchEvaluator({
   const [warningOpen, setWarningOpen] = useState(false);
   const [warningConfig, setWarningConfig] = useState<{ title: string; message: string } | null>(null);
 
+  // Unclear Confirmation states
+  const [showUnclearConfirm, setShowUnclearConfirm] = useState(false);
+  const [unclearAction, setUnclearAction] = useState<(() => void) | null>(null);
+  const [unclearMessage, setUnclearMessage] = useState("");
+
   const showWarning = (title: string, message: string) => {
     setWarningConfig({ title, message });
     setWarningOpen(true);
@@ -258,7 +263,9 @@ export function RequirementBatchEvaluator({
       setPendingPinAction(() => () => executeSingleToggle(studentId, true));
       setShowPinModal(true);
     } else {
-      executeSingleToggle(studentId, false);
+      setUnclearMessage(`Are you sure you want to mark requirement "${activeRequirement?.name}" as uncleared for student ${studentId}?`);
+      setUnclearAction(() => () => executeSingleToggle(studentId, false));
+      setShowUnclearConfirm(true);
     }
   };
 
@@ -369,7 +376,9 @@ export function RequirementBatchEvaluator({
       return;
     }
 
-    executeBatchUncleared(clearedSelected);
+    setUnclearMessage(`Are you sure you want to mark "${activeRequirement?.name}" as uncleared for the ${clearedSelected.length} selected student(s)?`);
+    setUnclearAction(() => () => executeBatchUncleared(clearedSelected));
+    setShowUnclearConfirm(true);
   };
 
   return (
@@ -811,6 +820,25 @@ export function RequirementBatchEvaluator({
           onConfirm={() => setWarningOpen(false)}
         />
       )}
+
+      {/* Unclear Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showUnclearConfirm}
+        title="Confirm Mark Uncleared"
+        message={unclearMessage}
+        confirmText="Yes, Unclear"
+        cancelText="Cancel"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        onConfirm={() => {
+          if (unclearAction) unclearAction();
+          setShowUnclearConfirm(false);
+          setUnclearAction(null);
+        }}
+        onCancel={() => {
+          setShowUnclearConfirm(false);
+          setUnclearAction(null);
+        }}
+      />
     </div>
   );
 }

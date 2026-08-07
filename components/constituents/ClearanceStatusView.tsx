@@ -95,6 +95,10 @@ function ClearanceItemRow({
   const isFullyComplete = item.status === "Cleared" || item.status === "Submitted";
 
   useEffect(() => {
+    setCompletedTasks(item.completedTasks || []);
+  }, [JSON.stringify(item.completedTasks)]);
+
+  useEffect(() => {
     if (item.status === "Cleared" && completedTasks.length !== tasks.length) {
       setCompletedTasks(tasks.map((_, idx) => idx));
     }
@@ -143,7 +147,7 @@ function ClearanceItemRow({
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || "Failed to save requirement status.");
+          throw new Error(errData.error || "Failed to update status");
         }
         const data = await res.json();
         if (data.allCleared) {
@@ -360,7 +364,7 @@ function ClearanceItemRow({
                       // Use local optimistic state first — shows "Pending Review" immediately after submit
                       const isLocallySubmitted = locallySubmittedIds.has(task.id);
                       const isTaskApproved = subStatus === "approved";
-                      const isManualCompleted = (task.type === "MANUAL" || !task.type) && completedTasks.includes(idx);
+                      const isManualCompleted = completedTasks.includes(idx);
                       const isCleared = isTaskApproved || isManualCompleted;
 
                       return (

@@ -48,19 +48,18 @@ export async function POST(
       return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
     }
 
-    // 1. Update the submission record
-    const submission = await prisma.requirementSubmission.update({
+    // Load the existing submission
+    const existingSubmission = await prisma.requirementSubmission.findUnique({
       where: { id: submissionId },
-      data: {
-        status,
-        reviewedBy,
-        reviewNotes: status === "rejected" ? reviewNotes : null,
-      },
     });
 
-    const { studentId, requirementId } = submission;
+    if (!existingSubmission) {
+      return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+    }
 
-    // 2. Identify the owner entity of the requirement
+    const { studentId, requirementId } = existingSubmission;
+
+    // Identify the owner entity of the requirement
     let officeId: number | null = null;
     let departmentId: number | null = null;
     let orgId: number | null = null;
@@ -79,6 +78,38 @@ export async function POST(
         }
       }
     }
+
+    // Check prerequisites first if evaluating to approved
+    if (status === "approved") {
+      const activeTerm = await prisma.academicTerm.findFirst({
+        where: { status: "Active" },
+      });
+      const termId = activeTerm?.id || null;
+
+      if (termId) {
+        const entityType = officeId ? "office" : departmentId ? "department" : "org";
+        const entityVal = officeId || departmentId || orgId;
+        if (entityVal) {
+          const prereqCheck = await checkPrerequisites(studentId, termId, entityType, entityVal);
+          if (!prereqCheck.allowed) {
+            return NextResponse.json(
+              { error: prereqCheck.error },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
+    // Now safe to update the submission record
+    const submission = await prisma.requirementSubmission.update({
+      where: { id: submissionId },
+      data: {
+        status,
+        reviewedBy,
+        reviewNotes: status === "rejected" ? reviewNotes : null,
+      },
+    });
 
     if (officeId || departmentId || orgId) {
       const activeTerm = await prisma.academicTerm.findFirst({
@@ -193,24 +224,6 @@ export async function POST(
             }
 
             // Update ClearanceRecord status based on allCleared check
-            if (status === "approved" && termId) {
-              const entityType = officeId ? "office" : departmentId ? "department" : "org";
-              const entityVal = officeId || departmentId || orgId;
-              if (entityVal) {
-                const prereqCheck = await checkPrerequisites(studentId, termId, entityType, entityVal);
-                if (!prereqCheck.allowed) {
-                  // Revert submission status back to pending
-                  await prisma.requirementSubmission.update({
-                    where: { id: submissionId },
-                    data: { status: "pending" },
-                  });
-                  return NextResponse.json(
-                    { error: prereqCheck.error },
-                    { status: 400 }
-                  );
-                }
-              }
-            }
 
             await prisma.clearanceRecord.update({
               where: { id: clearanceRecord.id },

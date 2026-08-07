@@ -147,7 +147,7 @@ export default function DepartmentDashboard() {
           >
             {availableTerms.map((term) => (
               <option key={term} value={term}>
-                {term}
+                {term}{term === currentTerm ? " (Active)" : ""}
               </option>
             ))}
           </select>

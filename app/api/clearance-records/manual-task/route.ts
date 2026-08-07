@@ -142,11 +142,20 @@ export async function POST(req: NextRequest) {
     let allCleared = true;
     for (let idx = 0; idx < applicableReqs.length; idx++) {
       const req = applicableReqs[idx];
+      // If the evaluator manually completed this task, it is cleared
+      if (updated.includes(idx)) {
+        continue;
+      }
+
       if (req.type === "MANUAL") {
-        if (!updated.includes(idx)) { allCleared = false; break; }
+        allCleared = false;
+        break;
       } else {
         const sub = studentSubmissions.find((s) => s.requirementId === req.id);
-        if (!sub || sub.status !== "approved") { allCleared = false; break; }
+        if (!sub || sub.status !== "approved") {
+          allCleared = false;
+          break;
+        }
       }
     }
 
