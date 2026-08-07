@@ -91,6 +91,63 @@ export default function ClearanceRequirementsPage() {
   const [showDeleteStepConfirm, setShowDeleteStepConfirm] = useState(false);
   const [pendingDeleteStepIdx, setPendingDeleteStepIdx] = useState<number | null>(null);
 
+  // Warning modal/dialog state for duplicate signatories
+  const [showWarningDialog, setShowWarningDialog] = useState(false);
+  const [warningTitle, setWarningTitle] = useState("");
+  const [warningMessage, setWarningMessage] = useState("");
+
+  const getSignatoryKey = (s: {
+    officeId?: number | null;
+    departmentId?: number | null;
+    orgId?: number | null;
+    isDynamicDept?: boolean;
+    isDynamicOrgs?: boolean;
+  }) => {
+    if (s.officeId) return `office-${s.officeId}`;
+    if (s.departmentId) return `department-${s.departmentId}`;
+    if (s.orgId) return `org-${s.orgId}`;
+    if (s.isDynamicDept) return "dynamicDept";
+    if (s.isDynamicOrgs) return "dynamicOrgs";
+    return "";
+  };
+
+  const getSignatoryName = (s: {
+    officeId?: number | null;
+    departmentId?: number | null;
+    orgId?: number | null;
+    isDynamicDept?: boolean;
+    isDynamicOrgs?: boolean;
+  }) => {
+    if (s.officeId) {
+      const o = offices.find((x) => x.id === s.officeId);
+      return o ? o.name : `Office #${s.officeId}`;
+    }
+    if (s.departmentId) {
+      const d = departments.find((x) => x.id === s.departmentId);
+      return d ? d.name : `Department #${s.departmentId}`;
+    }
+    if (s.orgId) {
+      const o = orgs.find((x) => x.id === s.orgId);
+      return o ? o.name : `Organization #${s.orgId}`;
+    }
+    if (s.isDynamicDept) return "Target Student's Academic Department";
+    if (s.isDynamicOrgs) return "Target Student's Joined Organizations";
+    return "Unknown Signatory";
+  };
+
+  const isConfiguredAsPrerequisite = (s: {
+    officeId?: number | null;
+    departmentId?: number | null;
+    orgId?: number | null;
+    isDynamicDept?: boolean;
+    isDynamicOrgs?: boolean;
+  }) => {
+    const targetKey = getSignatoryKey(s);
+    return flowSteps.some((step) =>
+      (step.prerequisites || []).some((prereq) => getSignatoryKey(prereq) === targetKey)
+    );
+  };
+
   // Confirmation state for saving the clearance flow
   const [showSaveFlowConfirm, setShowSaveFlowConfirm] = useState(false);
 
@@ -292,16 +349,71 @@ export default function ClearanceRequirementsPage() {
   };
 
   const handleAddStep = () => {
+    let newType: "office" | "department" | "org" | "dynamicDept" | "dynamicOrgs" = "office";
+    let newOfficeId: number | null = null;
+    let newDepartmentId: number | null = null;
+    let newOrgId: number | null = null;
+    let newIsDynamicDept = false;
+    let newIsDynamicOrgs = false;
+
+    // Build a set of existing signatory keys in the main flow
+    const existingKeys = new Set(flowSteps.map(getSignatoryKey));
+
+    // Try finding the first available signatory that is not in the flow and not configured as a prerequisite
+    const availableOffice = offices.find(o => {
+      const key = `office-${o.id}`;
+      const mockObj = { officeId: o.id };
+      return !existingKeys.has(key) && !isConfiguredAsPrerequisite(mockObj);
+    });
+
+    if (availableOffice) {
+      newType = "office";
+      newOfficeId = availableOffice.id;
+    } else {
+      const availableDept = departments.find(d => {
+        const key = `department-${d.id}`;
+        const mockObj = { departmentId: d.id };
+        return !existingKeys.has(key) && !isConfiguredAsPrerequisite(mockObj);
+      });
+
+      if (availableDept) {
+        newType = "department";
+        newDepartmentId = availableDept.id;
+      } else {
+        const availableOrg = orgs.find(o => {
+          const key = `org-${o.id}`;
+          const mockObj = { orgId: o.id };
+          return !existingKeys.has(key) && !isConfiguredAsPrerequisite(mockObj);
+        });
+
+        if (availableOrg) {
+          newType = "org";
+          newOrgId = availableOrg.id;
+        } else if (!existingKeys.has("dynamicDept") && !isConfiguredAsPrerequisite({ isDynamicDept: true })) {
+          newType = "dynamicDept";
+          newIsDynamicDept = true;
+        } else if (!existingKeys.has("dynamicOrgs") && !isConfiguredAsPrerequisite({ isDynamicOrgs: true })) {
+          newType = "dynamicOrgs";
+          newIsDynamicOrgs = true;
+        } else {
+          setWarningTitle("Flow Design Limit Reached");
+          setWarningMessage("All available office, department, organization, and dynamic signatories are already used in this clearance flow.");
+          setShowWarningDialog(true);
+          return;
+        }
+      }
+    }
+
     const newStep: FlowStep = {
-      officeId: offices[0]?.id || null,
-      departmentId: null,
-      orgId: null,
-      isDynamicDept: false,
-      isDynamicOrgs: false,
+      officeId: newOfficeId,
+      departmentId: newDepartmentId,
+      orgId: newOrgId,
+      isDynamicDept: newIsDynamicDept,
+      isDynamicOrgs: newIsDynamicOrgs,
       isPrerequisiteOnly: false,
       sequenceOrder: flowSteps.length + 1,
       prerequisites: [],
-      type: "office",
+      type: newType,
     };
     setFlowSteps([...flowSteps, newStep]);
   };
@@ -326,19 +438,64 @@ export default function ClearanceRequirementsPage() {
     const updated = [...flowSteps];
     const step = { ...updated[idx] };
 
+    let targetSignatory: any = {
+      type: step.type,
+      officeId: step.officeId,
+      departmentId: step.departmentId,
+      orgId: step.orgId,
+      isDynamicDept: step.isDynamicDept,
+      isDynamicOrgs: step.isDynamicOrgs,
+    };
+
+    if (field === "type") {
+      targetSignatory.type = val;
+      targetSignatory.officeId = null;
+      targetSignatory.departmentId = null;
+      targetSignatory.orgId = null;
+      targetSignatory.isDynamicDept = false;
+      targetSignatory.isDynamicOrgs = false;
+
+      if (val === "office" && offices.length > 0) targetSignatory.officeId = offices[0].id;
+      else if (val === "department" && departments.length > 0) targetSignatory.departmentId = departments[0].id;
+      else if (val === "org" && orgs.length > 0) targetSignatory.orgId = orgs[0].id;
+      else if (val === "dynamicDept") targetSignatory.isDynamicDept = true;
+      else if (val === "dynamicOrgs") targetSignatory.isDynamicOrgs = true;
+    } else if (field === "entityId") {
+      const type = step.type;
+      if (type === "office") targetSignatory.officeId = Number(val);
+      else if (type === "department") targetSignatory.departmentId = Number(val);
+      else if (type === "org") targetSignatory.orgId = Number(val);
+    }
+
+    // 1. Check if the target signatory is already a main step (duplicate block)
+    const targetKey = getSignatoryKey(targetSignatory);
+    const hasDuplicate = flowSteps.some((s, i) => i !== idx && getSignatoryKey(s) === targetKey);
+
+    if (hasDuplicate) {
+      const name = getSignatoryName(targetSignatory);
+      setWarningTitle("Duplicate Signatory Blocked");
+      setWarningMessage(`"${name}" is already a signatory in the main flow. A signatory cannot be added more than once to the same clearance flow.`);
+      setShowWarningDialog(true);
+      return;
+    }
+
+    // 2. Check if the target signatory is configured as a prerequisite (prereq constraint check)
+    if (isConfiguredAsPrerequisite(targetSignatory)) {
+      const name = getSignatoryName(targetSignatory);
+      setWarningTitle("Signatory Already a Prerequisite");
+      setWarningMessage(`"${name}" is currently configured as a prerequisite for another step in this flow. A prerequisite signatory cannot be added to the main flow.`);
+      setShowWarningDialog(true);
+      return;
+    }
+
+    // Apply valid changes
     if (field === "type") {
       step.type = val;
-      step.officeId = null;
-      step.departmentId = null;
-      step.orgId = null;
-      step.isDynamicDept = false;
-      step.isDynamicOrgs = false;
-
-      if (val === "office" && offices.length > 0) step.officeId = offices[0].id;
-      else if (val === "department" && departments.length > 0) step.departmentId = departments[0].id;
-      else if (val === "org" && orgs.length > 0) step.orgId = orgs[0].id;
-      else if (val === "dynamicDept") step.isDynamicDept = true;
-      else if (val === "dynamicOrgs") step.isDynamicOrgs = true;
+      step.officeId = targetSignatory.officeId;
+      step.departmentId = targetSignatory.departmentId;
+      step.orgId = targetSignatory.orgId;
+      step.isDynamicDept = targetSignatory.isDynamicDept;
+      step.isDynamicOrgs = targetSignatory.isDynamicOrgs;
     } else if (field === "entityId") {
       const type = step.type;
       if (type === "office") step.officeId = Number(val);
@@ -374,10 +531,34 @@ export default function ClearanceRequirementsPage() {
       type: formState.type as any,
     };
 
+    // 1. Check if the prerequisite is already in the main flow steps
+    const prereqKey = getSignatoryKey(newPrereq);
+    const isInMainFlow = flowSteps.some((s) => getSignatoryKey(s) === prereqKey);
+
+    if (isInMainFlow) {
+      const name = getSignatoryName(newPrereq);
+      setWarningTitle("Prerequisite Signatory Blocked");
+      setWarningMessage(`"${name}" is already a signatory in the main flow. Once a signatory is in the main flow, it cannot be configured as a prerequisite for other signatories.`);
+      setShowWarningDialog(true);
+      return;
+    }
+
+    // 2. Check if the prerequisite is already added on this same step
+    const step = flowSteps[stepIdx];
+    const isAlreadyPrereq = (step.prerequisites || []).some((p) => getSignatoryKey(p) === prereqKey);
+
+    if (isAlreadyPrereq) {
+      const name = getSignatoryName(newPrereq);
+      setWarningTitle("Duplicate Prerequisite Blocked");
+      setWarningMessage(`"${name}" is already a prerequisite for this signatory step.`);
+      setShowWarningDialog(true);
+      return;
+    }
+
     const updated = [...flowSteps];
-    const step = { ...updated[stepIdx] };
-    step.prerequisites = [...(step.prerequisites || []), newPrereq];
-    updated[stepIdx] = step;
+    const updatedStep = { ...step };
+    updatedStep.prerequisites = [...(updatedStep.prerequisites || []), newPrereq];
+    updated[stepIdx] = updatedStep;
     setFlowSteps(updated);
 
     // Reset selector form state for this index
@@ -1147,6 +1328,14 @@ export default function ClearanceRequirementsPage() {
         confirmButtonClass="bg-brand-red hover:bg-primary"
         onConfirm={executeSaveFlow}
         onCancel={() => setShowSaveFlowConfirm(false)}
+      />
+      <ConfirmationDialog
+        isOpen={showWarningDialog}
+        title={warningTitle}
+        message={warningMessage}
+        confirmText="OK"
+        onConfirm={() => setShowWarningDialog(false)}
+        isAlert={true}
       />
     </div>
   );
