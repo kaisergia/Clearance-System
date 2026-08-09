@@ -43,6 +43,25 @@ export const authOptions: NextAuthOptions = {
             dbUser = null; // Set to null to fall through to auto-register flow
           }
         }
+
+        // Self-healing: If User role is student but studentId is null, try to link the Student record by email
+        if (dbUser && dbUser.role === "student" && !dbUser.studentId) {
+          const linkedStudent = await prisma.student.findUnique({
+            where: { email: user.email! },
+          });
+          if (linkedStudent) {
+            console.log(`[NextAuth] Self-healing: Linking User ${user.email} to existing Student record ${linkedStudent.id}`);
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: {
+                studentId: linkedStudent.id,
+                displayName: linkedStudent.name || dbUser.displayName,
+              },
+            });
+            // Reload dbUser with the updated studentId
+            dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
+          }
+        }
       }
 
       if (dbUser) {
