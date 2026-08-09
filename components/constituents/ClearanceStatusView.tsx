@@ -186,11 +186,7 @@ function ClearanceItemRow({
       }
     };
 
-    if (willBeCompleted && onRequestPin) {
-      onRequestPin(executeToggle);
-    } else {
-      executeToggle();
-    }
+    executeToggle();
   };
 
 
@@ -324,11 +320,7 @@ function ClearanceItemRow({
       }
     };
 
-    if (status === "approved" && onRequestPin) {
-      onRequestPin(executeEvaluation);
-    } else {
-      executeEvaluation();
-    }
+    executeEvaluation();
   };
 
   return (
@@ -1015,13 +1007,8 @@ export function ClearanceStatusView({
     }
   };
 
-  const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any, bypassPin?: boolean) => {
-    if (newStatus === "Cleared" && !bypassPin) {
-      setPendingPinAction(() => () => executeStatusChange(reqId, newStatus, data));
-      setShowPinModal(true);
-    } else {
-      executeStatusChange(reqId, newStatus, data);
-    }
+  const handleStatusChange = (reqId: number, newStatus: ClearanceItem["status"], data?: any) => {
+    executeStatusChange(reqId, newStatus, data);
   };
 
   if (!student) {
@@ -1368,12 +1355,9 @@ export function ClearanceStatusView({
                         isLast={i === headOffices.length - 1}
                         isSysAdminView={isSysAdminView}
                         studentId={student?.id || ""}
-                        onStatusChange={(status, data, bypassPin) => handleStatusChange(item.id, status, data, bypassPin)}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                         tasks={tasks}
-                        onRequestPin={(action) => {
-                          setPendingPinAction(() => action);
-                          setShowPinModal(true);
-                        }}
+                        onRequestPin={(action) => action()}
                         requirements={requirements}
                       />
                     );
@@ -1403,12 +1387,9 @@ export function ClearanceStatusView({
                         isLast={i === departments.length - 1}
                         isSysAdminView={isSysAdminView}
                         studentId={student?.id || ""}
-                        onStatusChange={(status, data, bypassPin) => handleStatusChange(item.id, status, data, bypassPin)}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                         tasks={tasks}
-                        onRequestPin={(action) => {
-                          setPendingPinAction(() => action);
-                          setShowPinModal(true);
-                        }}
+                        onRequestPin={(action) => action()}
                         requirements={requirements}
                       />
                     );
@@ -1438,12 +1419,9 @@ export function ClearanceStatusView({
                         isLast={i === orgsClubs.length - 1}
                         isSysAdminView={isSysAdminView}
                         studentId={student?.id || ""}
-                        onStatusChange={(status, data, bypassPin) => handleStatusChange(item.id, status, data, bypassPin)}
+                        onStatusChange={(status, data) => handleStatusChange(item.id, status, data)}
                         tasks={tasks}
-                        onRequestPin={(action) => {
-                          setPendingPinAction(() => action);
-                          setShowPinModal(true);
-                        }}
+                        onRequestPin={(action) => action()}
                         requirements={requirements}
                       />
                     );
@@ -1470,19 +1448,7 @@ export function ClearanceStatusView({
         />
       )}
 
-      {/* Security Approval PIN Confirmation Modal */}
-      <PinConfirmationModal
-        isOpen={showPinModal}
-        onClose={() => {
-          setShowPinModal(false);
-          setPendingPinAction(null);
-        }}
-        onConfirm={() => {
-          if (pendingPinAction) pendingPinAction();
-          setPendingPinAction(null);
-        }}
-        officeIdOrKey={currentEntityId || "default"}
-      />
+
     </div>
   );
 }

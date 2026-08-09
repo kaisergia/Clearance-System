@@ -254,12 +254,7 @@ export function RequirementBatchEvaluator({
 
   const handleToggleStudentRequirement = (studentId: string, currentStatus: "Cleared" | "Pending") => {
     const willClear = currentStatus !== "Cleared";
-    if (willClear) {
-      setPendingPinAction(() => () => executeSingleToggle(studentId, true));
-      setShowPinModal(true);
-    } else {
-      executeSingleToggle(studentId, false);
-    }
+    executeSingleToggle(studentId, willClear);
   };
 
   // Batch Clear Selected Students Action (PIN Protected)

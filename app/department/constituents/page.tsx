@@ -568,15 +568,8 @@ export default function ConstituentsPage() {
           onConfirm={() => {
             setShowToggleConfirmModal(false);
             const targetId = confirmToggleConfig.studentId;
-            const willClear = confirmToggleConfig.willClear;
             setConfirmToggleConfig(null);
-            
-            if (willClear) {
-              setPendingPinAction(() => () => executeToggleStatus(targetId));
-              setShowPinModal(true);
-            } else {
-              executeToggleStatus(targetId);
-            }
+            executeToggleStatus(targetId);
           }}
         />
       )}
