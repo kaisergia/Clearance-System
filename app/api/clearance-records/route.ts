@@ -10,6 +10,7 @@ import { checkPrerequisites } from "@/lib/clearancePrereqs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { recordAuditLog } from "@/services/auditService";
+import { sendEvaluationResultAlert } from "@/services/notificationService";
 
 export async function GET(req: NextRequest) {
   try {
@@ -180,8 +181,17 @@ export async function POST(req: NextRequest) {
         entityName,
         details,
       });
+
+      // Dispatch Student In-App Notification & Alert
+      await sendEvaluationResultAlert(
+        studentId,
+        entityName,
+        status as any,
+        data?.remarks || undefined,
+        actorName
+      );
     } catch (auditErr) {
-      console.error("[ClearanceRecords POST] Failed to log audit event:", auditErr);
+      console.error("[ClearanceRecords POST] Failed to log audit/notification event:", auditErr);
     }
 
     return NextResponse.json({ ok: true, record });

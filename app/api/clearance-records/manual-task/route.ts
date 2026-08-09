@@ -197,8 +197,17 @@ export async function POST(req: NextRequest) {
         entityName,
         details,
       });
+
+      // Dispatch Student In-App Notification & Alert
+      await sendEvaluationResultAlert(
+        studentId,
+        taskName,
+        completed ? "Cleared" : "Pending",
+        completed ? `Marked as completed by ${entityName}` : `Marked as incomplete by ${entityName}`,
+        actorName
+      );
     } catch (auditErr) {
-      console.error("[ManualTask API] Failed to log audit event:", auditErr);
+      console.error("[ManualTask API] Failed to log audit/notification event:", auditErr);
     }
 
     return NextResponse.json({ ok: true, record: updatedRecord, completedTasks: updated, allCleared });

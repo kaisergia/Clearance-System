@@ -56,8 +56,14 @@ export function StudentNotificationCenter({ studentId: propStudentId, align = "r
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000); // Poll every 15s
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchNotifications, 10000); // Poll every 10s
+    window.addEventListener("clearanceRecordsUpdated", fetchNotifications);
+    window.addEventListener("storage", fetchNotifications);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("clearanceRecordsUpdated", fetchNotifications);
+      window.removeEventListener("storage", fetchNotifications);
+    };
   }, [activeStudentId]);
 
   // Close dropdown when clicking outside

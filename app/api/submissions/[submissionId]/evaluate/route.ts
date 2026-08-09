@@ -10,6 +10,7 @@ import { checkPrerequisites } from "@/lib/clearancePrereqs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { recordAuditLog } from "@/services/auditService";
+import { sendEvaluationResultAlert } from "@/services/notificationService";
 
 const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
@@ -261,8 +262,17 @@ export async function POST(
         entityName,
         details,
       });
+
+      // Dispatch Student In-App Notification & Alert
+      await sendEvaluationResultAlert(
+        studentId,
+        reqName,
+        status === "approved" ? "Approved" : "Rejected",
+        reviewNotes || undefined,
+        actorName
+      );
     } catch (auditErr) {
-      console.error("[Evaluate API] Failed to log audit event:", auditErr);
+      console.error("[Evaluate API] Failed to log audit/notification event:", auditErr);
     }
 
     return NextResponse.json({ ok: true, submission });
