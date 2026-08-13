@@ -875,7 +875,7 @@ export default function ReportsPage() {
             >
               {availableTerms.map((term) => (
                 <option key={term} value={term}>
-                  {term}
+                  {term}{term === currentTerm ? " (Active)" : ""}
                 </option>
               ))}
             </select>

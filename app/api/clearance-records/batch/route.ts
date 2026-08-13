@@ -54,6 +54,28 @@ export async function POST(req: NextRequest) {
     });
     const termId = activeTerm?.id || null;
 
+    if (!termId) {
+      return NextResponse.json({ error: "No active academic term exists." }, { status: 403 });
+    }
+
+    // Check if the signatory is declared in the active published clearance flow
+    const activeFlows = await prisma.clearanceFlow.findMany({
+      where: { termId, status: "Published" },
+      include: { steps: true },
+    });
+
+    const isDeclared = activeFlows.some((flow) =>
+      flow.steps.some((step) => 
+        (entityType === "office" && step.officeId === numEntityId) ||
+        (entityType === "department" && (step.departmentId === numEntityId || step.isDynamicDept)) ||
+        (entityType === "org" && (step.orgId === numEntityId || step.isDynamicOrgs))
+      )
+    );
+
+    if (!isDeclared) {
+      return NextResponse.json({ error: "Your signatory office is not declared in the active published clearance flow. Evaluation is locked." }, { status: 403 });
+    }
+
     // Filter payload to valid students only
     const validRecords = records.filter((r: any) => existingStudentIdSet.has(String(r.studentId).trim()));
 

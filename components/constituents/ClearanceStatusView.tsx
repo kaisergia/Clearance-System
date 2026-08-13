@@ -225,6 +225,10 @@ function ClearanceItemRow({
   const isFullyComplete = item.status === "Cleared" || item.status === "Submitted";
 
   useEffect(() => {
+    setCompletedTasks(item.completedTasks || []);
+  }, [JSON.stringify(item.completedTasks)]);
+
+  useEffect(() => {
     if (item.status === "Cleared" && completedTasks.length !== tasks.length) {
       setCompletedTasks(tasks.map((_, idx) => idx));
     }
@@ -271,7 +275,10 @@ function ClearanceItemRow({
             completed: willBeCompleted,
           }),
         });
-        if (!res.ok) throw new Error("Failed");
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to update status");
+        }
         const data = await res.json();
         if (data.allCleared) {
           onStatusChange("Cleared", { completedTasks: newCompleted }, true);
@@ -279,10 +286,10 @@ function ClearanceItemRow({
           onStatusChange(item.status === "Cleared" ? "Submitted" : item.status, { completedTasks: newCompleted });
         }
         window.dispatchEvent(new Event("clearanceRecordsUpdated"));
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
         setCompletedTasks(completedTasks); // revert
-        alert("Failed to save. Please try again.");
+        alert(err.message || "Failed to save. Please try again.");
       }
     };
 
@@ -402,14 +409,15 @@ function ClearanceItemRow({
       });
 
       if (!res.ok) {
-        throw new Error("Evaluation failed");
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Evaluation failed");
       }
 
       // Trigger re-sync
       window.dispatchEvent(new Event("clearanceRecordsUpdated"));
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Evaluation failed. Please try again.");
+      alert(err.message || "Evaluation failed. Please try again.");
     }
   };
 
@@ -419,7 +427,12 @@ function ClearanceItemRow({
       setRejectRemarks("");
       return;
     }
-    await executeEvaluateSubmission(submissionId, "approved");
+
+    if (onRequestPin) {
+      onRequestPin(() => executeEvaluateSubmission(submissionId, "approved"));
+    } else {
+      await executeEvaluateSubmission(submissionId, "approved");
+    }
   };
 
   return (
@@ -522,7 +535,7 @@ function ClearanceItemRow({
                       // Use local optimistic state first — shows "Pending Review" immediately after submit
                       const isLocallySubmitted = locallySubmittedIds.has(task.id);
                       const isTaskApproved = subStatus === "approved";
-                      const isManualCompleted = (task.type === "MANUAL" || !task.type) && completedTasks.includes(idx);
+                      const isManualCompleted = completedTasks.includes(idx);
                       const isCleared = isTaskApproved || isManualCompleted;
 
                       return (

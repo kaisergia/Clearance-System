@@ -1,5 +1,7 @@
 "use client";
 
+import { useSettings } from "@/components/contexts/SettingsContext";
+
 interface ConstituentsFilterBarProps {
   search: string;
   setSearch: (v: string) => void;
@@ -37,6 +39,8 @@ export function ConstituentsFilterBar({
   setYearLevel,
   org,
 }: ConstituentsFilterBarProps) {
+  const { currentTerm } = useSettings();
+
   // Check if department dropdown should be editable/visible
   const showDeptSelect = !org || org.type === "Gov" || org.type === "NonAcademicClub";
   // Check if program dropdown should be editable/visible
@@ -85,7 +89,7 @@ export function ConstituentsFilterBar({
           >
             {availableTerms.map((term) => (
               <option key={term} value={term}>
-                {term}
+                {term}{term === currentTerm ? " (Active)" : ""}
               </option>
             ))}
           </select>

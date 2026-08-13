@@ -53,6 +53,28 @@ export async function POST(req: NextRequest) {
     });
     const termId = activeTerm?.id || null;
 
+    if (!termId) {
+      return NextResponse.json({ error: "No active academic term exists." }, { status: 403 });
+    }
+
+    // Check if the signatory is declared in the active published clearance flow
+    const activeFlows = await prisma.clearanceFlow.findMany({
+      where: { termId, status: "Published" },
+      include: { steps: true },
+    });
+
+    const isDeclared = activeFlows.some((flow) =>
+      flow.steps.some((step) => 
+        (entityType === "office" && step.officeId === Number(entityId)) ||
+        (entityType === "department" && (step.departmentId === Number(entityId) || step.isDynamicDept)) ||
+        (entityType === "org" && (step.orgId === Number(entityId) || step.isDynamicOrgs))
+      )
+    );
+
+    if (!isDeclared) {
+      return NextResponse.json({ error: "Your signatory office is not declared in the active published clearance flow. Evaluation is locked." }, { status: 403 });
+    }
+
     // 1. Find the ClearanceRecord for this student + entity + term
     const whereClause: any = { studentId, termId };
     if (entityType === "office") whereClause.officeId = Number(entityId);
@@ -151,15 +173,24 @@ export async function POST(req: NextRequest) {
     let allCleared = true;
     for (let idx = 0; idx < applicableReqs.length; idx++) {
       const req = applicableReqs[idx];
+      // If the evaluator manually completed this task, it is cleared
+      if (updated.includes(idx)) {
+        continue;
+      }
+
       if (req.type === "MANUAL") {
-        if (!updated.includes(idx)) { allCleared = false; break; }
+        allCleared = false;
+        break;
       } else {
         const sub = studentSubmissions.find((s) => s.requirementId === req.id);
-        if (!sub || sub.status !== "approved") { allCleared = false; break; }
+        if (!sub || sub.status !== "approved") {
+          allCleared = false;
+          break;
+        }
       }
     }
 
-    if (completed && allCleared && termId) {
+    if (completed && termId) {
       const prereqCheck = await checkPrerequisites(studentId, termId, entityType as any, Number(entityId));
       if (!prereqCheck.allowed) {
         return NextResponse.json(
