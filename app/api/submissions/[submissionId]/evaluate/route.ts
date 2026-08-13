@@ -107,12 +107,11 @@ export async function POST(
 
       if (clearanceRecord) {
         if (status === "rejected") {
-          // If rejected, set overall clearance status to "Rejected" and save remarks
+          // If rejected, set overall clearance status to "Rejected"
           await prisma.clearanceRecord.update({
             where: { id: clearanceRecord.id },
             data: {
               status: "Rejected",
-              remarks: reviewNotes || "Requirement was rejected.",
             },
           });
         } else {

@@ -31,6 +31,7 @@ import {
   AlertCircle,
   RefreshCw
 } from "lucide-react";
+import { SSCSyncModal } from "@/components/clearance/SSCSyncModal";
 
 export default function UnifiedUserManagementPage() {
   const searchParams = useSearchParams();
@@ -81,6 +82,7 @@ export default function UnifiedUserManagementPage() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAddOrgModal, setShowAddOrgModal] = useState(false);
+  const [showSscSyncModal, setShowSscSyncModal] = useState(false);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<any | null>(null);
   const [resetConfirmUser, setResetConfirmUser] = useState<any | null>(null);
 
@@ -339,7 +341,7 @@ export default function UnifiedUserManagementPage() {
     const email = u.email || (u.student ? u.student.email : `${u.id}@g.cjc.edu.ph`);
     const dept = u.student?.department || u.department?.abbreviation || u.departmentName || (u.role === "admin" ? "System Admin" : "CCIS");
     const prog = u.student?.program || "N/A";
-    const status = u.student?.status || "Active";
+    const status = isStudent ? (u.student?.status && u.student.status !== "Cleared" ? u.student.status : "Pending") : (u.status || "Active");
     const roleLabel = u.role === "admin" ? "System Admin" : u.role === "head_office" ? "Office Head" : u.role === "department" ? "Department Head" : u.role === "org" ? "Org Adviser" : "Student";
     const initials = name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
 
@@ -443,9 +445,9 @@ export default function UnifiedUserManagementPage() {
               </button>
 
               <button
-                onClick={handleSyncSSCMasterlist}
+                onClick={() => setShowSscSyncModal(true)}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
-                title="Sync real student masterlist records from SSC System API (http://localhost:8081)"
+                title="Sync student masterlist records from SSC System API with custom filters"
               >
                 <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
                 <span>Sync SSC API</span>
@@ -1422,6 +1424,16 @@ export default function UnifiedUserManagementPage() {
           </div>
         </div>
       )}
+
+      {/* SSC API Filter Sync Modal */}
+      <SSCSyncModal
+        isOpen={showSscSyncModal}
+        onClose={() => setShowSscSyncModal(false)}
+        onSuccess={(msg) => {
+          showToast(msg);
+          loadData();
+        }}
+      />
     </div>
   );
 }

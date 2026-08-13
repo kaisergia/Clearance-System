@@ -39,6 +39,7 @@ interface Requirement {
   type?: string;
   surveyQuestions?: any;
   acknowledgmentText?: string;
+  allowedFileTypes?: string[];
 }
 
 import { RequirementBatchEvaluator } from "@/components/clearance/RequirementBatchEvaluator";
@@ -66,6 +67,7 @@ export default function OrgClearanceRequirementsPage() {
   const [reqType, setReqType] = useState<string>("MANUAL");
   const [surveyQuestions, setSurveyQuestions] = useState<any[]>([]);
   const [acknowledgmentText, setAcknowledgmentText] = useState<string>("");
+  const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(["pdf", "png", "jpg"]);
 
   // Applies To States
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
@@ -250,6 +252,7 @@ export default function OrgClearanceRequirementsPage() {
               type: reqType,
               surveyQuestions: reqType === "SURVEY" ? surveyQuestions : undefined,
               acknowledgmentText: reqType === "ACKNOWLEDGMENT" ? acknowledgmentText : undefined,
+              allowedFileTypes: (reqType === "DOCUMENT_UPLOAD" || reqType === "PAYMENT_PROOF") ? selectedFileTypes : undefined,
             }
           : r
       );
@@ -276,6 +279,7 @@ export default function OrgClearanceRequirementsPage() {
         type: reqType,
         surveyQuestions: reqType === "SURVEY" ? surveyQuestions : undefined,
         acknowledgmentText: reqType === "ACKNOWLEDGMENT" ? acknowledgmentText : undefined,
+        allowedFileTypes: (reqType === "DOCUMENT_UPLOAD" || reqType === "PAYMENT_PROOF") ? selectedFileTypes : undefined,
       };
       const updated = [newReq, ...requirements];
       setRequirements(updated);
@@ -605,6 +609,37 @@ export default function OrgClearanceRequirementsPage() {
                     <option value="ACKNOWLEDGMENT">Acknowledgment (Student checks box after reading text)</option>
                   </select>
                 </div>
+
+                {/* Allowed File Formats Selector for Document Upload / Payment Requirements */}
+                {(reqType === "DOCUMENT_UPLOAD" || reqType === "PAYMENT_PROOF") && (
+                  <div className="space-y-2 p-3 bg-surface-container-low/40 rounded-lg border border-surface-container-high">
+                    <label className="block font-body-sm text-xs font-bold text-on-surface">
+                      Allowed File Formats for Student Uploads
+                    </label>
+                    <p className="text-[11px] text-secondary">
+                      Limit the file formats students are permitted to submit for this document requirement:
+                    </p>
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      {["pdf", "png", "jpg", "jpeg", "docx", "xlsx"].map((ext) => (
+                        <label key={ext} className="inline-flex items-center gap-1.5 text-xs text-on-surface cursor-pointer select-none font-medium">
+                          <input
+                            type="checkbox"
+                            checked={selectedFileTypes.includes(ext)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedFileTypes((prev) => [...prev, ext]);
+                              } else {
+                                setSelectedFileTypes((prev) => prev.filter((x) => x !== ext));
+                              }
+                            }}
+                            className="rounded text-primary focus:ring-primary h-3.5 w-3.5"
+                          />
+                          .{ext.toUpperCase()}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* SURVEY Question Builder */}
                 {reqType === "SURVEY" && (

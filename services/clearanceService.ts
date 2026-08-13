@@ -263,6 +263,13 @@ export async function getStudentRequirements(studentId: string, termId?: number)
   });
 }
 
+export async function getSubmissions(filter: { officeId?: number; departmentId?: number; orgId?: number }): Promise<any[]> {
+  const query = filter.officeId ? `officeId=${filter.officeId}` : filter.departmentId ? `departmentId=${filter.departmentId}` : filter.orgId ? `orgId=${filter.orgId}` : "";
+  const dbResult = await apiFetch<any[]>(`/api/submissions?${query}`);
+  if (dbResult) return dbResult;
+  return [];
+}
+
 export async function getOverallClearanceStatus(studentId: string): Promise<"Cleared" | "Pending"> {
   const reqs = await getStudentRequirements(studentId);
   if (reqs.length === 0) return "Pending";

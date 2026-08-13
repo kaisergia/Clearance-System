@@ -58,37 +58,108 @@ export default function ConstituentsPage() {
   };
 
   const loadData = async () => {
-    const officeId = localStorage.getItem("officeId");
+    const rawOfficeId = localStorage.getItem("officeId");
+    let targetOfficeId = rawOfficeId ? Number(rawOfficeId) : null;
     let currentOffice = null;
-    if (officeId) {
-      currentOffice = await clearanceService.getOfficeById(Number(officeId));
-      if (currentOffice) setActiveOffice(currentOffice);
-      setCurrentOfficeId(Number(officeId));
+
+    if (targetOfficeId) {
+      currentOffice = await clearanceService.getOfficeById(targetOfficeId);
     }
 
-    const officeReqs = officeId ? await clearanceService.getOfficeRequirements(Number(officeId)) : [];
+    if (!currentOffice) {
+      const offices = await clearanceService.getOffices();
+      if (offices.length > 0) {
+        currentOffice = offices[0];
+        targetOfficeId = currentOffice.id;
+      }
+    }
+
+    if (currentOffice) {
+      setActiveOffice(currentOffice);
+      setCurrentOfficeId(targetOfficeId);
+    }
+
+    const officeReqs = targetOfficeId ? await clearanceService.getOfficeRequirements(targetOfficeId) : [];
     const liveReqs = officeReqs.filter((r: any) => r.status === "Live");
 
+    const parseAppliesTo = (appliesTo: any): string[] => {
+      if (!appliesTo) return ["All Students"];
+      if (Array.isArray(appliesTo)) return appliesTo;
+      if (typeof appliesTo === "string") {
+        try {
+          const parsed = JSON.parse(appliesTo);
+          if (Array.isArray(parsed)) return parsed;
+          return [appliesTo];
+        } catch {
+          return [appliesTo];
+        }
+      }
+      return ["All Students"];
+    };
+
     const isApplicable = (req: any, student: any) => {
-      if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) return true;
+      const list = parseAppliesTo(req.appliesTo);
+      if (list.length === 0 || list.includes("All Students")) return true;
       return (
-        req.appliesTo.includes(student.program) ||
-        req.appliesTo.includes(student.department) ||
-        req.appliesTo.includes(student.year)
+        list.includes(student.program) ||
+        list.includes(student.department) ||
+        list.includes(student.year) ||
+        list.includes(student.id)
       );
     };
 
+    const allSubmissions = targetOfficeId ? await clearanceService.getSubmissions({ officeId: targetOfficeId }) : [];
     const allStudents = await clearanceService.getStudents();
     const mappedStudents = [];
+
     for (const student of allStudents) {
       const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
       const hasRequirements = studentApplicable.length > 0;
 
-      const records = await clearanceService.getStudentClearanceRecords(student.id);
-      const officeRec = records.find((r: any) => r.officeId === Number(officeId));
+      const records = targetOfficeId ? await clearanceService.getStudentClearanceRecords(student.id) : [];
+      const officeRec = records.find((r: any) => r.officeId === targetOfficeId);
+      const studentSubmissions = allSubmissions.filter((s: any) => s.studentId === student.id);
+
+      let computedStatus: "Cleared" | "Submitted" | "Rejected" | "Pending" = "Pending";
+      if (!hasRequirements) {
+        computedStatus = (officeRec?.status as any) || "Pending";
+      } else {
+        const completedTasksIdx = Array.isArray(officeRec?.completedTasks) ? officeRec.completedTasks : [];
+        let hasPendingReview = false;
+        let hasRejected = false;
+        let allSatisfied = true;
+
+        for (let idx = 0; idx < studentApplicable.length; idx++) {
+          const req = studentApplicable[idx];
+          if (req.type === "MANUAL" || !req.type) {
+            const liveIdx = liveReqs.findIndex((r: any) => r.id === req.id);
+            const isDone = completedTasksIdx.includes(liveIdx !== -1 ? liveIdx : idx);
+            if (!isDone) allSatisfied = false;
+          } else {
+            const sub = studentSubmissions.find((s: any) => s.requirementId === req.id);
+            if (!sub) {
+              allSatisfied = false;
+            } else if (sub.status === "approved") {
+              // Satisfied
+            } else if (sub.status === "pending") {
+              allSatisfied = false;
+              hasPendingReview = true;
+            } else if (sub.status === "rejected") {
+              allSatisfied = false;
+              hasRejected = true;
+            }
+          }
+        }
+
+        if (allSatisfied) computedStatus = "Cleared";
+        else if (hasRejected || officeRec?.status === "Rejected") computedStatus = "Rejected";
+        else if (hasPendingReview || officeRec?.status === "Submitted") computedStatus = "Submitted";
+        else computedStatus = "Pending";
+      }
+
       mappedStudents.push({
         ...student,
-        status: hasRequirements ? (officeRec?.status || "Pending") : "Cleared",
+        status: computedStatus,
         hasRequirements,
       });
     }

@@ -125,34 +125,53 @@ export function RequirementBatchEvaluator({
   const activeRequirement = requirements.find((r) => r.id === selectedReqId);
   const reqIndex = requirements.findIndex((r) => r.id === selectedReqId);
 
-  // Helper to check student applicability across Department, Program, and Year filters
+  const parseAppliesTo = (appliesTo: any): string[] => {
+    if (!appliesTo) return ["All Students"];
+    if (Array.isArray(appliesTo)) return appliesTo;
+    if (typeof appliesTo === "string") {
+      try {
+        const parsed = JSON.parse(appliesTo);
+        if (Array.isArray(parsed)) return parsed;
+        return [appliesTo];
+      } catch {
+        return [appliesTo];
+      }
+    }
+    return ["All Students"];
+  };
+
+  // Helper to check student applicability across Student ID, Department, Program, and Year filters
   const isApplicable = (student: any, req: RequirementItem) => {
-    if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) {
+    const list = parseAppliesTo(req.appliesTo);
+    if (list.length === 0 || list.includes("All Students")) {
       return true;
     }
 
-    const deptFilters = req.appliesTo.filter((item) => DEPARTMENTS.includes(item));
-    const progFilters = req.appliesTo.filter((item) => ALL_PROGRAMS.includes(item));
-    const yearFilters = req.appliesTo.filter((item) => YEAR_LEVELS.includes(item));
-
-    // Resolve canonical department from student's program to prevent mock data mismatch issues
+    const studentId = student.id || student.studentId;
     const actualDept = student.department || getDepartmentForProgram(student.program);
     const actualProg = student.program || student.course;
 
-    // 1. Department Filter Check: Must match student's department if specified
-    if (deptFilters.length > 0) {
-      if (!deptFilters.includes(actualDept)) return false;
+    // 1. Check Student ID Filters
+    const studentIdFilters = list.filter(
+      (item) => !DEPARTMENTS.includes(item) && !ALL_PROGRAMS.includes(item) && !YEAR_LEVELS.includes(item) && item !== "All Students"
+    );
+
+    if (studentIdFilters.length > 0) {
+      if (studentIdFilters.includes(studentId)) return true;
+      const hasGroupFilters = list.some(
+        (item) => DEPARTMENTS.includes(item) || ALL_PROGRAMS.includes(item) || YEAR_LEVELS.includes(item)
+      );
+      if (!hasGroupFilters) return false;
     }
 
-    // 2. Program Filter Check: Must match student's program if specified
-    if (progFilters.length > 0) {
-      if (!progFilters.includes(actualProg)) return false;
-    }
+    // 2. Group Filters
+    const deptFilters = list.filter((item) => DEPARTMENTS.includes(item));
+    const progFilters = list.filter((item) => ALL_PROGRAMS.includes(item));
+    const yearFilters = list.filter((item) => YEAR_LEVELS.includes(item));
 
-    // 3. Year Level Filter Check: Must match student's year level if specified
-    if (yearFilters.length > 0) {
-      if (!yearFilters.includes(student.year)) return false;
-    }
+    if (deptFilters.length > 0 && !deptFilters.includes(actualDept)) return false;
+    if (progFilters.length > 0 && !progFilters.includes(actualProg)) return false;
+    if (yearFilters.length > 0 && !yearFilters.includes(student.year)) return false;
 
     return true;
   };
@@ -167,7 +186,6 @@ export function RequirementBatchEvaluator({
   const getStudentReqStatus = (studentId: string): "Cleared" | "Pending" => {
     const record = clearanceRecords[studentId];
     if (!record) return "Pending";
-    if (record.status === "Cleared") return "Cleared";
 
     // If completedTasks array contains the index of this requirement
     if (Array.isArray(record.completedTasks) && reqIndex !== -1 && record.completedTasks.includes(reqIndex)) {

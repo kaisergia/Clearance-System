@@ -49,10 +49,39 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
+    const parseAppliesTo = (appliesTo: any): string[] => {
+      if (!appliesTo) return ["All Students"];
+      if (Array.isArray(appliesTo)) return appliesTo;
+      if (typeof appliesTo === "string") {
+        try {
+          const parsed = JSON.parse(appliesTo);
+          if (Array.isArray(parsed)) return parsed;
+          return [appliesTo];
+        } catch {
+          return [appliesTo];
+        }
+      }
+      return ["All Students"];
+    };
+
     // Helper function to check if a requirement applies to the student
     const isApplicable = (r: any) => {
-      const appliesTo = (r.appliesTo as string[]) || [];
+      const appliesTo = parseAppliesTo(r.appliesTo);
       if (appliesTo.length === 0 || appliesTo.includes("All Students")) return true;
+
+      const studentIdFilters = appliesTo.filter(
+        (item) => !["CCIS", "COE", "CEDAS", "CHS", "CABE", "All Students"].includes(item) &&
+                  !item.startsWith("BS") && !item.includes("Year")
+      );
+
+      if (studentIdFilters.length > 0) {
+        if (studentIdFilters.includes(student.id)) return true;
+        const hasGroupFilters = appliesTo.some(
+          (item) => ["CCIS", "COE", "CEDAS", "CHS", "CABE"].includes(item) || item.startsWith("BS") || item.includes("Year")
+        );
+        if (!hasGroupFilters) return false;
+      }
+
       return (
         appliesTo.includes(student.id) ||
         appliesTo.some((item) => matchProg(item, student.program)) ||
@@ -179,6 +208,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    if (resolvedOffices.size === 0) {
+      const allOff = await prisma.office.findMany({ select: { id: true } });
+      allOff.forEach((o) => resolvedOffices.add(o.id));
+    }
+    if (resolvedDepartments.size === 0 && studentDeptObj) {
+      resolvedDepartments.add(studentDeptObj.id);
+    }
+    if (resolvedOrgs.size === 0 && memberOrgIds.length > 0) {
+      memberOrgIds.forEach((id) => resolvedOrgs.add(id));
+    }
+
     // Ensure all resolved signatories have their requirements copied to the active term if not already done
     if (activeTerm) {
       await ensureRequirementsForTerm(
@@ -220,6 +260,7 @@ export async function GET(req: NextRequest) {
           type: req.type,
           surveyQuestions: req.surveyQuestions,
           acknowledgmentText: req.acknowledgmentText,
+          allowedFileTypes: req.allowedFileTypes || null,
           deadline: req.deadline || null,
           submission: sub || null,
         };
@@ -270,6 +311,7 @@ export async function GET(req: NextRequest) {
           type: req.type,
           surveyQuestions: req.surveyQuestions,
           acknowledgmentText: req.acknowledgmentText,
+          allowedFileTypes: req.allowedFileTypes || null,
           deadline: req.deadline || null,
           submission: sub || null,
         };
@@ -329,6 +371,7 @@ export async function GET(req: NextRequest) {
           type: req.type,
           surveyQuestions: req.surveyQuestions,
           acknowledgmentText: req.acknowledgmentText,
+          allowedFileTypes: req.allowedFileTypes || null,
           deadline: req.deadline || null,
           submission: sub || null,
         };

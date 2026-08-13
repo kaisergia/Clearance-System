@@ -68,37 +68,108 @@ export default function ConstituentsPage() {
   };
 
   const loadData = async () => {
-    const departmentId = localStorage.getItem("departmentId");
+    const rawDeptId = localStorage.getItem("departmentId");
+    let targetDeptId = rawDeptId ? Number(rawDeptId) : null;
     let currentDepartment = null;
-    if (departmentId) {
-      currentDepartment = await clearanceService.getDepartmentById(Number(departmentId));
-      if (currentDepartment) setActiveDepartment(currentDepartment);
+
+    if (targetDeptId) {
+      currentDepartment = await clearanceService.getDepartmentById(targetDeptId);
     }
 
-    const deptReqs = departmentId ? await clearanceService.getDepartmentRequirements(Number(departmentId)) : [];
+    if (!currentDepartment) {
+      const depts = await clearanceService.getDepartments();
+      if (depts.length > 0) {
+        currentDepartment = depts[0];
+        targetDeptId = currentDepartment.id;
+      }
+    }
+
+    if (currentDepartment) {
+      setActiveDepartment(currentDepartment);
+    }
+
+    const deptReqs = targetDeptId ? await clearanceService.getDepartmentRequirements(targetDeptId) : [];
     const liveReqs = deptReqs.filter((r: any) => r.status === "Live");
 
+    const parseAppliesTo = (appliesTo: any): string[] => {
+      if (!appliesTo) return ["All Students"];
+      if (Array.isArray(appliesTo)) return appliesTo;
+      if (typeof appliesTo === "string") {
+        try {
+          const parsed = JSON.parse(appliesTo);
+          if (Array.isArray(parsed)) return parsed;
+          return [appliesTo];
+        } catch {
+          return [appliesTo];
+        }
+      }
+      return ["All Students"];
+    };
+
     const isApplicable = (req: any, student: any) => {
-      if (!req.appliesTo || req.appliesTo.length === 0 || req.appliesTo.includes("All Students")) return true;
+      const list = parseAppliesTo(req.appliesTo);
+      if (list.length === 0 || list.includes("All Students")) return true;
       return (
-        req.appliesTo.includes(student.program) ||
-        req.appliesTo.includes(student.department) ||
-        req.appliesTo.includes(student.year)
+        list.includes(student.program) ||
+        list.includes(student.department) ||
+        list.includes(student.year) ||
+        list.includes(student.id)
       );
     };
 
+    const allSubmissions = targetDeptId ? await clearanceService.getSubmissions({ departmentId: targetDeptId }) : [];
     const allStudents = await clearanceService.getStudents();
     const mappedStudents = [];
+
     for (const student of allStudents) {
       if (!currentDepartment || student.department === currentDepartment.abbreviation) {
         const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
         const hasRequirements = studentApplicable.length > 0;
 
-        const records = await clearanceService.getStudentClearanceRecords(student.id);
-        const departmentRec = records.find((r: any) => r.departmentId === Number(departmentId));
+        const records = targetDeptId ? await clearanceService.getStudentClearanceRecords(student.id) : [];
+        const departmentRec = records.find((r: any) => r.departmentId === targetDeptId);
+        const studentSubmissions = allSubmissions.filter((s: any) => s.studentId === student.id);
+
+        let computedStatus: "Cleared" | "Submitted" | "Rejected" | "Pending" = "Pending";
+        if (!hasRequirements) {
+          computedStatus = (departmentRec?.status as any) || "Pending";
+        } else {
+          const completedTasksIdx = Array.isArray(departmentRec?.completedTasks) ? departmentRec.completedTasks : [];
+          let hasPendingReview = false;
+          let hasRejected = false;
+          let allSatisfied = true;
+
+          for (let idx = 0; idx < studentApplicable.length; idx++) {
+            const req = studentApplicable[idx];
+            if (req.type === "MANUAL" || !req.type) {
+              const liveIdx = liveReqs.findIndex((r: any) => r.id === req.id);
+              const isDone = completedTasksIdx.includes(liveIdx !== -1 ? liveIdx : idx);
+              if (!isDone) allSatisfied = false;
+            } else {
+              const sub = studentSubmissions.find((s: any) => s.requirementId === req.id);
+              if (!sub) {
+                allSatisfied = false;
+              } else if (sub.status === "approved") {
+                // Satisfied
+              } else if (sub.status === "pending") {
+                allSatisfied = false;
+                hasPendingReview = true;
+              } else if (sub.status === "rejected") {
+                allSatisfied = false;
+                hasRejected = true;
+              }
+            }
+          }
+
+          if (allSatisfied) computedStatus = "Cleared";
+          else if (hasRejected || departmentRec?.status === "Rejected") computedStatus = "Rejected";
+          else if (hasPendingReview || departmentRec?.status === "Submitted") computedStatus = "Submitted";
+          else computedStatus = "Pending";
+        }
+
         mappedStudents.push({
           ...student,
-          status: hasRequirements ? (departmentRec?.status || "Pending") : "Cleared",
+          status: computedStatus,
           hasRequirements,
         });
       }

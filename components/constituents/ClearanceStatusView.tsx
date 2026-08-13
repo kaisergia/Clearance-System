@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { mockRequirements, mockStudentClearanceRecords, mockOrgs, mockOrgMembers, defaultOfficeRequirements, defaultOrgRequirements, mockDepartments, defaultDepartmentRequirements } from "@/mock/mockData";
-import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X, Award, ShieldCheck, QrCode, Lock, Ticket, KeyRound } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, UploadCloud, FileText, X, Award, ShieldCheck, QrCode, Lock, Ticket, KeyRound, Image as ImageIcon, Download, Eye, AlertTriangle } from "lucide-react";
 import * as clearanceService from "@/services/clearanceService";
 import ClearanceStatus from "@/components/ui/ClearanceStatus";
 import { CertificateModal } from "@/components/clearance/CertificateModal";
@@ -58,6 +58,106 @@ function parseFileUrls(raw: any): string[] {
     try { return JSON.parse(raw); } catch { return []; }
   }
   return [];
+}
+
+function FilePreviewAndDownload({ url, title }: { url: string; title?: string }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const isImage = /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(url) || url.startsWith("data:image/");
+  const isPdf = /\.pdf(\?.*)?$/i.test(url) || url.startsWith("data:application/pdf");
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      const filename = url.split("/").pop() || "document";
+      link.download = filename.includes(".") ? filename : `${filename}${isImage ? ".png" : isPdf ? ".pdf" : ""}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      // Direct fallback download
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "document";
+      link.click();
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Inline Image Preview Thumbnail */}
+      {isImage && (
+        <div
+          className="relative group w-fit rounded-lg overflow-hidden border border-surface-container-high bg-surface-container-low shadow-sm cursor-pointer"
+          onClick={() => setPreviewOpen(true)}
+        >
+          <img src={url} alt={title || "Uploaded Document"} className="h-28 max-w-xs object-cover transition-transform group-hover:scale-105" />
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white font-bold text-xs">
+            <Eye size={16} /> Click to Preview
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons: Image/Doc Preview Modal & Direct File Download */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="flex items-center gap-1.5 text-xs text-primary font-bold bg-primary/10 hover:bg-primary/20 border border-primary/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+        >
+          {isImage ? <ImageIcon size={14} /> : <FileText size={14} />} Preview {isImage ? "Image" : "Document"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleDownload}
+          className="flex items-center gap-1.5 text-xs text-emerald-700 font-bold bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+        >
+          <Download size={14} /> Download File
+        </button>
+      </div>
+
+      {/* Lightbox Modal for Full Image or PDF Preview */}
+      {previewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 animate-fadeIn" onClick={() => setPreviewOpen(false)}>
+          <div className="relative max-w-4xl max-h-[90vh] w-full bg-surface-container-lowest rounded-2xl overflow-hidden shadow-2xl flex flex-col p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-2 border-b border-surface-container-high">
+              <span className="font-bold text-sm text-on-surface">{title || "Document Preview"}</span>
+              <div className="flex items-center gap-2">
+                <button onClick={handleDownload} className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1 rounded-lg">
+                  <Download size={13} /> Download
+                </button>
+                <button onClick={() => setPreviewOpen(false)} className="p-1 rounded-full text-secondary hover:bg-surface-container-high">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[300px]">
+              {isImage ? (
+                <img src={url} alt="Full Preview" className="max-h-[75vh] w-auto object-contain rounded-lg shadow-sm" />
+              ) : isPdf ? (
+                <iframe src={url} title="PDF Preview" className="w-full h-[70vh] rounded-lg border border-surface-container-high" />
+              ) : (
+                <div className="text-center p-8 space-y-3">
+                  <FileText size={48} className="mx-auto text-primary" />
+                  <p className="text-sm font-semibold text-on-surface">Direct browser preview not supported for this file type.</p>
+                  <button onClick={handleDownload} className="px-4 py-2 bg-primary text-white font-bold text-xs rounded-lg inline-flex items-center gap-2">
+                    <Download size={14} /> Download File Instead
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ClearanceItemRow({
@@ -286,41 +386,40 @@ function ClearanceItemRow({
     }
   };
 
-  const handleEvaluateSubmission = async (submissionId: string, status: "approved" | "rejected") => {
-    let notes = "";
-    if (status === "rejected") {
-      notes = prompt("Please provide a remark/notes for rejection:") || "";
-      if (!notes.trim()) {
-        alert("Rejection reason is required.");
-        return;
+  const [rejectingSubId, setRejectingSubId] = useState<string | null>(null);
+  const [rejectRemarks, setRejectRemarks] = useState("");
+
+  const executeEvaluateSubmission = async (submissionId: string, status: "approved" | "rejected", notes?: string) => {
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status,
+          reviewedBy: localStorage.getItem("displayName") || "Office Evaluator",
+          reviewNotes: notes || "",
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Evaluation failed");
       }
+
+      // Trigger re-sync
+      window.dispatchEvent(new Event("clearanceRecordsUpdated"));
+    } catch (err) {
+      console.error(err);
+      alert("Evaluation failed. Please try again.");
     }
+  };
 
-    const executeEvaluation = async () => {
-      try {
-        const res = await fetch(`/api/submissions/${submissionId}/evaluate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status,
-            reviewedBy: localStorage.getItem("displayName") || "Office Evaluator",
-            reviewNotes: notes,
-          }),
-        });
-
-        if (!res.ok) {
-          throw new Error("Evaluation failed");
-        }
-
-        // Trigger re-sync
-        window.dispatchEvent(new Event("clearanceRecordsUpdated"));
-      } catch (err) {
-        console.error(err);
-        alert("Evaluation failed. Please try again.");
-      }
-    };
-
-    executeEvaluation();
+  const handleEvaluateSubmission = async (submissionId: string, status: "approved" | "rejected") => {
+    if (status === "rejected") {
+      setRejectingSubId(submissionId);
+      setRejectRemarks("");
+      return;
+    }
+    await executeEvaluateSubmission(submissionId, "approved");
   };
 
   return (
@@ -475,14 +574,7 @@ function ClearanceItemRow({
                                   </div>
                                   {(() => {
                                     const urls = parseFileUrls(sub?.uploadedFileUrls); return urls.length > 0 && (
-                                      <a
-                                        href={urls[0]}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 border border-primary/20 px-3 py-1.5 rounded-lg inline-flex max-w-full hover:bg-primary/10"
-                                      >
-                                        <FileText size={12} /> View submitted document
-                                      </a>
+                                      <FilePreviewAndDownload url={urls[0]} title={task.name} />
                                     );
                                   })()}
                                 </div>
@@ -498,17 +590,37 @@ function ClearanceItemRow({
                                   {/* Interaction Input depending on requirement type */}
                                   {task.type === "DOCUMENT_UPLOAD" && (
                                     <div className="space-y-2">
-                                      <label className="block text-[11px] font-bold text-secondary">Upload Document (PDF, PNG, JPG)</label>
-                                      <input
-                                        type="file"
-                                        required
-                                        onChange={(e) => {
-                                          if (e.target.files && e.target.files[0]) {
-                                            setSelectedFiles(prev => ({ ...prev, [task.id]: e.target.files![0] }));
-                                          }
-                                        }}
-                                        className="block w-full text-xs text-secondary file:mr-3 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
-                                      />
+                                      {(() => {
+                                        const allowedExts = task.allowedFileTypes && Array.isArray(task.allowedFileTypes) && task.allowedFileTypes.length > 0
+                                          ? task.allowedFileTypes
+                                          : ["pdf", "png", "jpg", "jpeg"];
+                                        const acceptAttr = allowedExts.map((x: string) => `.${x.replace(/^\./, "")}`).join(",");
+                                        return (
+                                          <>
+                                            <label className="block text-[11px] font-bold text-secondary">
+                                              Upload Document ({allowedExts.map((x: string) => `.${x.toUpperCase()}`).join(", ")})
+                                            </label>
+                                            <input
+                                              type="file"
+                                              required
+                                              accept={acceptAttr}
+                                              onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                  const file = e.target.files[0];
+                                                  const ext = file.name.split(".").pop()?.toLowerCase();
+                                                  if (ext && !allowedExts.includes(ext)) {
+                                                    alert(`Invalid file format. Allowed formats: ${allowedExts.map((x: string) => `.${x.toUpperCase()}`).join(", ")}`);
+                                                    e.target.value = "";
+                                                    return;
+                                                  }
+                                                  setSelectedFiles(prev => ({ ...prev, [task.id]: file }));
+                                                }
+                                              }}
+                                              className="block w-full text-xs text-secondary file:mr-3 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                                            />
+                                          </>
+                                        );
+                                      })()}
                                       <button
                                         onClick={() => handleSubmitTask(task.id, task.type)}
                                         disabled={submittingTaskId === task.id}
@@ -522,17 +634,37 @@ function ClearanceItemRow({
                                   {task.type === "PAYMENT_PROOF" && (
                                     <div className="space-y-3">
                                       <div className="space-y-1">
-                                        <label className="block text-[11px] font-bold text-secondary">Upload Receipt Image/PDF</label>
-                                        <input
-                                          type="file"
-                                          required
-                                          onChange={(e) => {
-                                            if (e.target.files && e.target.files[0]) {
-                                              setSelectedFiles(prev => ({ ...prev, [task.id]: e.target.files![0] }));
-                                            }
-                                          }}
-                                          className="block w-full text-xs text-secondary file:mr-3 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
-                                        />
+                                        {(() => {
+                                          const allowedExts = task.allowedFileTypes && Array.isArray(task.allowedFileTypes) && task.allowedFileTypes.length > 0
+                                            ? task.allowedFileTypes
+                                            : ["pdf", "png", "jpg", "jpeg"];
+                                          const acceptAttr = allowedExts.map((x: string) => `.${x.replace(/^\./, "")}`).join(",");
+                                          return (
+                                            <>
+                                              <label className="block text-[11px] font-bold text-secondary">
+                                                Upload Receipt Image/PDF ({allowedExts.map((x: string) => `.${x.toUpperCase()}`).join(", ")})
+                                              </label>
+                                              <input
+                                                type="file"
+                                                required
+                                                accept={acceptAttr}
+                                                onChange={(e) => {
+                                                  if (e.target.files && e.target.files[0]) {
+                                                    const file = e.target.files[0];
+                                                    const ext = file.name.split(".").pop()?.toLowerCase();
+                                                    if (ext && !allowedExts.includes(ext)) {
+                                                      alert(`Invalid file format. Allowed formats: ${allowedExts.map((x: string) => `.${x.toUpperCase()}`).join(", ")}`);
+                                                      e.target.value = "";
+                                                      return;
+                                                    }
+                                                    setSelectedFiles(prev => ({ ...prev, [task.id]: file }));
+                                                  }
+                                                }}
+                                                className="block w-full text-xs text-secondary file:mr-3 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                                              />
+                                            </>
+                                          );
+                                        })()}
                                       </div>
                                       <div className="space-y-1">
                                         <label className="block text-[11px] font-bold text-secondary">Official Receipt (OR) / Reference No. *</label>
@@ -674,17 +806,9 @@ function ClearanceItemRow({
                                   {/* Display submissions info */}
                                   {task.type === "DOCUMENT_UPLOAD" && (() => {
                                     const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
-                                      <div>
+                                      <div className="space-y-2">
                                         {urls.map((url, fIdx) => (
-                                          <a
-                                            key={fIdx}
-                                            href={url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-1.5 text-primary hover:underline font-bold"
-                                          >
-                                            <FileText size={14} /> Download Student Document
-                                          </a>
+                                          <FilePreviewAndDownload key={fIdx} url={url} title={task.name} />
                                         ))}
                                       </div>
                                     );
@@ -698,17 +822,9 @@ function ClearanceItemRow({
                                       </div>
                                       {(() => {
                                         const urls = parseFileUrls(sub.uploadedFileUrls); return urls.length > 0 && (
-                                          <div>
+                                          <div className="space-y-2">
                                             {urls.map((url, fIdx) => (
-                                              <a
-                                                key={fIdx}
-                                                href={url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex items-center gap-1.5 text-primary hover:underline font-bold"
-                                              >
-                                                <FileText size={14} /> Download Receipt File
-                                              </a>
+                                              <FilePreviewAndDownload key={fIdx} url={url} title={task.name} />
                                             ))}
                                           </div>
                                         );
@@ -778,31 +894,97 @@ function ClearanceItemRow({
               </div>
 
               {/* Remarks & Clearance Date */}
-              {(item.remarks || (item.status === "Cleared" && item.dateCleared)) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mt-2 border-t border-surface-container-low">
-                  {/* Only show remarks when not cleared — cleared remarks are stale progress messages */}
-                  {item.remarks && item.status !== "Cleared" && (
-                    <div>
-                      <span className="text-[10px] font-bold text-secondary uppercase tracking-wider block mb-1">Remarks</span>
-                      <p className="text-[12px] text-red-700 font-medium bg-red-50 px-3 py-1.5 rounded border border-red-100 inline-block leading-snug">
-                        {item.remarks}
-                      </p>
-                    </div>
-                  )}
-                  {item.status === "Cleared" && item.dateCleared && (
-                    <div>
-                      <span className="text-[10px] font-bold text-secondary uppercase tracking-wider block mb-1">Date Cleared</span>
-                      <span className="text-[12px] text-on-surface bg-surface-container px-3 py-1.5 rounded border border-surface-container-high inline-block font-medium">
-                        {item.dateCleared}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
+              {(() => {
+                const isDuplicateRemark = tasks.some((t: any) => t.submission?.reviewNotes && t.submission.reviewNotes.trim() === item.remarks?.trim());
+                const showRemarks = item.remarks && item.status !== "Cleared" && !isDuplicateRemark;
+                const showDate = item.status === "Cleared" && item.dateCleared;
+
+                if (!showRemarks && !showDate) return null;
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mt-2 border-t border-surface-container-low">
+                    {showRemarks && (
+                      <div>
+                        <span className="text-[10px] font-bold text-secondary uppercase tracking-wider block mb-1">Remarks</span>
+                        <p className="text-[12px] text-red-700 font-medium bg-red-50 px-3 py-1.5 rounded border border-red-100 inline-block leading-snug">
+                          {item.remarks}
+                        </p>
+                      </div>
+                    )}
+                    {showDate && (
+                      <div>
+                        <span className="text-[10px] font-bold text-secondary uppercase tracking-wider block mb-1">Date Cleared</span>
+                        <span className="text-[12px] text-on-surface bg-surface-container px-3 py-1.5 rounded border border-surface-container-high inline-block font-medium">
+                          {item.dateCleared}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
       </div>
+
+      {/* Rejection Modal Component */}
+      {rejectingSubId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={() => setRejectingSubId(null)}>
+          <div className="bg-surface-container-lowest rounded-2xl p-6 max-w-md w-full shadow-2xl border border-surface-container-high space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-surface-container-high pb-3">
+              <h3 className="font-title-md text-base font-bold text-red-600 flex items-center gap-2">
+                <AlertTriangle size={18} /> Reject Requirement Submission
+              </h3>
+              <button
+                onClick={() => { setRejectingSubId(null); setRejectRemarks(""); }}
+                className="p-1 rounded-full text-secondary hover:bg-surface-container-high"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-on-surface">
+                Reason / Remarks for Rejection <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={rejectRemarks}
+                onChange={(e) => setRejectRemarks(e.target.value)}
+                placeholder="e.g. Uploaded document is illegible or missing official seal."
+                className="w-full p-3 rounded-lg border border-surface-container-high bg-surface-container-low font-body-sm text-xs text-on-surface outline-none focus:border-red-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => { setRejectingSubId(null); setRejectRemarks(""); }}
+                className="px-4 py-2 text-xs font-bold text-secondary hover:bg-surface-container-high rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!rejectRemarks.trim()) {
+                    alert("Rejection reason is required.");
+                    return;
+                  }
+                  const subId = rejectingSubId;
+                  const remarks = rejectRemarks;
+                  setRejectingSubId(null);
+                  setRejectRemarks("");
+                  await executeEvaluateSubmission(subId, "rejected", remarks);
+                }}
+                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow"
+              >
+                Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

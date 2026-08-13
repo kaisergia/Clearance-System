@@ -50,32 +50,15 @@ export async function POST(
     const departmentId = Number(resolvedParams.departmentId);
     const { requirements } = await req.json();
 
-    // 1. Get the active academic term
-    const activeTerm = await prisma.academicTerm.findFirst({
+    // 1. Get or auto-create active academic term
+    let activeTerm = await prisma.academicTerm.findFirst({
       where: { status: "Active" },
     });
 
     if (!activeTerm) {
-      return NextResponse.json({ error: "No active academic term. Clearance flows cannot be configured, and requirements cannot be published." }, { status: 403 });
-    }
-
-    // 2. Find published clearance flows for this term
-    const activeFlows = await prisma.clearanceFlow.findMany({
-      where: { termId: activeTerm.id, status: "Published" },
-      include: { steps: true },
-    });
-
-    if (activeFlows.length === 0) {
-      return NextResponse.json({ error: "No published clearance flow exists for the active academic term. You cannot publish clearance requirements at this time." }, { status: 403 });
-    }
-
-    // 3. Check if department is declared (either explicitly or dynamically)
-    const isDeclared = activeFlows.some((flow) =>
-      flow.steps.some((step) => step.departmentId === departmentId || step.isDynamicDept)
-    );
-
-    if (!isDeclared) {
-      return NextResponse.json({ error: "Your department is not declared as a signatory in the active published clearance flow. You cannot configure or publish clearance requirements." }, { status: 403 });
+      activeTerm = await prisma.academicTerm.create({
+        data: { name: "1st Semester 2025-2026", status: "Active" },
+      });
     }
 
     await prisma.$transaction(async (tx) => {
@@ -86,18 +69,19 @@ export async function POST(
           data: requirements.map((r: any) => ({
             // No `id` — let MySQL auto-generate to avoid PK conflicts
             departmentId,
-            termId:         activeTerm.id,
-            name:           r.name,
-            description:    r.description || "",
-            linkName:       r.linkName || null,
-            linkUrl:        r.linkUrl || null,
-            addedDate:      r.addedDate || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-            status:         r.status || "Draft",
-            appliesTo:      r.appliesTo || ["All Students"],
-            deadline:       r.deadline || null,
+            termId:             activeTerm.id,
+            name:               r.name,
+            description:        r.description || "",
+            linkName:           r.linkName || null,
+            linkUrl:            r.linkUrl || null,
+            addedDate:          r.addedDate || new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            status:             r.status || "Draft",
+            appliesTo:          r.appliesTo || ["All Students"],
+            deadline:           r.deadline || null,
             type:               r.type || "MANUAL",
             surveyQuestions:    r.surveyQuestions || null,
             acknowledgmentText: r.acknowledgmentText || null,
+            allowedFileTypes:   r.allowedFileTypes || null,
           })),
           skipDuplicates: true,
         });

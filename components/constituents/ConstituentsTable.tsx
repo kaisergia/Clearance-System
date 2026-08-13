@@ -198,10 +198,20 @@ export function ConstituentsTable({
 
                     {/* STATUS Column */}
                     <td className="px-6 py-3.5 text-center">
-                      {isCleared ? (
+                      {student.status === "Cleared" ? (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                           Cleared
+                        </span>
+                      ) : student.status === "Submitted" ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                          Submitted
+                        </span>
+                      ) : student.status === "Rejected" ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                          Rejected
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { UserPlus, FileSpreadsheet, RefreshCw, Upload, Download, X, KeyRound, Sparkles, CheckCircle2, Layers } from "lucide-react";
 import AddUserModal from "@/components/constituents/AddUserModal";
 import { BatchCsvImporterModal } from "@/components/clearance/BatchCsvImporterModal";
+import { SSCSyncModal } from "@/components/clearance/SSCSyncModal";
 
 interface ConstituentActionsToolbarProps {
   onDataRefresh: () => void;
@@ -16,9 +17,9 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName, entityTyp
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showCsvBatchModal, setShowCsvBatchModal] = useState(false);
+  const [showSscSyncModal, setShowSscSyncModal] = useState(false);
   const [resetConfirmUser, setResetConfirmUser] = useState<any | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -48,27 +49,6 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName, entityTyp
         setShowImportModal(false);
         onDataRefresh();
       }, 1200);
-    }
-  };
-
-  // Sync real student records from SSC System Masterlist API
-  const handleSyncSSCMasterlist = async () => {
-    setIsSyncing(true);
-    try {
-      showToast("Connecting to SSC System Masterlist API (http://localhost:8081)...");
-      const res = await fetch("/api/integration/ssc/masterlist?sync=true");
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to sync SSC Masterlist");
-      }
-
-      showToast(data.message || "Successfully synced students from SSC System Masterlist!");
-      onDataRefresh();
-    } catch (err: any) {
-      showToast(`SSC Sync Error: ${err.message || "Failed to connect to SSC System API"}`);
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -102,12 +82,11 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName, entityTyp
         </button>
 
         <button
-          onClick={handleSyncSSCMasterlist}
-          disabled={isSyncing}
-          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95 disabled:opacity-50"
-          title="Sync real student masterlist records from live SSC System API"
+          onClick={() => setShowSscSyncModal(true)}
+          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+          title="Sync student masterlist records from live SSC System API with custom filters"
         >
-          <RefreshCw className={`w-4 h-4 text-blue-600 ${isSyncing ? "animate-spin" : ""}`} />
+          <RefreshCw className="w-4 h-4 text-blue-600" />
           <span>Sync SSC API</span>
         </button>
 
@@ -204,6 +183,16 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName, entityTyp
           </div>
         </div>
       )}
+
+      {/* SSC Masterlist API Filter Sync Modal */}
+      <SSCSyncModal
+        isOpen={showSscSyncModal}
+        onClose={() => setShowSscSyncModal(false)}
+        onSuccess={(msg) => {
+          showToast(msg);
+          onDataRefresh();
+        }}
+      />
     </>
   );
 }

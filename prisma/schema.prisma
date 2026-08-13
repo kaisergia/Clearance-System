@@ -186,6 +186,7 @@ model OfficeRequirement {
   autoApprove        Boolean         @default(false)
   surveyQuestions    Json?           // JSON array of survey questions
   acknowledgmentText String?         @db.Text
+  allowedFileTypes   Json?           // string[] e.g. ["png", "jpg", "pdf"]
 
   office Office        @relation(fields: [officeId], references: [id])
   term   AcademicTerm? @relation(fields: [termId],    references: [id], onDelete: Cascade)
@@ -211,6 +212,7 @@ model DepartmentRequirement {
   autoApprove        Boolean         @default(false)
   surveyQuestions    Json?
   acknowledgmentText String?         @db.Text
+  allowedFileTypes   Json?           // string[] e.g. ["png", "jpg", "pdf"]
 
   department Department    @relation(fields: [departmentId], references: [id])
   term       AcademicTerm? @relation(fields: [termId],       references: [id], onDelete: Cascade)
@@ -236,6 +238,7 @@ model OrgRequirement {
   autoApprove        Boolean         @default(false)
   surveyQuestions    Json?
   acknowledgmentText String?         @db.Text
+  allowedFileTypes   Json?           // string[] e.g. ["png", "jpg", "pdf"]
 
   org  Org           @relation(fields: [orgId],  references: [id])
   term AcademicTerm? @relation(fields: [termId], references: [id], onDelete: Cascade)
