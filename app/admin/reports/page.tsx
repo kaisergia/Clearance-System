@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { mockRecentReports } from "@/mock/mockData";
 import { useOffices } from "@/components/contexts/OfficesContext";
 import * as clearanceService from "@/services/clearanceService";
@@ -13,22 +14,44 @@ export default function ReportsPage() {
   const [clearanceRecords, setClearanceRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch academic terms on mount
+  // Departments list from the database
+  const [dbDepartments, setDbDepartments] = useState<any[]>([]);
+
+  // Export Modal States
+  const [mounted, setMounted] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportDepts, setExportDepts] = useState<string[]>([]);
+  const [exportYears, setExportYears] = useState<string[]>([]);
+  const [exportStatuses, setExportStatuses] = useState<string[]>([]);
+  const [exportSignatory, setExportSignatory] = useState<string>("All");
+  const [exportFormat, setExportFormat] = useState<"csv" | "excel">("csv");
+
   useEffect(() => {
-    const fetchTerms = async () => {
+    setMounted(true);
+  }, []);
+
+  // Fetch academic terms & departments on mount
+  useEffect(() => {
+    const fetchTermsAndDepts = async () => {
       try {
-        const res = await fetch("/api/terms");
-        if (res.ok) {
-          const data = await res.json();
+        const termsRes = await fetch("/api/terms");
+        if (termsRes.ok) {
+          const data = await termsRes.json();
           setTerms(data);
           const active = data.find((t: any) => t.status === "Active") || data[0];
           setSelectedTerm(active);
         }
+
+        const deptsRes = await fetch("/api/departments");
+        if (deptsRes.ok) {
+          const depts = await deptsRes.json();
+          setDbDepartments(depts);
+        }
       } catch (err) {
-        console.error("Failed to fetch terms:", err);
+        console.error("Failed to fetch initial settings:", err);
       }
     };
-    fetchTerms();
+    fetchTermsAndDepts();
   }, []);
 
   // Fetch student records and term clearance records on selectedTerm change
@@ -54,6 +77,14 @@ export default function ReportsPage() {
     };
     fetchStats();
   }, [selectedTerm]);
+
+  // Unique departments currently present in the student list
+  const uniqueDepartments = Array.from(
+    new Set(students.map((s) => s.department).filter(Boolean))
+  ) as string[];
+
+  // Year levels helper
+  const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "Irregular"];
 
   // Calculations derived from dynamic term records
   const clearedStudents = students.filter((s) => {
@@ -97,37 +128,185 @@ export default function ReportsPage() {
     };
   });
 
-  // Download Full Report Handler
-  const handleDownloadFullReport = () => {
-    if (!selectedTerm || students.length === 0) {
-      alert("No data available to download.");
+  // Filter students based on chosen modal options
+  const getFilteredStudentsForExport = () => {
+    let list = [...students];
+
+    // 1. Filter by departments
+    if (exportDepts.length > 0) {
+      list = list.filter((s) => exportDepts.includes(s.department));
+    }
+
+    // 2. Filter by year levels
+    if (exportYears.length > 0) {
+      list = list.filter((s) => exportYears.includes(s.yearLevel || s.year));
+    }
+
+    // 3. Filter by overall status
+    if (exportStatuses.length > 0) {
+      list = list.filter((s) => {
+        const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
+        const isCleared = studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared");
+        const status = isCleared ? "Cleared" : "Pending";
+        return exportStatuses.includes(status);
+      });
+    }
+
+    // 4. Filter by specific uncleared signatory
+    if (exportSignatory !== "All") {
+      const parts = exportSignatory.split("-");
+      const type = parts[0];
+      const idVal = parts[1];
+
+      if (type === "office") {
+        const officeId = parseInt(idVal, 10);
+        list = list.filter((s) => {
+          const rec = clearanceRecords.find((r) => r.studentId === s.id && r.officeId === officeId);
+          return !rec || rec.status !== "Cleared";
+        });
+      } else if (type === "dept") {
+        const deptId = parseInt(idVal, 10);
+        list = list.filter((s) => {
+          const rec = clearanceRecords.find((r) => r.studentId === s.id && r.departmentId === deptId);
+          return !rec || rec.status !== "Cleared";
+        });
+      }
+    }
+
+    return list;
+  };
+
+  // Open Export Modal and reset state
+  const handleOpenExportModal = () => {
+    setExportDepts([]);
+    setExportYears([]);
+    setExportStatuses([]);
+    setExportSignatory("All");
+    setExportFormat("csv");
+    setIsExportModalOpen(true);
+  };
+
+  // Checkbox helpers
+  const toggleExportDept = (dept: string) => {
+    setExportDepts((prev) =>
+      prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept]
+    );
+  };
+
+  const toggleExportYear = (year: string) => {
+    setExportYears((prev) =>
+      prev.includes(year) ? prev.filter((y) => y !== year) : [...prev, year]
+    );
+  };
+
+  const toggleExportStatus = (status: string) => {
+    setExportStatuses((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
+  };
+
+  // Download filtered report
+  const handleDownloadReport = () => {
+    const list = getFilteredStudentsForExport();
+
+    if (list.length === 0) {
+      alert("No student records found matching the selected filters.");
       return;
     }
 
-    const headers = ["Student ID", "Name", "Department", "Program", "Year Level", "Clearance Status"];
-    const rows = students.map((s) => {
-      const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
-      const isCleared = studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared");
-      return [
-        s.id,
-        s.name,
-        s.department || "N/A",
-        s.program || "N/A",
-        s.year || "N/A",
-        isCleared ? "CLEARED" : "PENDING",
-      ];
-    });
+    if (exportFormat === "csv") {
+      const headers = ["Student ID", "Name", "Department", "Program", "Year Level", "Clearance Status"];
+      const rows = list.map((s) => {
+        const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
+        const isCleared = studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared");
+        return [
+          s.id,
+          s.name,
+          s.department || "N/A",
+          s.program || "N/A",
+          s.yearLevel || s.year || "N/A",
+          isCleared ? "CLEARED" : "PENDING",
+        ];
+      });
 
-    const csvContent = "data:text/csv;charset=utf-8,"
-      + [headers.join(","), ...rows.map((e) => e.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+      const csvContent = "data:text/csv;charset=utf-8,"
+        + [headers.join(","), ...rows.map((e) => e.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Clearance_Full_Report_${selectedTerm.name.replace(/\s+/g, "_")}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Clearance_Report_${selectedTerm.name.replace(/\s+/g, "_")}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      // Excel XML formatting (Worksheet grouping by department)
+      const xmlHeader = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+  <Styles>
+    <Style ss:ID="headerStyle">
+      <Font ss:Bold="1" />
+    </Style>
+  </Styles>`;
+
+      const buildSheet = (name: string, dataList: typeof list) => {
+        let sheet = `  <Worksheet ss:Name="${name}">
+    <Table>
+      <Row>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Student ID</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Name</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Program</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Department</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Year Level</Data></Cell>
+        <Cell ss:StyleID="headerStyle"><Data ss:Type="String">Status</Data></Cell>
+      </Row>`;
+
+        dataList.forEach((s) => {
+          const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
+          const isCleared = studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared");
+          sheet += `
+      <Row>
+        <Cell><Data ss:Type="String">${s.id}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>
+        <Cell><Data ss:Type="String">${(s.program || "").replace(/&/g, "&amp;")}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.department || ""}</Data></Cell>
+        <Cell><Data ss:Type="String">${s.yearLevel || s.year || ""}</Data></Cell>
+        <Cell><Data ss:Type="String">${isCleared ? "CLEARED" : "PENDING"}</Data></Cell>
+      </Row>`;
+        });
+
+        sheet += `
+    </Table>
+  </Worksheet>`;
+        return sheet;
+      };
+
+      let xmlSheets = buildSheet("All Students", list);
+
+      // Group students by department on separate sheets
+      const exportDeptsList = Array.from(new Set(list.map((s) => s.department).filter(Boolean))).sort();
+      exportDeptsList.forEach((dept) => {
+        const deptList = list.filter((s) => s.department === dept);
+        xmlSheets += buildSheet(dept, deptList);
+      });
+
+      const xmlContent = xmlHeader + xmlSheets + "</Workbook>";
+      const blob = new Blob([xmlContent], { type: "application/vnd.ms-excel;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Clearance_Report_${selectedTerm.name.replace(/\s+/g, "_")}.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    setIsExportModalOpen(false);
   };
 
   return (
@@ -165,11 +344,11 @@ export default function ReportsPage() {
           )}
 
           <button
-            onClick={handleDownloadFullReport}
+            onClick={handleOpenExportModal}
             className="flex items-center gap-2 bg-brand-red hover:bg-primary text-white px-6 py-2.5 rounded-lg font-label-md text-label-md transition-colors shadow-sm hover:shadow-md btn-hover cursor-pointer"
           >
             <span className="material-symbols-outlined text-sm">download</span>
-            Download Full Report
+            Download Report
           </button>
         </div>
       </div>
@@ -301,7 +480,7 @@ export default function ReportsPage() {
                         </td>
                         <td className="p-4 text-right">
                           <button
-                            onClick={handleDownloadFullReport}
+                            onClick={handleOpenExportModal}
                             className="text-secondary hover:text-primary transition-colors cursor-pointer"
                           >
                             <span className="material-symbols-outlined text-[20px]">download</span>
@@ -315,6 +494,190 @@ export default function ReportsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Export Options Modal Portal */}
+      {mounted && isExportModalOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-2xl p-8 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-outline-variant">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-brand-red text-2xl">download</span>
+                <h3 className="font-title-md text-lg font-bold text-on-surface uppercase tracking-wider">
+                  Export Personalized Report
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsExportModalOpen(false)}
+                className="p-1 rounded-full hover:bg-surface-container-low text-secondary hover:text-on-surface transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-6">
+              <p className="text-xs text-secondary">
+                Personalize and filter the student clearance report for the current term (<strong>{selectedTerm?.name}</strong>).
+              </p>
+
+              {/* 1. Academic Department Filters */}
+              <div className="space-y-2">
+                <label className="font-label-sm text-xs font-bold text-secondary uppercase tracking-wider block">
+                  Academic Departments
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant">
+                  {uniqueDepartments.map((dept) => (
+                    <label key={dept} className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={exportDepts.includes(dept)}
+                        onChange={() => toggleExportDept(dept)}
+                        className="w-4 h-4 rounded text-brand-red focus:ring-brand-red border-outline-variant cursor-pointer"
+                      />
+                      <span>{dept}</span>
+                    </label>
+                  ))}
+                  {uniqueDepartments.length === 0 && (
+                    <span className="text-secondary text-xs col-span-3">No departments found in students directory.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Year Level Filters */}
+              <div className="space-y-2">
+                <label className="font-label-sm text-xs font-bold text-secondary uppercase tracking-wider block">
+                  Year Levels
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant">
+                  {YEAR_LEVELS.map((yr) => (
+                    <label key={yr} className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={exportYears.includes(yr)}
+                        onChange={() => toggleExportYear(yr)}
+                        className="w-4 h-4 rounded text-brand-red focus:ring-brand-red border-outline-variant cursor-pointer"
+                      />
+                      <span>{yr}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Overall Clearance Status */}
+              <div className="space-y-2">
+                <label className="font-label-sm text-xs font-bold text-secondary uppercase tracking-wider block">
+                  Overall Clearance Status
+                </label>
+                <div className="flex gap-6 p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant">
+                  {["Cleared", "Pending"].map((status) => (
+                    <label key={status} className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={exportStatuses.includes(status)}
+                        onChange={() => toggleExportStatus(status)}
+                        className="w-4 h-4 rounded text-brand-red focus:ring-brand-red border-outline-variant cursor-pointer"
+                      />
+                      <span>{status.toUpperCase()}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. Admin Custom Filter: Signatory Uncleared Filter */}
+              <div className="space-y-2">
+                <label className="font-label-sm text-xs font-bold text-secondary uppercase tracking-wider block">
+                  Uncleared Signatory Filter (Specialized)
+                </label>
+                <div className="p-4 bg-surface-container-low/40 rounded-xl border border-outline-variant space-y-3">
+                  <p className="text-[11px] text-secondary">
+                    Show only students who are <strong>UNCLEARED</strong> in the selected signatory below:
+                  </p>
+                  <div className="relative">
+                    <select
+                      value={exportSignatory}
+                      onChange={(e) => setExportSignatory(e.target.value)}
+                      className="w-full bg-surface-container-lowest border border-outline-variant text-on-surface font-body-sm text-sm px-3 py-2 rounded-lg cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-red pr-8 appearance-none"
+                    >
+                      <option value="All">-- No Signatory Filter (Show All) --</option>
+                      <optgroup label="Head Offices">
+                        {offices.map((o) => (
+                          <option key={`office-${o.id}`} value={`office-${o.id}`}>
+                            {o.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Academic Departments">
+                        {dbDepartments.map((d) => (
+                          <option key={`dept-${d.id}`} value={`dept-${d.id}`}>
+                            {d.name} ({d.abbreviation})
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                    <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-base">
+                      arrow_drop_down
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Export Format */}
+              <div className="space-y-2">
+                <label className="font-label-sm text-xs font-bold text-secondary uppercase tracking-wider block">
+                  Export Format
+                </label>
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat("csv")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border font-bold text-sm transition-all cursor-pointer ${
+                      exportFormat === "csv"
+                        ? "bg-brand-red/10 border-brand-red text-brand-red shadow-sm"
+                        : "bg-surface-container-low/40 border-outline-variant text-secondary hover:bg-surface-container-low"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-lg">description</span>
+                    CSV Spreadsheet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportFormat("excel")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border font-bold text-sm transition-all cursor-pointer ${
+                      exportFormat === "excel"
+                        ? "bg-brand-red/10 border-brand-red text-brand-red shadow-sm"
+                        : "bg-surface-container-low/40 border-outline-variant text-secondary hover:bg-surface-container-low"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-lg">table_chart</span>
+                    Excel Workbook (.xls)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant mt-auto">
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-5 py-2.5 border border-outline-variant rounded-xl text-secondary hover:text-on-surface hover:bg-surface-container-low transition-colors font-bold text-sm cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadReport}
+                className="px-6 py-2.5 bg-brand-red hover:bg-primary text-white rounded-xl shadow-sm font-bold text-sm hover:shadow active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">download</span>
+                Download Report
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
