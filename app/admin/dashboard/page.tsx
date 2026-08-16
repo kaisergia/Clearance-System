@@ -66,59 +66,6 @@ export default function AdminDashboard() {
     },
   ];
 
-  const handleExportReport = async () => {
-    try {
-      const termsRes = await fetch("/api/terms");
-      if (!termsRes.ok) throw new Error("Failed to load terms");
-      const terms = await termsRes.json();
-      const activeTerm = terms.find((t: any) => t.status === "Active") || terms[0];
-      if (!activeTerm) {
-        alert("No active academic term found.");
-        return;
-      }
-
-      const allStudents = await clearanceService.getStudents();
-      const termStudents = allStudents.filter((s: any) => s.semester === activeTerm.name);
-
-      if (termStudents.length === 0) {
-        alert(`No student records found for the active term: "${activeTerm.name}".`);
-        return;
-      }
-
-      const recordsRes = await fetch(`/api/clearance-records?termId=${activeTerm.id}`);
-      if (!recordsRes.ok) throw new Error("Failed to load clearance records");
-      const clearanceRecords = await recordsRes.json();
-
-      const headers = ["Student ID", "Name", "Department", "Program", "Year Level", "Clearance Status"];
-      const rows = termStudents.map((s) => {
-        const studentRecs = clearanceRecords.filter((r: any) => r.studentId === s.id);
-        const isCleared = studentRecs.length > 0 && studentRecs.every((r: any) => r.status === "Cleared");
-        return [
-          s.id,
-          s.name,
-          s.department || "N/A",
-          s.program || "N/A",
-          s.year || "N/A",
-          isCleared ? "CLEARED" : "PENDING"
-        ];
-      });
-
-      const csvContent = "data:text/csv;charset=utf-8,"
-        + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
-
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Clearance_Overview_Report_${activeTerm.name.replace(/\s+/g, "_")}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to export report. Please try again.");
-    }
-  };
-
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto">
       {/* Page Header */}
@@ -129,13 +76,6 @@ export default function AdminDashboard() {
             Monitor university-wide clearance metrics and statuses.
           </p>
         </div>
-        <button
-          onClick={handleExportReport}
-          className="flex items-center gap-xs px-md py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md shadow-sm hover:bg-primary transition-colors btn-hover cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[18px]">download</span>
-          Export Report
-        </button>
       </div>
 
       {/* Stat Cards */}
