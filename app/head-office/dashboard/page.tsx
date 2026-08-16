@@ -49,19 +49,20 @@ export default function HeadOfficeDashboard() {
       }
 
       const allStudents = await clearanceService.getStudents();
-      setStudents(allStudents);
+      const termStudents = allStudents.filter((s: any) => s.semester === selectedTerm);
+      setStudents(termStudents);
 
       const records: Record<string, any[]> = {};
-      for (const student of allStudents) {
+      for (const student of termStudents) {
         records[student.id] = await clearanceService.getStudentClearanceRecords(student.id);
       }
       setClearanceRecords(records);
 
       if (officeId) {
-        const assigned = allStudents.length;
+        const assigned = termStudents.length;
         let cleared = 0;
         
-        allStudents.forEach(student => {
+        termStudents.forEach(student => {
           const studentRecs = records[student.id];
           if (studentRecs) {
             const officeRec = studentRecs.find((r: any) => r.officeId === Number(officeId));
@@ -80,7 +81,7 @@ export default function HeadOfficeDashboard() {
     loadDashboardData();
     window.addEventListener("clearanceRecordsUpdated", loadDashboardData);
     return () => window.removeEventListener("clearanceRecordsUpdated", loadDashboardData);
-  }, []);
+  }, [selectedTerm]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">

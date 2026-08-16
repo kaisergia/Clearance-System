@@ -48,16 +48,17 @@ export default function DepartmentDashboard() {
       }
 
       const allStudents = await clearanceService.getStudents();
-      setStudents(allStudents);
+      const termStudents = allStudents.filter((s: any) => s.semester === selectedTerm);
+      setStudents(termStudents);
       const records: Record<string, any[]> = {};
       
-      for (const student of allStudents) {
+      for (const student of termStudents) {
         records[student.id] = await clearanceService.getStudentClearanceRecords(student.id);
       }
       setClearanceRecords(records);
 
       if (departmentId && currentDepartment) {
-        const deptStudents = allStudents.filter(s => s.department === currentDepartment.abbreviation);
+        const deptStudents = termStudents.filter(s => s.department === currentDepartment.abbreviation);
         const assigned = deptStudents.length;
         let cleared = 0;
         
@@ -80,7 +81,7 @@ export default function DepartmentDashboard() {
     loadDashboardData();
     window.addEventListener("clearanceRecordsUpdated", loadDashboardData);
     return () => window.removeEventListener("clearanceRecordsUpdated", loadDashboardData);
-  }, []);
+  }, [selectedTerm]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
