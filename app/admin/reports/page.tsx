@@ -16,6 +16,8 @@ export default function ReportsPage() {
 
   // Departments list from the database
   const [dbDepartments, setDbDepartments] = useState<any[]>([]);
+  // Organizations list from the database
+  const [dbOrganizations, setDbOrganizations] = useState<any[]>([]);
 
   // Export Modal States
   const [mounted, setMounted] = useState(false);
@@ -24,15 +26,15 @@ export default function ReportsPage() {
   const [exportYears, setExportYears] = useState<string[]>([]);
   const [exportStatuses, setExportStatuses] = useState<string[]>([]);
   const [exportSignatory, setExportSignatory] = useState<string>("All");
-  const [exportFormat, setExportFormat] = useState<"csv" | "excel">("csv");
+  const [exportFormat, setExportFormat] = useState<"pdf" | "excel">("pdf");
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Fetch academic terms & departments on mount
+  // Fetch academic terms, departments, & organizations on mount
   useEffect(() => {
-    const fetchTermsAndDepts = async () => {
+    const fetchTermsDeptsOrgs = async () => {
       try {
         const termsRes = await fetch("/api/terms");
         if (termsRes.ok) {
@@ -47,11 +49,17 @@ export default function ReportsPage() {
           const depts = await deptsRes.json();
           setDbDepartments(depts);
         }
+
+        const orgsRes = await fetch("/api/orgs");
+        if (orgsRes.ok) {
+          const orgs = await orgsRes.json();
+          setDbOrganizations(orgs);
+        }
       } catch (err) {
         console.error("Failed to fetch initial settings:", err);
       }
     };
-    fetchTermsAndDepts();
+    fetchTermsDeptsOrgs();
   }, []);
 
   // Fetch student records and term clearance records on selectedTerm change
@@ -84,7 +92,7 @@ export default function ReportsPage() {
   ) as string[];
 
   // Year levels helper
-  const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "Irregular"];
+  const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"];
 
   // Calculations derived from dynamic term records
   const clearedStudents = students.filter((s) => {
@@ -96,37 +104,78 @@ export default function ReportsPage() {
   const totalApproved = clearedStudents.length;
   const totalPending = students.length - totalApproved;
 
-  const courseStats: Record<string, { total: number; cleared: number }> = {};
+  const deptStats: Record<string, { total: number; cleared: number }> = {};
   students.forEach((s) => {
-    if (!courseStats[s.program]) {
-      courseStats[s.program] = { total: 0, cleared: 0 };
+    const deptKey = s.department || "Other";
+    if (!deptStats[deptKey]) {
+      deptStats[deptKey] = { total: 0, cleared: 0 };
     }
-    courseStats[s.program].total += 1;
+    deptStats[deptKey].total += 1;
     const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
     const isCleared = studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared");
     if (isCleared) {
-      courseStats[s.program].cleared += 1;
+      deptStats[deptKey].cleared += 1;
     }
   });
 
-  const BAR_DATA = Object.entries(courseStats).map(([dept, stats]) => ({
+  const BAR_DATA = Object.entries(deptStats).map(([dept, stats]) => ({
     dept,
+    cleared: stats.cleared,
+    pending: stats.total - stats.cleared,
+    total: stats.total,
     pct: Math.round((stats.cleared / stats.total) * 100) || 0,
   }));
 
-  // Dynamic Office Compliance Rate Breakdown
-  const officeBreakdown = offices.map((office) => {
-    const officeRecs = clearanceRecords.filter((r) => r.officeId === office.id);
-    const total = officeRecs.length;
-    const cleared = officeRecs.filter((r) => r.status === "Cleared").length;
-    const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
-    return {
-      ...office,
-      pending: total - cleared,
-      approved: cleared,
-      clearedPct: rate,
-    };
-  });
+  // Dynamic Office Compliance Rate Breakdown (only show offices active in this term's records)
+  const activeOfficeIds = new Set(clearanceRecords.map((r) => r.officeId).filter(Boolean));
+  const officeBreakdown = offices
+    .filter((o) => activeOfficeIds.has(o.id))
+    .map((office) => {
+      const officeRecs = clearanceRecords.filter((r) => r.officeId === office.id);
+      const total = officeRecs.length;
+      const cleared = officeRecs.filter((r) => r.status === "Cleared").length;
+      const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
+      return {
+        ...office,
+        pending: total - cleared,
+        approved: cleared,
+        clearedPct: rate,
+      };
+    });
+
+  // Dynamic Department Compliance Rate Breakdown (only show departments active in this term's records)
+  const activeDeptIds = new Set(clearanceRecords.map((r) => r.departmentId).filter(Boolean));
+  const departmentBreakdown = dbDepartments
+    .filter((d) => activeDeptIds.has(d.id))
+    .map((dept) => {
+      const deptRecs = clearanceRecords.filter((r) => r.departmentId === dept.id);
+      const total = deptRecs.length;
+      const cleared = deptRecs.filter((r) => r.status === "Cleared").length;
+      const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
+      return {
+        ...dept,
+        pending: total - cleared,
+        approved: cleared,
+        clearedPct: rate,
+      };
+    });
+
+  // Dynamic Organization Compliance Rate Breakdown (only show organizations active in this term's records)
+  const activeOrgIds = new Set(clearanceRecords.map((r) => r.orgId).filter(Boolean));
+  const organizationBreakdown = dbOrganizations
+    .filter((org) => activeOrgIds.has(org.id))
+    .map((org) => {
+      const orgRecs = clearanceRecords.filter((r) => r.orgId === org.id);
+      const total = orgRecs.length;
+      const cleared = orgRecs.filter((r) => r.status === "Cleared").length;
+      const rate = total > 0 ? Math.round((cleared / total) * 100) : 0;
+      return {
+        ...org,
+        pending: total - cleared,
+        approved: cleared,
+        clearedPct: rate,
+      };
+    });
 
   // Filter students based on chosen modal options
   const getFilteredStudentsForExport = () => {
@@ -182,7 +231,7 @@ export default function ReportsPage() {
     setExportYears([]);
     setExportStatuses([]);
     setExportSignatory("All");
-    setExportFormat("csv");
+    setExportFormat("pdf");
     setIsExportModalOpen(true);
   };
 
@@ -214,31 +263,220 @@ export default function ReportsPage() {
       return;
     }
 
-    if (exportFormat === "csv") {
-      const headers = ["Student ID", "Name", "Department", "Program", "Year Level", "Clearance Status"];
-      const rows = list.map((s) => {
+    if (exportFormat === "pdf") {
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        alert("Failed to open print preview. Please check your browser pop-up settings.");
+        return;
+      }
+
+      const rowsHTML = list.map((s) => {
         const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
         const isCleared = studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared");
-        return [
-          s.id,
-          s.name,
-          s.department || "N/A",
-          s.program || "N/A",
-          s.yearLevel || s.year || "N/A",
-          isCleared ? "CLEARED" : "PENDING",
-        ];
-      });
+        return `
+          <tr>
+            <td>${s.id}</td>
+            <td style="font-weight: 500; color: #0f172a;">${s.name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</td>
+            <td>${s.department || "N/A"}</td>
+            <td>${s.program || "N/A"}</td>
+            <td>${s.yearLevel || s.year || "N/A"}</td>
+            <td>
+              <span class="status-badge ${isCleared ? "status-cleared" : "status-pending"}">
+                ${isCleared ? "CLEARED" : "PENDING"}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join("");
 
-      const csvContent = "data:text/csv;charset=utf-8,"
-        + [headers.join(","), ...rows.map((e) => e.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Clearance Compliance Report</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+              body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                color: #1e293b;
+                margin: 40px;
+                padding: 0;
+              }
+              .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #e2e8f0;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+              }
+              .logo-title h1 {
+                font-size: 22px;
+                font-weight: 700;
+                color: #b51b15;
+                margin: 0;
+                letter-spacing: -0.5px;
+              }
+              .logo-title p {
+                font-size: 13px;
+                color: #64748b;
+                margin: 2px 0 0 0;
+              }
+              .meta-box {
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 16px 20px;
+                margin-bottom: 30px;
+                display: grid;
+                grid-template-cols: repeat(2, 1fr);
+                gap: 12px;
+                font-size: 12px;
+              }
+              .meta-item {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+              }
+              .meta-label {
+                font-weight: 600;
+                color: #64748b;
+                text-transform: uppercase;
+                font-size: 10px;
+                letter-spacing: 0.5px;
+              }
+              .meta-value {
+                color: #0f172a;
+                font-size: 13px;
+              }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+                font-size: 12px;
+              }
+              th {
+                background-color: #f1f5f9;
+                font-weight: 600;
+                color: #475569;
+                text-align: left;
+                padding: 12px 16px;
+                border-bottom: 1.5px solid #cbd5e1;
+              }
+              td {
+                padding: 12px 16px;
+                border-bottom: 1px solid #e2e8f0;
+                color: #334155;
+              }
+              tr:nth-child(even) {
+                background-color: #f8fafc;
+              }
+              .status-badge {
+                display: inline-flex;
+                align-items: center;
+                font-weight: 700;
+                font-size: 10px;
+                padding: 3px 8px;
+                border-radius: 9999px;
+                text-transform: uppercase;
+              }
+              .status-cleared {
+                background-color: #d1fae5;
+                color: #065f46;
+              }
+              .status-pending {
+                background-color: #fee2e2;
+                color: #991b1b;
+              }
+              .footer {
+                margin-top: 50px;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 11px;
+                color: #64748b;
+              }
+              @media print {
+                body {
+                  margin: 20px;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo-title">
+                <h1>Cor Jesu College, Inc.</h1>
+                <p>Clearance Report</p>
+              </div>
+              <div style="text-align: right">
+                <p style="font-size: 12px; font-weight: 600; color: #475569; margin: 0;">ADMINISTRATIVE REPORT</p>
+                <p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0;">Date Generated: ${new Date().toLocaleDateString()}</p>
+              </div>
+            </div>
 
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Clearance_Report_${selectedTerm.name.replace(/\s+/g, "_")}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+            <div class="meta-box">
+              <div class="meta-item">
+                <span class="meta-label">Academic Term</span>
+                <span class="meta-value">${selectedTerm?.name}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Overall Status Filter</span>
+                <span class="meta-value">${exportStatuses.length > 0 ? exportStatuses.join(", ") : "ALL STATUSES"}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Departments Filter</span>
+                <span class="meta-value">${exportDepts.length > 0 ? exportDepts.join(", ") : "ALL DEPARTMENTS"}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Year Levels Filter</span>
+                <span class="meta-value">${exportYears.length > 0 ? exportYears.join(", ") : "ALL YEARS"}</span>
+              </div>
+              <div class="meta-item" style="grid-column: span 2;">
+                <span class="meta-label">Signatory Focus Filter</span>
+                <span class="meta-value">${
+                  exportSignatory === "All"
+                    ? "None (Showing all signatory states)"
+                    : `Only showing students uncleared in: ${
+                        exportSignatory.startsWith("office-")
+                          ? offices.find((o) => `office-${o.id}` === exportSignatory)?.name || exportSignatory
+                          : dbDepartments.find((d) => `dept-${d.id}` === exportSignatory)?.name || exportSignatory
+                      }`
+                }</span>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Student ID</th>
+                  <th>Name</th>
+                  <th>Department</th>
+                  <th>Program</th>
+                  <th>Year Level</th>
+                  <th>Clearance Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHTML}
+              </tbody>
+            </table>
+
+            <div class="footer">
+              <span>Generated by System Administrator</span>
+              <span>Page 1 of 1</span>
+            </div>
+
+            <script>
+              window.onload = function() {
+                window.print();
+              }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     } else {
       // Excel XML formatting (Worksheet grouping by department)
       const xmlHeader = `<?xml version="1.0"?>
@@ -396,42 +634,92 @@ export default function ReportsPage() {
             </div>
 
             {/* Chart */}
-            <div className="col-span-1 md:col-span-6 bg-surface-container-lowest rounded-xl p-lg border border-surface-container-high shadow-sm flex flex-col min-h-[280px]">
-              <h3 className="font-title-md text-title-md text-on-surface mb-6">Clearance Rate by Department</h3>
-              <div className="flex-1 relative w-full rounded-lg overflow-hidden bg-surface-container-low border border-surface-container-high flex items-end p-4 gap-2">
-                {BAR_DATA.length === 0 ? (
-                  <div className="absolute inset-0 flex items-center justify-center text-secondary text-xs">
-                    No compliance data available for this term
+            <div className="col-span-1 md:col-span-6 bg-surface-container-lowest rounded-xl p-lg border border-surface-container-high shadow-sm flex flex-col min-h-[300px]">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-title-md text-title-md text-on-surface">Clearance Status by Department</h3>
+                <div className="flex items-center gap-4 text-xs font-body-sm text-secondary">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-full bg-slate-200" />
+                    <span>Pending</span>
                   </div>
-                ) : (
-                  BAR_DATA.map((d) => (
-                    <div key={d.dept} className="flex-1 flex flex-col items-center justify-end h-full relative group">
-                      <div
-                        className="w-full rounded-t-sm transition-all duration-300 hover:opacity-80"
-                        style={{
-                          height: `${d.pct}%`,
-                          background: `rgba(244, 74, 59, ${d.pct / 100})`,
-                        }}
-                      >
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-surface-container-lowest text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                          {d.pct}%
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-full bg-[#f44a3b]" />
+                    <span>Cleared</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 flex gap-4 pl-12 pr-4 relative min-h-[220px] items-end pb-8">
+                {/* Y-axis Labels */}
+                <div className="absolute left-0 top-0 bottom-8 w-10 flex flex-col justify-between text-right pr-2 text-[10px] text-secondary font-body-sm select-none">
+                  <span>100%</span>
+                  <span>75%</span>
+                  <span>50%</span>
+                  <span>25%</span>
+                  <span>0%</span>
+                </div>
+                
+                {/* Grid Lines */}
+                <div className="absolute left-10 right-0 top-0 bottom-8 pointer-events-none flex flex-col justify-between">
+                  <div className="w-full border-t border-slate-100/80" />
+                  <div className="w-full border-t border-slate-100/80" />
+                  <div className="w-full border-t border-slate-100/80" />
+                  <div className="w-full border-t border-slate-100/80" />
+                  <div className="w-full border-t border-slate-200" />
+                </div>
+
+                {/* Bars Container */}
+                <div className="absolute left-10 right-0 top-0 bottom-8 flex justify-around items-end px-4">
+                  {BAR_DATA.length === 0 ? (
+                    <div className="absolute inset-0 flex items-center justify-center text-secondary text-xs">
+                      No compliance data available for this term
+                    </div>
+                  ) : (
+                    BAR_DATA.map((d) => (
+                      <div key={d.dept} className="flex flex-col items-center justify-end h-full relative group w-12">
+                        {/* Stacked Bar */}
+                        <div className="w-8 h-full bg-slate-200 rounded-t-sm overflow-hidden relative transition-all duration-300 hover:opacity-95 cursor-pointer shadow-sm">
+                          <div
+                            className="absolute bottom-0 left-0 w-full bg-[#f44a3b] transition-all duration-500"
+                            style={{
+                              height: `${d.pct}%`,
+                            }}
+                          />
+                        </div>
+                        
+                        {/* Stacked Tooltip on Hover */}
+                        <div className="absolute -top-24 left-1/2 -translate-x-1/2 bg-white text-slate-700 text-xs py-2.5 px-3.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl flex flex-col gap-1 border border-slate-200/80 pointer-events-none w-36 min-w-max after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-white">
+                          <div className="font-bold text-slate-900 border-b border-slate-100 pb-1 mb-1">{d.dept}</div>
+                          <div className="flex justify-between gap-3 text-[11px]">
+                            <span className="text-secondary">Cleared:</span>
+                            <span className="font-bold text-brand-red">{d.cleared} ({d.pct}%)</span>
+                          </div>
+                          <div className="flex justify-between gap-3 text-[11px]">
+                            <span className="text-secondary">Pending:</span>
+                            <span className="font-bold text-slate-800">{d.pending} ({100 - d.pct}%)</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="flex justify-between mt-2 text-xs text-secondary px-2">
-                {BAR_DATA.map((d) => <span key={d.dept}>{d.dept}</span>)}
+                    ))
+                  )}
+                </div>
+
+                {/* X-axis Labels */}
+                <div className="absolute left-10 right-0 bottom-0 h-6 flex justify-around items-center px-4 font-body-sm text-[11px] text-secondary">
+                  {BAR_DATA.map((d) => (
+                    <span key={d.dept} className="w-12 text-center select-none">{d.dept}</span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Office Breakdown Table */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-gutter mb-gutter">
-            <div className="col-span-1 md:col-span-5 bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm p-lg">
-              <h3 className="font-title-md text-title-md text-on-surface mb-lg">Office Clearance Breakdown</h3>
-              <div className="space-y-md">
+          {/* Clearance Breakdowns Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-gutter">
+            {/* Office Completion Rate */}
+            <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm p-lg flex flex-col min-h-[350px]">
+              <h3 className="font-title-md text-title-md text-on-surface mb-lg">Office Completion Rate</h3>
+              <div className="space-y-md flex-1 overflow-y-auto max-h-[400px] pr-1">
                 {officeBreakdown.map((office) => (
                   <div key={office.id}>
                     <div className="flex justify-between font-body-sm text-body-sm mb-1">
@@ -446,50 +734,57 @@ export default function ReportsPage() {
                     </div>
                   </div>
                 ))}
+                {officeBreakdown.length === 0 && (
+                  <p className="text-xs text-secondary text-center py-8">No offices found.</p>
+                )}
               </div>
             </div>
 
-            {/* Recent Reports Table */}
-            <div className="col-span-1 md:col-span-7 bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm overflow-hidden">
-              <div className="p-lg border-b border-surface-container-high flex justify-between items-center">
-                <h3 className="font-title-md text-title-md text-on-surface">Recent Report Generations</h3>
-                <button className="text-brand-red font-label-md text-label-md hover:underline">View All</button>
+            {/* Department Completion Rate */}
+            <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm p-lg flex flex-col min-h-[350px]">
+              <h3 className="font-title-md text-title-md text-on-surface mb-lg">Department Completion Rate</h3>
+              <div className="space-y-md flex-1 overflow-y-auto max-h-[400px] pr-1">
+                {departmentBreakdown.map((dept) => (
+                  <div key={dept.id}>
+                    <div className="flex justify-between font-body-sm text-body-sm mb-1">
+                      <span className="text-on-surface font-medium">{dept.name}</span>
+                      <span className="text-secondary">{dept.clearedPct}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-brand-red rounded-full transition-all duration-500"
+                        style={{ width: `${dept.clearedPct}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {departmentBreakdown.length === 0 && (
+                  <p className="text-xs text-secondary text-center py-8">No departments found.</p>
+                )}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-surface text-secondary font-label-md text-label-md uppercase tracking-wider">
-                      <th className="p-4 font-medium">Report Name</th>
-                      <th className="p-4 font-medium">Date</th>
-                      <th className="p-4 font-medium">Status</th>
-                      <th className="p-4 font-medium text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-body-sm text-body-sm divide-y divide-surface-container-low">
-                    {mockRecentReports.map((r, i) => (
-                      <tr key={i} className="hover:bg-surface-container-lowest transition-colors">
-                        <td className="p-4 flex items-center gap-3 text-on-surface font-medium">
-                          <span className="material-symbols-outlined text-secondary shrink-0">description</span>
-                          <span>{r.name}</span>
-                        </td>
-                        <td className="p-4 text-secondary">{r.date}</td>
-                        <td className="p-4">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${r.status === "Completed" ? "bg-brand-red/10 text-brand-red" : "bg-surface-container-high text-secondary"}`}>
-                            {r.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-right">
-                          <button
-                            onClick={handleOpenExportModal}
-                            className="text-secondary hover:text-primary transition-colors cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">download</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            </div>
+
+            {/* Organization Completion Rate */}
+            <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high shadow-sm p-lg flex flex-col min-h-[350px]">
+              <h3 className="font-title-md text-title-md text-on-surface mb-lg">Organization Completion Rate</h3>
+              <div className="space-y-md flex-1 overflow-y-auto max-h-[400px] pr-1">
+                {organizationBreakdown.map((org) => (
+                  <div key={org.id}>
+                    <div className="flex justify-between font-body-sm text-body-sm mb-1">
+                      <span className="text-on-surface font-medium">{org.name}</span>
+                      <span className="text-secondary">{org.clearedPct}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-brand-red rounded-full transition-all duration-500"
+                        style={{ width: `${org.clearedPct}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {organizationBreakdown.length === 0 && (
+                  <p className="text-xs text-secondary text-center py-8">No organizations found.</p>
+                )}
               </div>
             </div>
           </div>
@@ -522,12 +817,28 @@ export default function ReportsPage() {
                 Personalize and filter the student clearance report for the current term (<strong>{selectedTerm?.name}</strong>).
               </p>
 
-              {/* 1. Academic Department Filters */}
               <div className="space-y-2">
                 <label className="font-label-sm text-xs font-bold text-secondary uppercase tracking-wider block">
                   Academic Departments
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant">
+                  {uniqueDepartments.length > 0 && (
+                    <label className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none font-bold col-span-3 border-b border-outline-variant/30 pb-2">
+                      <input
+                        type="checkbox"
+                        checked={exportDepts.length === uniqueDepartments.length}
+                        onChange={() => {
+                          if (exportDepts.length === uniqueDepartments.length) {
+                            setExportDepts([]);
+                          } else {
+                            setExportDepts([...uniqueDepartments]);
+                          }
+                        }}
+                        className="w-4 h-4 rounded text-brand-red focus:ring-brand-red border-outline-variant cursor-pointer"
+                      />
+                      <span>ALL DEPARTMENTS</span>
+                    </label>
+                  )}
                   {uniqueDepartments.map((dept) => (
                     <label key={dept} className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none">
                       <input
@@ -545,12 +856,26 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              {/* 2. Year Level Filters */}
               <div className="space-y-2">
                 <label className="font-label-sm text-xs font-bold text-secondary uppercase tracking-wider block">
                   Year Levels
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant">
+                  <label className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none font-bold col-span-3 border-b border-outline-variant/30 pb-2">
+                    <input
+                      type="checkbox"
+                      checked={exportYears.length === YEAR_LEVELS.length}
+                      onChange={() => {
+                        if (exportYears.length === YEAR_LEVELS.length) {
+                          setExportYears([]);
+                        } else {
+                          setExportYears([...YEAR_LEVELS]);
+                        }
+                      }}
+                      className="w-4 h-4 rounded text-brand-red focus:ring-brand-red border-outline-variant cursor-pointer"
+                    />
+                    <span>ALL YEAR LEVELS</span>
+                  </label>
                   {YEAR_LEVELS.map((yr) => (
                     <label key={yr} className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none">
                       <input
@@ -565,12 +890,26 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              {/* 3. Overall Clearance Status */}
               <div className="space-y-2">
                 <label className="font-label-sm text-xs font-bold text-secondary uppercase tracking-wider block">
                   Overall Clearance Status
                 </label>
-                <div className="flex gap-6 p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant">
+                <div className="flex flex-wrap gap-6 p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant items-center">
+                  <label className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none font-bold border-r border-outline-variant/30 pr-6 mr-2">
+                    <input
+                      type="checkbox"
+                      checked={exportStatuses.length === 2}
+                      onChange={() => {
+                        if (exportStatuses.length === 2) {
+                          setExportStatuses([]);
+                        } else {
+                          setExportStatuses(["Cleared", "Pending"]);
+                        }
+                      }}
+                      className="w-4 h-4 rounded text-brand-red focus:ring-brand-red border-outline-variant cursor-pointer"
+                    />
+                    <span>ALL STATUSES</span>
+                  </label>
                   {["Cleared", "Pending"].map((status) => (
                     <label key={status} className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none">
                       <input
@@ -631,15 +970,15 @@ export default function ReportsPage() {
                 <div className="flex gap-4">
                   <button
                     type="button"
-                    onClick={() => setExportFormat("csv")}
+                    onClick={() => setExportFormat("pdf")}
                     className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border font-bold text-sm transition-all cursor-pointer ${
-                      exportFormat === "csv"
+                      exportFormat === "pdf"
                         ? "bg-brand-red/10 border-brand-red text-brand-red shadow-sm"
                         : "bg-surface-container-low/40 border-outline-variant text-secondary hover:bg-surface-container-low"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-lg">description</span>
-                    CSV Spreadsheet
+                    <span className="material-symbols-outlined text-lg">picture_as_pdf</span>
+                    PDF Document
                   </button>
                   <button
                     type="button"
