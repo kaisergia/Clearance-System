@@ -14,6 +14,35 @@ const PALETTE = [
 export default function DepartmentsPage() {
   const { departments, deleteDepartment } = useDepartments();
 
+  const handleExportCSV = () => {
+    if (departments.length === 0) {
+      alert("No department directory data to export.");
+      return;
+    }
+
+    const headers = ["ID", "Department Name", "Abbreviation", "Head Name", "Head Email", "Pending Count", "Approved Count"];
+    const rows = departments.map((d) => [
+      d.id,
+      d.name,
+      d.abbreviation,
+      d.head?.name || "Unassigned",
+      d.head?.email || "N/A",
+      d.pending || 0,
+      d.approved || 0
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Department_Directory_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto">
       {/* Page Header */}
@@ -56,7 +85,10 @@ export default function DepartmentsPage() {
             <button className="flex items-center gap-xs px-md py-1.5 border border-surface-container-high rounded-lg font-body-sm text-body-sm text-secondary hover:bg-surface transition-colors">
               <span className="material-symbols-outlined text-sm">filter_list</span> Filter
             </button>
-            <button className="flex items-center gap-xs px-md py-1.5 border border-surface-container-high rounded-lg font-body-sm text-body-sm text-secondary hover:bg-surface transition-colors">
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-xs px-md py-1.5 border border-surface-container-high rounded-lg font-body-sm text-body-sm text-secondary hover:bg-surface transition-colors cursor-pointer"
+            >
               <span className="material-symbols-outlined text-sm">download</span> Export
             </button>
           </div>

@@ -76,10 +76,6 @@ export default function AdminDashboard() {
             Monitor university-wide clearance metrics and statuses.
           </p>
         </div>
-        <button className="flex items-center gap-xs px-md py-sm bg-brand-red text-white rounded-lg font-label-md text-label-md shadow-sm hover:bg-primary transition-colors btn-hover">
-          <span className="material-symbols-outlined text-[18px]">download</span>
-          Export Report
-        </button>
       </div>
 
       {/* Stat Cards */}

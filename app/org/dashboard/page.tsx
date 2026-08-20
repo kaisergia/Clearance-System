@@ -46,7 +46,8 @@ export default function OrgDashboard() {
           setOrg(currentOrg);
 
           const allStudents = await clearanceService.getStudents();
-          setStudents(allStudents);
+          const termStudents = allStudents.filter((s: any) => s.semester === selectedTerm);
+          setStudents(termStudents);
           const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
 
           const matchesProgram = (studentProg: string, orgProg: string | null) => {
@@ -60,13 +61,13 @@ export default function OrgDashboard() {
           // Fetch students based on org type/scope logic
           let list: any[] = [];
           if (currentOrg.type === "Gov") {
-            list = allStudents;
+            list = termStudents;
           } else if (currentOrg.type === "LGU") {
-            list = allStudents.filter((s) => s.department === currentOrg.department || memberIds.includes(s.id));
+            list = termStudents.filter((s) => s.department === currentOrg.department || memberIds.includes(s.id));
           } else if (currentOrg.type === "AcademicClub") {
-            list = allStudents.filter((s) => matchesProgram(s.program, currentOrg.program) || memberIds.includes(s.id));
+            list = termStudents.filter((s) => matchesProgram(s.program, currentOrg.program) || memberIds.includes(s.id));
           } else if (currentOrg.type === "NonAcademicClub") {
-            list = allStudents.filter((s) => memberIds.includes(s.id));
+            list = termStudents.filter((s) => memberIds.includes(s.id));
           }
 
           const mappedList = [];
@@ -87,7 +88,7 @@ export default function OrgDashboard() {
     loadDashboardData();
     window.addEventListener("clearanceRecordsUpdated", loadDashboardData);
     return () => window.removeEventListener("clearanceRecordsUpdated", loadDashboardData);
-  }, []);
+  }, [selectedTerm]);
 
   // Compute Stats
   const totalCount = constituents.length;
