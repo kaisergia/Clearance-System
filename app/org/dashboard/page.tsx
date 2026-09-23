@@ -45,10 +45,14 @@ export default function OrgDashboard() {
         if (currentOrg) {
           setOrg(currentOrg);
 
-          const allStudents = await clearanceService.getStudents();
+          const [allStudents, memberIds, orgRecords] = await Promise.all([
+            clearanceService.getStudents(),
+            clearanceService.getOrgMemberIds(currentOrg.id),
+            clearanceService.getClearanceRecordsByEntity({ orgId: currentOrg.id }),
+          ]);
+
           const termStudents = allStudents.filter((s: any) => s.semester === selectedTerm);
           setStudents(termStudents);
-          const memberIds = await clearanceService.getOrgMemberIds(currentOrg.id);
 
           const matchesProgram = (studentProg: string, orgProg: string | null) => {
             if (!orgProg) return false;
@@ -70,10 +74,14 @@ export default function OrgDashboard() {
             list = termStudents.filter((s) => memberIds.includes(s.id));
           }
 
+          const orgRecMap = new Map<string, any>();
+          for (const rec of orgRecords) {
+            if (rec.studentId) orgRecMap.set(rec.studentId, rec);
+          }
+
           const mappedList = [];
           for (const student of list) {
-            const records = await clearanceService.getStudentClearanceRecords(student.id);
-            const orgRec = records.find((r: any) => r.orgId === currentOrg.id);
+            const orgRec = orgRecMap.get(student.id);
             mappedList.push({
               ...student,
               status: orgRec?.status || "Pending",

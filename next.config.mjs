@@ -4,7 +4,7 @@ const nextConfig = {
     "192.168.1.38",
     "clearance-system.local",
     "*.trycloudflare.com",
-    "baseball-reproduce-fruits-journal.trycloudflare.com",
+    "baggage-librarian-shorty.ngrok-free.dev",
   ],
   images: {
     remotePatterns: [

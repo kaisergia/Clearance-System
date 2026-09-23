@@ -100,9 +100,18 @@ async function main() {
   // ── 0. Create default academic term ────────────────────────────────────────
   console.log("  → Default Academic Term");
   const defaultTerm = await prisma.academicTerm.upsert({
-    where: { name: "1st Sem 2024-2025" },
+    where: {
+      academicYear_semester: {
+        academicYear: "2024-2025",
+        semester: "1st Semester",
+      },
+    },
     update: { status: "Active" },
-    create: { name: "1st Sem 2024-2025", status: "Active" },
+    create: {
+      academicYear: "2024-2025",
+      semester: "1st Semester",
+      status: "Active",
+    },
   });
 
   // ── 5.5. Create default published clearance flow ────────────────────────────

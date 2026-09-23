@@ -208,15 +208,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (resolvedOffices.size === 0) {
-      const allOff = await prisma.office.findMany({ select: { id: true } });
-      allOff.forEach((o) => resolvedOffices.add(o.id));
-    }
-    if (resolvedDepartments.size === 0 && studentDeptObj) {
-      resolvedDepartments.add(studentDeptObj.id);
-    }
-    if (resolvedOrgs.size === 0 && memberOrgIds.length > 0) {
-      memberOrgIds.forEach((id) => resolvedOrgs.add(id));
+    // If no applicable published flow is found for this student/term, return empty array directly!
+    if (applicableFlows.length === 0) {
+      return NextResponse.json([]);
     }
 
     // Ensure all resolved signatories have their requirements copied to the active term if not already done

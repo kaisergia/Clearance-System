@@ -96,21 +96,22 @@ export function RequirementBatchEvaluator({
   const loadData = async () => {
     setLoading(true);
     try {
-      const allStudents = await clearanceService.getStudents();
+      const filter: any = {};
+      if (entityType === "office") filter.officeId = entityId;
+      if (entityType === "department") filter.departmentId = entityId;
+      if (entityType === "org") filter.orgId = entityId;
+
+      const [allStudents, entityRecords] = await Promise.all([
+        clearanceService.getStudents(),
+        clearanceService.getClearanceRecordsByEntity(filter),
+      ]);
       setStudents(allStudents);
 
       // Map clearance records by studentId
       const recordsMap: Record<string, any> = {};
-      for (const st of allStudents) {
-        const records = await clearanceService.getStudentClearanceRecords(st.id);
-        const record = records.find((r: any) => {
-          if (entityType === "office") return r.officeId === entityId;
-          if (entityType === "department") return r.departmentId === entityId;
-          if (entityType === "org") return r.orgId === entityId;
-          return false;
-        });
-        if (record) {
-          recordsMap[st.id] = record;
+      for (const rec of entityRecords) {
+        if (rec.studentId) {
+          recordsMap[rec.studentId] = rec;
         }
       }
       setClearanceRecords(recordsMap);

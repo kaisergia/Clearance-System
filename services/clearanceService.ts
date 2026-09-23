@@ -178,6 +178,43 @@ export async function getStudentClearanceRecords(studentId: string): Promise<any
   return records[studentId] || [];
 }
 
+export async function getClearanceRecordsByEntity(filter: {
+  officeId?: number;
+  departmentId?: number;
+  orgId?: number;
+  termId?: number;
+}): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (filter.officeId) params.append("officeId", String(filter.officeId));
+  if (filter.departmentId) params.append("departmentId", String(filter.departmentId));
+  if (filter.orgId) params.append("orgId", String(filter.orgId));
+  if (filter.termId) params.append("termId", String(filter.termId));
+
+  const dbResult = await apiFetch<any[]>(`/api/clearance-records?${params.toString()}`);
+  if (dbResult) return dbResult;
+
+  // FALLBACK
+  initStorage();
+  if (!isBrowser) return [];
+  const stored = localStorage.getItem("studentClearanceRecords");
+  if (!stored) return [];
+  const records = JSON.parse(stored);
+  const result: any[] = [];
+  for (const studentId of Object.keys(records)) {
+    const list = records[studentId] || [];
+    for (const rec of list) {
+      if (
+        (filter.officeId && rec.officeId === filter.officeId) ||
+        (filter.departmentId && rec.departmentId === filter.departmentId) ||
+        (filter.orgId && rec.orgId === filter.orgId)
+      ) {
+        result.push({ ...rec, studentId });
+      }
+    }
+  }
+  return result;
+}
+
 export async function getStudentRequirements(studentId: string, termId?: number): Promise<ClearanceItem[]> {
   let url = `/api/student-requirements?studentId=${studentId}`;
   if (termId != null) url += `&termId=${termId}`;

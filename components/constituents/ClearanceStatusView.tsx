@@ -457,8 +457,20 @@ function ClearanceItemRow({
             className="flex items-start justify-between cursor-pointer"
           >
             <div className="min-w-0">
-              <span className="text-[15px] font-semibold text-on-surface block leading-tight">{item.name}</span>
-              <span className="text-[12px] text-secondary mt-0.5 block">{item.responsible}</span>
+              <span className="text-[15px] font-semibold text-on-surface block leading-tight">
+                {item.responsible || item.name}
+              </span>
+              <span className="text-[12px] text-secondary mt-0.5 block">
+                {item.name && item.name !== (item.responsible || item.name)
+                  ? item.name
+                  : item.type === "office"
+                  ? "Office Clearance"
+                  : item.type === "department"
+                  ? "Department Clearance"
+                  : item.type === "org"
+                  ? "Organization Clearance"
+                  : "Clearance"}
+              </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {hasUnclearedPrereq && item.status !== "Cleared" && (
@@ -1312,6 +1324,9 @@ export function ClearanceStatusView({
     return "Office Requirements";
   };
 
+  const selectedTerm = terms.find((t) => t.id === selectedTermId) || terms.find((t) => t.status === "Active") || null;
+  const termDisplayName = selectedTerm ? `${selectedTerm.semester} ${selectedTerm.academicYear}` : (student.semester || "Current Term");
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
       {/* Header Section */}
@@ -1321,7 +1336,7 @@ export function ClearanceStatusView({
             Clearance Requirements
           </h2>
           <p className="text-secondary text-body-sm flex items-center gap-2">
-            {isOfficeView ? `Viewing requirements for ${student.name}` : `Track and complete requirements for ${student.semester}`}
+            {isOfficeView ? `Viewing requirements for ${student.name}` : `Track and complete requirements for ${termDisplayName}`}
             {isSysAdminView && !isOfficeView && (
               <span className="px-2 py-0.5 bg-primary/10 text-primary rounded font-bold text-[10px] uppercase tracking-wider">
                 Viewing: {student.name} ({student.id})
@@ -1343,7 +1358,7 @@ export function ClearanceStatusView({
               >
                 {terms.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} {t.status === "Active" ? "(Active)" : ""}
+                    {t.semester} {t.academicYear} {t.status === "Active" ? "(Active)" : ""}
                   </option>
                 ))}
               </select>
@@ -1370,8 +1385,8 @@ export function ClearanceStatusView({
         const clearedItemsCount = allReqItems.filter((i) => i.status === "Cleared").length;
         const progressPercent = totalItemsCount > 0 ? Math.round((clearedItemsCount / totalItemsCount) * 100) : 0;
         
-        // Fix: isFullyCleared MUST depend strictly on clearing ALL items when totalItemsCount > 0
-        const isFullyCleared = totalItemsCount > 0 ? clearedItemsCount === totalItemsCount : student.status === "Cleared";
+        // isFullyCleared MUST depend strictly on having > 0 requirements and clearing ALL of them
+        const isFullyCleared = totalItemsCount > 0 && clearedItemsCount === totalItemsCount;
 
         return (
           <div className="bg-surface-container-lowest border border-surface-container-high rounded-2xl p-5 shadow-sm my-3 space-y-4">
@@ -1380,6 +1395,8 @@ export function ClearanceStatusView({
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition-colors ${
                   isFullyCleared 
                     ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" 
+                    : totalItemsCount === 0
+                    ? "bg-slate-100 text-slate-500 border border-slate-200"
                     : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
                 }`}>
                   {isFullyCleared ? <Ticket size={24} /> : <Lock size={22} />}
@@ -1390,6 +1407,10 @@ export function ClearanceStatusView({
                     {isFullyCleared ? (
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider border border-emerald-300">
                         100% Cleared • Unlocked
+                      </span>
+                    ) : totalItemsCount === 0 ? (
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider border border-slate-300">
+                        Clearance Not Active
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase tracking-wider border border-amber-300">
@@ -1402,6 +1423,8 @@ export function ClearanceStatusView({
                       ? (isOfficeView || isSysAdminView 
                           ? `Student ${student.name} has completed all requirements. Official clearance slip is unlocked.`
                           : "Your digital clearance slip is unlocked! Present it on your mobile device for staff scanning.")
+                      : totalItemsCount === 0
+                      ? `No active clearance flow published for ${termDisplayName}. Clearance slip remains unavailable.`
                       : (isOfficeView || isSysAdminView
                           ? `Student clearance in progress (${clearedItemsCount}/${totalItemsCount} cleared). Slip remains locked until 100% completion.`
                           : `Complete all requirements (${clearedItemsCount}/${totalItemsCount} cleared) to unlock your digital clearance pass.`)}
@@ -1419,7 +1442,7 @@ export function ClearanceStatusView({
                 }`}
               >
                 {isFullyCleared ? <QrCode size={16} /> : <Lock size={15} />}
-                <span>{isFullyCleared ? "View Clearance Slip" : "Slip Locked (Incomplete)"}</span>
+                <span>{isFullyCleared ? "View Clearance Slip" : totalItemsCount === 0 ? "Slip Locked (No Active Flow)" : "Slip Locked (Incomplete)"}</span>
               </button>
             </div>
 
@@ -1513,14 +1536,14 @@ export function ClearanceStatusView({
 
       {/* Lists of Requirements OR Clearance Status Progress Map */}
       {requirements.length === 0 ? (
-        <div className="bg-surface-container-lowest border border-surface-container-high rounded-2xl p-12 text-center shadow-[0px_2px_8px_rgba(0,0,0,0.02)] space-y-4">
-          <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center mx-auto text-secondary/60">
-            <span className="material-symbols-outlined text-4xl">rule_folder</span>
+        <div className="bg-surface-container-lowest border border-surface-container-high rounded-2xl p-10 text-center shadow-sm space-y-4">
+          <div className="w-16 h-16 rounded-full bg-amber-50 border border-amber-200/60 flex items-center justify-center mx-auto text-amber-600 shadow-sm">
+            <span className="material-symbols-outlined text-3xl">lock_clock</span>
           </div>
           <div className="max-w-md mx-auto space-y-2">
-            <h3 className="font-bold text-on-surface text-lg">No Active Clearance Signatories</h3>
-            <p className="text-secondary text-sm">
-              There is no published clearance flow for your academic term yet. Clearance requirements will appear here once the administrator publishes the clearance flow.
+            <h3 className="font-bold text-on-surface text-lg">Clearance Is Not Yet Open</h3>
+            <p className="text-secondary text-xs sm:text-sm leading-relaxed">
+              No clearance flow has been published for <strong className="text-on-surface font-semibold">{termDisplayName}</strong> yet. The administration has not opened semestral clearance for this period. Required offices, departments, and organizations will appear here once published.
             </p>
           </div>
         </div>

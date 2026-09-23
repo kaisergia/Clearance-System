@@ -6,7 +6,6 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable, TableStudent } from "@/components/constituents/ConstituentsTable";
-import { ConstituentActionsToolbar } from "@/components/constituents/ConstituentActionsToolbar";
 import * as clearanceService from "@/services/clearanceService";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 import { mockStudents } from "@/mock/mockStudents";
@@ -108,17 +107,34 @@ export default function ConstituentsPage() {
       );
     };
 
-    const allSubmissions = targetOfficeId ? await clearanceService.getSubmissions({ officeId: targetOfficeId }) : [];
-    const allStudents = await clearanceService.getStudents();
+    const [allSubmissions, allStudents, officeRecords] = await Promise.all([
+      targetOfficeId ? clearanceService.getSubmissions({ officeId: targetOfficeId }) : Promise.resolve([]),
+      clearanceService.getStudents(),
+      targetOfficeId ? clearanceService.getClearanceRecordsByEntity({ officeId: targetOfficeId }) : Promise.resolve([]),
+    ]);
+
+    const officeRecMap = new Map<string, any>();
+    for (const rec of officeRecords) {
+      if (rec.studentId) officeRecMap.set(rec.studentId, rec);
+    }
+
+    const submissionsByStudent = new Map<string, any[]>();
+    for (const sub of allSubmissions) {
+      if (sub.studentId) {
+        const existing = submissionsByStudent.get(sub.studentId) || [];
+        existing.push(sub);
+        submissionsByStudent.set(sub.studentId, existing);
+      }
+    }
+
     const mappedStudents = [];
 
     for (const student of allStudents) {
       const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
       const hasRequirements = studentApplicable.length > 0;
 
-      const records = targetOfficeId ? await clearanceService.getStudentClearanceRecords(student.id) : [];
-      const officeRec = records.find((r: any) => r.officeId === targetOfficeId);
-      const studentSubmissions = allSubmissions.filter((s: any) => s.studentId === student.id);
+      const officeRec = officeRecMap.get(student.id);
+      const studentSubmissions = submissionsByStudent.get(student.id) || [];
 
       let computedStatus: "Cleared" | "Submitted" | "Rejected" | "Pending" = "Pending";
       if (!hasRequirements) {
@@ -409,11 +425,6 @@ export default function ConstituentsPage() {
             Office: <span className="font-semibold text-on-surface">{activeOffice ? activeOffice.name : "Loading..."}</span>
           </span>
         </div>
-
-        <ConstituentActionsToolbar
-          onDataRefresh={loadData}
-          entityName={activeOffice?.name}
-        />
       </section>
 
       {/* Stats Section */}

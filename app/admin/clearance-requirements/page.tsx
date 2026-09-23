@@ -6,6 +6,8 @@ import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModa
 
 interface AcademicTerm {
   id: number;
+  academicYear?: string;
+  semester?: string;
   name: string;
   status: string;
 }
@@ -77,7 +79,13 @@ export default function ClearanceRequirementsPage() {
 
   // Modals / Form States
   const [showTermModal, setShowTermModal] = useState(false);
-  const [newTermName, setNewTermName] = useState("");
+  const [newTermYear, setNewTermYear] = useState("2025-2026");
+  const [newTermSemester, setNewTermSemester] = useState("1st Semester");
+  const [newTermCustomYear, setNewTermCustomYear] = useState("");
+  const [isCustomYear, setIsCustomYear] = useState(false);
+  const [newTermStatus, setNewTermStatus] = useState<"Active" | "Archived">("Active");
+  const [termModalError, setTermModalError] = useState<string | null>(null);
+  const [termModalLoading, setTermModalLoading] = useState(false);
   const [showFlowModal, setShowFlowModal] = useState(false);
   const [editingFlow, setEditingFlow] = useState<ClearanceFlow | null>(null);
 
@@ -274,22 +282,52 @@ export default function ClearanceRequirementsPage() {
     }
   };
 
-  const handleCreateTerm = async () => {
-    if (!newTermName) return;
+  const handleCreateTerm = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setTermModalError(null);
+    const yearToUse = isCustomYear ? newTermCustomYear.trim() : newTermYear.trim();
+    if (!yearToUse) {
+      setTermModalError("Academic Year is required (e.g. 2025-2026).");
+      return;
+    }
+    const ayPattern = /^\d{4}-\d{4}$/;
+    if (!ayPattern.test(yearToUse)) {
+      setTermModalError("Please use YYYY-YYYY format (e.g. 2025-2026).");
+      return;
+    }
+
+    setTermModalLoading(true);
     try {
       const res = await fetch("/api/terms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newTermName, status: "Active" }),
+        body: JSON.stringify({
+          academicYear: yearToUse,
+          semester: newTermSemester,
+          status: newTermStatus,
+        }),
       });
-      if (res.ok) {
-        setNewTermName("");
-        setShowTermModal(false);
-        fetchTerms();
-        window.dispatchEvent(new Event("clearanceTermsUpdated"));
+
+      const data = await res.json();
+      if (!res.ok) {
+        setTermModalError(data.error || "Failed to create academic term.");
+        setTermModalLoading(false);
+        return;
       }
-    } catch (err) {
+
+      setShowTermModal(false);
+      setIsCustomYear(false);
+      setNewTermCustomYear("");
+      setTermModalLoading(false);
+      await fetchTerms();
+      if (data.id) {
+        setActiveTermId(data.id);
+      }
+      window.dispatchEvent(new Event("clearanceTermsUpdated"));
+    } catch (err: any) {
       console.error("Error creating term:", err);
+      setTermModalError(err.message || "Error creating academic term.");
+      setTermModalLoading(false);
     }
   };
 
@@ -895,40 +933,6 @@ export default function ClearanceRequirementsPage() {
         )}
       </div>
 
-      {/* Term Modal */}
-      {showTermModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-sm p-6">
-            <h3 className="font-title-md text-title-md text-on-surface mb-4">Create Academic Term</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block font-body-sm text-body-sm text-on-surface mb-1">Term Name *</label>
-                <input
-                  className="w-full px-4 py-2 rounded-lg border border-surface-container-high bg-surface-container-lowest font-body-sm outline-none"
-                  placeholder="e.g. 1st Sem 2024-2025"
-                  value={newTermName}
-                  onChange={(e) => setNewTermName(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowTermModal(false)}
-                className="flex-1 py-2 rounded-lg border border-surface-container-high text-secondary hover:bg-surface-container-low transition-colors font-label-md text-label-md"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateTerm}
-                className="flex-1 py-2 rounded-lg bg-brand-red text-white hover:bg-primary transition-colors font-label-md text-label-md"
-              >
-                Create & Activate
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Flow Builder Modal */}
       {showFlowModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -1377,6 +1381,192 @@ export default function ClearanceRequirementsPage() {
         onConfirm={() => setShowWarningDialog(false)}
         isAlert={true}
       />
+    
+      {/* New Term Modal */}
+      {showTermModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-surface-container-lowest rounded-2xl border border-surface-container-high shadow-2xl w-full max-w-lg overflow-hidden animate-scale-up">
+            <div className="p-6 border-b border-surface-container-high flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-red/10 text-brand-red flex items-center justify-center font-bold">
+                  <span className="material-symbols-outlined text-xl">calendar_today</span>
+                </div>
+                <div>
+                  <h3 className="font-title-lg text-title-lg text-on-surface font-bold">Configure Academic Term</h3>
+                  <p className="text-xs text-secondary mt-0.5">Add or switch to a school year and semester in the database.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTermModal(false);
+                  setTermModalError(null);
+                }}
+                className="text-secondary hover:text-on-surface p-1 rounded-lg hover:bg-surface-container-low transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTerm} className="p-6 space-y-5">
+              {termModalError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base shrink-0">error</span>
+                  <span>{termModalError}</span>
+                </div>
+              )}
+
+              {/* Academic Year Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-on-surface uppercase tracking-wider mb-1.5">
+                  Academic Year
+                </label>
+                <div className="space-y-2">
+                  <select
+                    className="custom-ring w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-on-surface outline-none cursor-pointer"
+                    value={isCustomYear ? "__custom__" : newTermYear}
+                    onChange={(e) => {
+                      if (e.target.value === "__custom__") {
+                        setIsCustomYear(true);
+                      } else {
+                        setIsCustomYear(false);
+                        setNewTermYear(e.target.value);
+                      }
+                    }}
+                  >
+                    {Array.from(
+                      new Set([
+                        "2025-2026",
+                        "2026-2027",
+                        "2024-2025",
+                        ...terms.map((t) => t.academicYear).filter(Boolean),
+                      ])
+                    ).map((ay) => (
+                      <option key={ay} value={ay}>
+                        {ay}
+                      </option>
+                    ))}
+                    <option value="__custom__">+ Enter Custom Academic Year...</option>
+                  </select>
+
+                  {isCustomYear && (
+                    <input
+                      type="text"
+                      className="custom-ring w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-lowest font-body-sm text-sm text-on-surface outline-none"
+                      placeholder="e.g. 2026-2027"
+                      value={newTermCustomYear}
+                      onChange={(e) => setNewTermCustomYear(e.target.value)}
+                      autoFocus
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Semester Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-on-surface uppercase tracking-wider mb-1.5">
+                  Semester / Term
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {["1st Semester", "2nd Semester", "Summer"].map((sem) => {
+                    const isSelected = newTermSemester === sem;
+                    return (
+                      <button
+                        type="button"
+                        key={sem}
+                        onClick={() => setNewTermSemester(sem)}
+                        className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                          isSelected
+                            ? "bg-brand-red text-white border-brand-red shadow-sm"
+                            : "bg-surface-container-lowest border-outline-variant text-secondary hover:bg-surface-container-low"
+                        }`}
+                      >
+                        <span>{sem}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Status Setting */}
+              <div>
+                <label className="block text-xs font-semibold text-on-surface uppercase tracking-wider mb-1.5">
+                  Status
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewTermStatus("Active")}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      newTermStatus === "Active"
+                        ? "border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20"
+                        : "border-outline-variant hover:bg-surface-container-low"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-600 text-lg">check_circle</span>
+                      <span className="font-bold text-xs text-on-surface">Active Term</span>
+                    </div>
+                    <p className="text-[11px] text-secondary mt-1">Make this the currently active term for clearance.</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewTermStatus("Archived")}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      newTermStatus === "Archived"
+                        ? "border-amber-500 bg-amber-50/50 ring-2 ring-amber-500/20"
+                        : "border-outline-variant hover:bg-surface-container-low"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-600 text-lg">archive</span>
+                      <span className="font-bold text-xs text-on-surface">Archived</span>
+                    </div>
+                    <p className="text-[11px] text-secondary mt-1">Save term to configure flows in draft without activating.</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="p-3 bg-surface-container-low rounded-xl border border-surface-container-high flex items-center justify-between text-xs">
+                <span className="text-secondary font-medium">Selected Term:</span>
+                <span className="font-bold text-on-surface flex items-center gap-1.5">
+                  {newTermSemester} {isCustomYear ? newTermCustomYear || "YYYY-YYYY" : newTermYear}
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    newTermStatus === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                  }`}>
+                    {newTermStatus}
+                  </span>
+                </span>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-2 flex justify-end gap-3 border-t border-surface-container-high">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTermModal(false);
+                    setTermModalError(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-surface-container-high text-secondary hover:bg-surface-container-low font-label-md text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={termModalLoading}
+                  className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-primary text-white font-label-md text-xs font-semibold shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {termModalLoading && <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>}
+                  Save Term
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

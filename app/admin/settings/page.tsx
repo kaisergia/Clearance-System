@@ -64,11 +64,10 @@ export default function AdminSettingsPage() {
     triggerSuccessBanner();
 
     try {
-      const termName = `${sem} ${ay}`;
       const res = await fetch("/api/terms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: termName, status: "Active" }),
+        body: JSON.stringify({ academicYear: ay, semester: sem, status: "Active" }),
       });
       if (!res.ok) {
         console.error("Failed to sync active term to database");
@@ -100,7 +99,7 @@ export default function AdminSettingsPage() {
     });
   };
 
-  const handleAddAy = () => {
+  const handleAddAy = async () => {
     const trimmed = newAy.trim();
     if (!trimmed) return;
     if (settings.academicYears.includes(trimmed)) {
@@ -113,6 +112,20 @@ export default function AdminSettingsPage() {
       alert("Please use YYYY-YYYY format (e.g., 2025-2026).");
       return;
     }
+
+    try {
+      const res = await fetch("/api/academic-years", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: trimmed }),
+      });
+      if (res.ok) {
+        window.dispatchEvent(new Event("clearanceTermsUpdated"));
+      }
+    } catch (err) {
+      console.error("Failed to add academic year to database:", err);
+    }
+
     const updatedYears = [...settings.academicYears, trimmed];
     saveSettings({
       ...settings,
@@ -124,23 +137,24 @@ export default function AdminSettingsPage() {
 
   const handleRemoveAy = async (ay: string) => {
     try {
-      const res = await fetch(`/api/terms?ay=${ay}`, {
+      const res = await fetch(`/api/academic-years?year=${ay}`, {
         method: "DELETE",
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.skippedCount > 0) {
+        if (data.skippedTerms && data.skippedTerms.length > 0) {
           alert(
             `Removed academic year from settings. However, the database records for:\n- ${data.skippedTerms.join(
               "\n- "
             )}\nwere preserved to prevent deleting historical student clearance records.`
           );
         }
+        window.dispatchEvent(new Event("clearanceTermsUpdated"));
       } else {
-        console.error("Failed to clean up terms from database");
+        console.error("Failed to clean up academic year from database");
       }
     } catch (err) {
-      console.error("Error cleaning up terms from database:", err);
+      console.error("Error cleaning up academic year from database:", err);
     }
 
     const updatedYears = settings.academicYears.filter((item) => item !== ay);

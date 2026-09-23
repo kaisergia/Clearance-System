@@ -11,6 +11,7 @@ import { ClearanceItem } from "@/services/clearanceService";
 export default function StudentDashboard() {
   const { data: session, status } = useSession();
   const [student, setStudent] = useState<any>(null);
+  const [activeTerm, setActiveTerm] = useState<any>(null);
   const [requirements, setRequirements] = useState<ClearanceItem[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
@@ -20,6 +21,19 @@ export default function StudentDashboard() {
     if (status === "loading") return;
 
     const loadDashboardData = async () => {
+      try {
+        const termsRes = await fetch("/api/terms");
+        if (termsRes.ok) {
+          const termsData = await termsRes.json();
+          if (Array.isArray(termsData)) {
+            const currentActive = termsData.find((t: any) => t.status === "Active") || termsData[0] || null;
+            setActiveTerm(currentActive);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch academic terms:", err);
+      }
+
       // Priority: real session entityId → localStorage → cookie
       const sessionStudentId = (session?.user as any)?.entityId as string | undefined;
       const cookieStudentId = document.cookie
@@ -108,14 +122,36 @@ export default function StudentDashboard() {
                 <span className="material-symbols-outlined text-base">badge</span>
                 <span>ID: {student.id}</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-base">calendar_today</span>
-                <span>{student.semester}</span>
+                <span>{activeTerm ? `${activeTerm.semester} ${activeTerm.academicYear}` : (student.semester || "1st Semester 2025-2026")}</span>
+                {activeTerm?.status === "Active" && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                    Active Term
+                  </span>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Notice when no clearance flow is defined/published for the active term */}
+      {requirements.length === 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 flex items-start gap-4 text-amber-900 shadow-sm animate-fadeIn">
+          <div className="p-2.5 bg-amber-500/15 rounded-xl text-amber-700 shrink-0">
+            <span className="material-symbols-outlined text-2xl">lock_clock</span>
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-bold text-sm text-amber-900">
+              Clearance Is Not Yet Open
+            </h3>
+            <p className="text-xs text-amber-800/90 leading-relaxed">
+              No clearance flow has been published for {activeTerm ? `${activeTerm.semester} ${activeTerm.academicYear}` : "the current academic term"}. Clearance checklist, signatory requirements, and progression will be accessible once the administration publishes the semestral clearance flow.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
@@ -145,20 +181,25 @@ export default function StudentDashboard() {
                   cx="60"
                   cy="60"
                   r="50"
-                  stroke="#f44a3b"
+                  stroke={totalCount > 0 ? "#f44a3b" : "#cbd5e1"}
                   strokeWidth="10"
                   className="fill-none"
                   strokeDasharray={314.159}
-                  strokeDashoffset={314.159 - (progressPercent / 100) * 314.159}
+                  strokeDashoffset={totalCount > 0 ? 314.159 - (progressPercent / 100) * 314.159 : 314.159}
                   strokeLinecap="round"
                   style={{ transition: "stroke-dashoffset 0.5s ease-in-out" }}
                 />
               </svg>
               {/* Center Text */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-3xl font-extrabold text-brand-red tracking-tight">
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className={`text-3xl font-extrabold tracking-tight ${totalCount > 0 ? "text-brand-red" : "text-slate-400"}`}>
                   {progressPercent}%
                 </span>
+                {totalCount === 0 && (
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Inactive
+                  </span>
+                )}
               </div>
             </div>
 
@@ -166,7 +207,7 @@ export default function StudentDashboard() {
             <div className="flex justify-center gap-8 w-full border-t border-surface-container-high pt-5">
               {/* Completed Item */}
               <div className="flex flex-col items-center gap-1.5">
-                <div className="w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-sm">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${completedCount > 0 ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-400"}`}>
                   <Check size={18} strokeWidth={3} />
                 </div>
                 <span className="text-secondary font-medium text-xs whitespace-nowrap">
@@ -176,7 +217,7 @@ export default function StudentDashboard() {
 
               {/* Pending Item */}
               <div className="flex flex-col items-center gap-1.5">
-                <div className="w-9 h-9 rounded-full bg-brand-red/90 text-white flex items-center justify-center shadow-sm">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${pendingCount + rejectedCount > 0 ? "bg-brand-red/90 text-white" : "bg-slate-200 text-slate-400"}`}>
                   <span className="material-symbols-outlined text-[18px] font-bold">group</span>
                 </div>
                 <span className="text-secondary font-medium text-xs whitespace-nowrap">

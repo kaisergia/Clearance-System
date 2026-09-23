@@ -332,8 +332,14 @@ export default function OrgReportsPage() {
       }
       setIsLoading(true);
 
-      // Fetch org requirements
-      const reqs = await clearanceService.getOrgRequirements(org.id);
+      const [reqs, fetchedStudents, orgRecords, allSubmissions, memberIds] = await Promise.all([
+        clearanceService.getOrgRequirements(org.id),
+        clearanceService.getStudents(),
+        clearanceService.getClearanceRecordsByEntity({ orgId: org.id }),
+        clearanceService.getSubmissions({ orgId: org.id }),
+        org.type === "NonAcademicClub" ? clearanceService.getOrgMemberIds(org.id) : Promise.resolve([]),
+      ]);
+
       const mappedReqs = reqs.map((r: any) => ({
         id: String(r.id),
         name: r.name,
@@ -342,8 +348,6 @@ export default function OrgReportsPage() {
       }));
       setOrgRequirementsList(mappedReqs);
 
-      // Map students first
-      const fetchedStudents = await clearanceService.getStudents();
       // Filter by selected term
       const termFilteredStudents = fetchedStudents.filter((s: any) => s.semester === selectedTerm);
 
@@ -358,20 +362,30 @@ export default function OrgReportsPage() {
           return studentProg === org.program;
         });
       } else if (org.type === "NonAcademicClub") {
-        const memberIds = await clearanceService.getOrgMemberIds(org.id);
         list = termFilteredStudents.filter((s) => memberIds.includes(s.id));
+      }
+
+      const orgRecMap = new Map<string, any>();
+      for (const rec of orgRecords) {
+        if (rec.studentId) orgRecMap.set(rec.studentId, rec);
+      }
+
+      const submissionsByStudent = new Map<string, any[]>();
+      for (const sub of allSubmissions) {
+        if (sub.studentId) {
+          const existing = submissionsByStudent.get(sub.studentId) || [];
+          existing.push(sub);
+          submissionsByStudent.set(sub.studentId, existing);
+        }
       }
 
       const mappedStudents: Student[] = [];
       const gatheredRecords: ClearanceRecord[] = [];
 
       for (const s of list) {
-        const studentRecs = await clearanceService.getStudentClearanceRecords(s.id);
-        const orgRec = studentRecs.find((r: any) => r.orgId === org.id);
-
-        // Find the student's requirements specifically for this org
-        const studentOrgReqs = await clearanceService.getStudentRequirements(s.id);
-        const currentOrgReq = studentOrgReqs.find((r: any) => r.type === "org" && r.id === org.id);
+        const orgRec = orgRecMap.get(s.id);
+        const studentSubmissions = submissionsByStudent.get(s.id) || [];
+        const completedTasks = Array.isArray(orgRec?.completedTasks) ? orgRec.completedTasks : [];
 
         mappedStudents.push({
           id: s.id,
@@ -386,20 +400,16 @@ export default function OrgReportsPage() {
         });
 
         // Map individual requirement records
-        for (const req of reqs) {
+        for (let taskIdx = 0; taskIdx < reqs.length; taskIdx++) {
+          const req = reqs[taskIdx];
           let isCleared = false;
           if (orgRec?.status === "Cleared") {
             isCleared = true;
-          } else if (currentOrgReq) {
-            const task = currentOrgReq.tasks?.find((t: any) => t.id === String(req.id));
-            if (task) {
-              const subStatus = task.submission?.status;
-              const isTaskApproved = subStatus === "approved";
-              const completedTasks = orgRec?.completedTasks || [];
-              const taskIdx = reqs.findIndex((x: any) => x.id === req.id);
-              const isManualCompleted = (req.type === "MANUAL" || !req.type) && completedTasks.includes(taskIdx);
-              isCleared = isTaskApproved || isManualCompleted;
-            }
+          } else if (req.type === "MANUAL" || !req.type) {
+            isCleared = completedTasks.includes(taskIdx);
+          } else {
+            const sub = studentSubmissions.find((x: any) => x.requirementId === req.id);
+            isCleared = sub?.status === "approved";
           }
 
           gatheredRecords.push({

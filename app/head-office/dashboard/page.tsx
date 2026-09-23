@@ -48,13 +48,20 @@ export default function HeadOfficeDashboard() {
         setCurrentOfficeId(Number(officeId));
       }
 
-      const allStudents = await clearanceService.getStudents();
+      const [allStudents, officeRecords] = await Promise.all([
+        clearanceService.getStudents(),
+        officeId ? clearanceService.getClearanceRecordsByEntity({ officeId: Number(officeId) }) : Promise.resolve([]),
+      ]);
+
       const termStudents = allStudents.filter((s: any) => s.semester === selectedTerm);
       setStudents(termStudents);
 
       const records: Record<string, any[]> = {};
-      for (const student of termStudents) {
-        records[student.id] = await clearanceService.getStudentClearanceRecords(student.id);
+      for (const rec of officeRecords) {
+        if (rec.studentId) {
+          if (!records[rec.studentId]) records[rec.studentId] = [];
+          records[rec.studentId].push(rec);
+        }
       }
       setClearanceRecords(records);
 

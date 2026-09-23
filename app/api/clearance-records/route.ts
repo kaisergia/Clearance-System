@@ -25,10 +25,12 @@ export async function GET(req: NextRequest) {
     if (officeId) where.officeId = parseInt(officeId, 10);
     if (departmentId) where.departmentId = parseInt(departmentId, 10);
     if (orgId) where.orgId = parseInt(orgId, 10);
-    if (termId) where.termId = parseInt(termId, 10);
-
-    if (!studentId && !officeId && !departmentId && !orgId && !termId) {
-      return NextResponse.json({ error: "At least one filter (studentId, officeId, departmentId, orgId, termId) is required" }, { status: 400 });
+    if (termId) {
+      const parsedTermId = parseInt(termId, 10);
+      where.OR = [
+        { termId: parsedTermId },
+        { termId: null },
+      ];
     }
 
     const records = await prisma.clearanceRecord.findMany({

@@ -6,7 +6,6 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import { useSettings } from "@/components/contexts/SettingsContext";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
-import { ConstituentActionsToolbar } from "@/components/constituents/ConstituentActionsToolbar";
 import * as clearanceService from "@/services/clearanceService";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
@@ -117,8 +116,26 @@ export default function ConstituentsPage() {
       );
     };
 
-    const allSubmissions = targetDeptId ? await clearanceService.getSubmissions({ departmentId: targetDeptId }) : [];
-    const allStudents = await clearanceService.getStudents();
+    const [allSubmissions, allStudents, deptRecords] = await Promise.all([
+      targetDeptId ? clearanceService.getSubmissions({ departmentId: targetDeptId }) : Promise.resolve([]),
+      clearanceService.getStudents(),
+      targetDeptId ? clearanceService.getClearanceRecordsByEntity({ departmentId: targetDeptId }) : Promise.resolve([]),
+    ]);
+
+    const deptRecMap = new Map<string, any>();
+    for (const rec of deptRecords) {
+      if (rec.studentId) deptRecMap.set(rec.studentId, rec);
+    }
+
+    const submissionsByStudent = new Map<string, any[]>();
+    for (const sub of allSubmissions) {
+      if (sub.studentId) {
+        const existing = submissionsByStudent.get(sub.studentId) || [];
+        existing.push(sub);
+        submissionsByStudent.set(sub.studentId, existing);
+      }
+    }
+
     const mappedStudents = [];
 
     for (const student of allStudents) {
@@ -126,9 +143,8 @@ export default function ConstituentsPage() {
         const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
         const hasRequirements = studentApplicable.length > 0;
 
-        const records = targetDeptId ? await clearanceService.getStudentClearanceRecords(student.id) : [];
-        const departmentRec = records.find((r: any) => r.departmentId === targetDeptId);
-        const studentSubmissions = allSubmissions.filter((s: any) => s.studentId === student.id);
+        const departmentRec = deptRecMap.get(student.id);
+        const studentSubmissions = submissionsByStudent.get(student.id) || [];
 
         let computedStatus: "Cleared" | "Submitted" | "Rejected" | "Pending" = "Pending";
         if (!hasRequirements) {
@@ -391,11 +407,6 @@ export default function ConstituentsPage() {
             Department: <span className="font-semibold text-on-surface">{activeDepartment ? activeDepartment.name : "Loading..."}</span>
           </span>
         </div>
-
-        <ConstituentActionsToolbar
-          onDataRefresh={loadData}
-          entityName={activeDepartment?.name}
-        />
       </section>
 
       {/* Stats Section */}

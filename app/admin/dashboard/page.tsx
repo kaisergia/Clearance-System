@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { mockWeekData } from "@/mock/mockData";
 import { useOffices } from "@/components/contexts/OfficesContext";
 import * as clearanceService from "@/services/clearanceService";
 
@@ -11,23 +10,61 @@ export default function AdminDashboard() {
 
   const [students, setStudents] = useState<any[]>([]);
   const [orgs, setOrgs] = useState<any[]>([]);
+  const [clearanceRecords, setClearanceRecords] = useState<any[]>([]);
+
   useEffect(() => {
-    clearanceService.getStudents().then((s) => setStudents(s));
-    clearanceService.getOrgs().then((o) => setOrgs(o));
+    const loadDashboard = async () => {
+      try {
+        const [stList, orgList, recList] = await Promise.all([
+          clearanceService.getStudents(),
+          clearanceService.getOrgs(),
+          fetch("/api/clearance-records").then((r) => (r.ok ? r.json() : [])),
+        ]);
+        setStudents(stList || []);
+        setOrgs(orgList || []);
+        setClearanceRecords(recList || []);
+      } catch (err) {
+        console.error("Failed to load admin dashboard data:", err);
+      }
+    };
+    loadDashboard();
   }, []);
 
   const totalStudents = students.length;
   const activeOrgs = orgs.filter((o) => o.status === "Active").length;
-  const pendingClearances = students.filter((s) => s.status === "Pending").length;
-  const clearedClearances = students.filter((s) => s.status === "Cleared").length;
+  const clearedStudents = students.filter((s) => {
+    const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
+    return s.status === "Cleared" || (studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
+  });
+  const clearedClearances = clearedStudents.length;
+  const pendingClearances = Math.max(0, totalStudents - clearedClearances);
   const clearedPct = totalStudents > 0 ? ((clearedClearances / totalStudents) * 100).toFixed(1) : "0";
+
+  // Dynamic Department Completion Data for Chart
+  const deptsList = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
+  const chartData = deptsList.map((dept) => {
+    const deptStudents = students.filter((s) => s.department === dept);
+    const total = deptStudents.length;
+    const cleared = deptStudents.filter((s) => {
+      const sRecs = clearanceRecords.filter((r) => r.studentId === s.id);
+      return s.status === "Cleared" || (sRecs.length > 0 && sRecs.every((r) => r.status === "Cleared"));
+    }).length;
+    const pct = total > 0 ? Math.round((cleared / total) * 100) : 0;
+    return {
+      label: dept,
+      total,
+      cleared,
+      pending: Math.max(0, total - cleared),
+      pct,
+    };
+  });
 
   const STAT_CARDS = [
     {
       label: "Total Students",
       value: totalStudents.toLocaleString(),
       icon: "groups",
-      trend: "+2.4% this semester",
+      trend: `${students.length} in database`,
       trendUp: true,
       highlight: false,
     },
@@ -35,7 +72,7 @@ export default function AdminDashboard() {
       label: "Active Orgs",
       value: activeOrgs.toString(),
       icon: "hub",
-      trend: "Stable",
+      trend: `${orgs.length} total`,
       trendUp: null,
       highlight: false,
     },
@@ -43,7 +80,7 @@ export default function AdminDashboard() {
       label: "Head Offices",
       value: offices.length.toString(),
       icon: "domain",
-      trend: "Stable",
+      trend: "All configured",
       trendUp: null,
       highlight: false,
     },
@@ -73,7 +110,7 @@ export default function AdminDashboard() {
         <div>
           <h3 className="font-title-md text-title-md text-on-surface mb-xs">System Overview</h3>
           <p className="font-body-sm text-body-sm text-secondary">
-            Monitor university-wide clearance metrics and statuses.
+            Monitor university-wide clearance metrics and live institutional compliance.
           </p>
         </div>
       </div>
@@ -143,8 +180,8 @@ export default function AdminDashboard() {
         <div className="lg:col-span-8 bg-surface-container-lowest rounded-xl shadow-[0px_1px_3px_rgba(0,0,0,0.05)] border border-surface-container-high p-lg">
           <div className="flex justify-between items-center mb-lg">
             <div>
-              <h4 className="font-title-md text-title-md text-on-surface">Clearance Completion Rate</h4>
-              <p className="font-body-sm text-body-sm text-secondary">Historical trend over the current semester</p>
+              <h4 className="font-title-md text-title-md text-on-surface">Department Completion Rate</h4>
+              <p className="font-body-sm text-body-sm text-secondary">Real-time compliance breakdown across departments</p>
             </div>
             <div className="flex gap-sm">
               <span className="flex items-center gap-xs font-label-md text-label-md text-secondary">
@@ -172,31 +209,28 @@ export default function AdminDashboard() {
             </div>
             {/* Bars */}
             <div className="flex-1 h-full flex items-end justify-between px-md pb-[30px] relative z-10">
-              {mockWeekData.map((d) => {
-                const totalPct = d.total;
-                const clearedPct = (d.cleared / 100) * 100;
-                return (
-                  <div key={d.week} className="flex flex-col items-center gap-1 flex-1 h-full justify-end relative group">
+              {chartData.map((d) => (
+                <div key={d.label} className="flex flex-col items-center gap-1 flex-1 h-full justify-end relative group">
+                  <div
+                    className="w-[70%] rounded-t-sm relative overflow-hidden transition-all duration-300 hover:opacity-90 cursor-pointer shadow-sm"
+                    style={{ height: "100%" }}
+                  >
+                    <div className="absolute inset-0 bg-surface-container-high rounded-t-sm" />
                     <div
-                      className="w-[70%] rounded-t-sm relative overflow-hidden transition-all duration-300 hover:opacity-90"
-                      style={{ height: `${totalPct}%` }}
-                    >
-                      <div className="absolute inset-0 bg-surface-container-high rounded-t-sm" />
-                      <div
-                        className="absolute bottom-0 w-full bg-brand-red rounded-t-sm transition-all duration-500"
-                        style={{ height: `${d.cleared}%` }}
-                      />
-                      {/* Tooltip */}
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-surface-container-lowest text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
-                        {d.cleared}% cleared
-                      </div>
+                      className="absolute bottom-0 w-full bg-brand-red rounded-t-sm transition-all duration-500"
+                      style={{ height: `${d.pct}%` }}
+                    />
+                    {/* Tooltip */}
+                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-on-surface text-surface-container-lowest text-xs py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-lg pointer-events-none">
+                      <div className="font-bold">{d.label}: {d.pct}%</div>
+                      <div className="text-[10px] text-gray-300">Cleared: {d.cleared}/{d.total}</div>
                     </div>
-                    <span className="absolute -bottom-7 font-label-md text-label-md text-secondary whitespace-nowrap">
-                      {d.week}
-                    </span>
                   </div>
-                );
-              })}
+                  <span className="absolute -bottom-7 font-label-md text-label-md text-secondary whitespace-nowrap">
+                    {d.label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -227,6 +261,9 @@ export default function AdminDashboard() {
                   </span>
                 </div>
               ))}
+              {orgs.length === 0 && (
+                <p className="text-xs text-secondary py-4 text-center">No organizations configured.</p>
+              )}
             </div>
             <Link href="/admin/user-management?tab=orgs" className="mt-md flex items-center gap-1 font-label-md text-label-md text-brand-red hover:text-primary transition-colors">
               View all orgs <span className="material-symbols-outlined text-base">arrow_forward</span>
@@ -235,14 +272,24 @@ export default function AdminDashboard() {
 
           {/* Office Clearance Quick View */}
           <div className="bg-surface-container-lowest rounded-xl border border-surface-container-high p-md shadow-[0px_1px_3px_rgba(0,0,0,0.05)] flex-1">
-            <h4 className="font-title-md text-title-md text-on-surface mb-md">Office Pending</h4>
+            <h4 className="font-title-md text-title-md text-on-surface mb-md">Office Status</h4>
             <div className="space-y-sm">
-              {offices.slice(0, 4).map((office) => (
-                <div key={office.id} className="flex items-center justify-between">
-                  <span className="font-body-sm text-body-sm text-on-surface">{office.name}</span>
-                  <span className="font-label-md text-label-md text-brand-red font-semibold">{office.pending || 0}</span>
-                </div>
-              ))}
+              {offices.slice(0, 4).map((office) => {
+                const officeRecs = clearanceRecords.filter((r) => r.officeId === office.id);
+                const cleared = officeRecs.filter((r) => r.status === "Cleared").length;
+                const pending = Math.max(0, students.length - cleared);
+                return (
+                  <div key={office.id} className="flex items-center justify-between">
+                    <span className="font-body-sm text-body-sm text-on-surface">{office.name}</span>
+                    <span className="font-label-md text-label-md text-secondary">
+                      <strong className="text-brand-red font-semibold">{pending}</strong> pending / <strong className="text-green-600 font-semibold">{cleared}</strong> cleared
+                    </span>
+                  </div>
+                );
+              })}
+              {offices.length === 0 && (
+                <p className="text-xs text-secondary py-4 text-center">No offices configured.</p>
+              )}
             </div>
             <Link href="/admin/user-management?tab=offices" className="mt-md flex items-center gap-1 font-label-md text-label-md text-brand-red hover:text-primary transition-colors">
               Manage offices <span className="material-symbols-outlined text-base">arrow_forward</span>

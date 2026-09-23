@@ -12,14 +12,19 @@
 export const DEPARTMENTS: string[] = ["CCIS", "COE", "CEDAS", "CHS", "CABE"];
 
 export const DEPT_PROGRAMS: Record<string, string[]> = {
-  CCIS: ["BS Computer Science", "BS Information Technology"],
+  CCIS: [
+    "BS Computer Science",
+    "BS Information Technology",
+    "Bachelor of Multimedia Arts",
+    "Bachelor of Library and Information Science",
+  ],
   COE: ["BS Civil Engineering", "BS Mechanical Engineering", "BS Electrical Engineering"],
   CEDAS: ["BS Data Science", "BS Applied Mathematics"],
   CHS: ["BS Nursing", "BS Pharmacy", "BS Medical Technology"],
   CABE: ["BS Business Administration", "BS Accountancy", "BS Hospitality Management"],
 };
 
-export const YEAR_LEVELS: string[] = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+export const YEAR_LEVELS: string[] = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"];
 
 /** Flat list of every program across all departments. */
 export const ALL_PROGRAMS: string[] = Array.from(
@@ -33,6 +38,8 @@ export const ALL_PROGRAMS: string[] = Array.from(
 export const PROGRAM_MAP: Record<string, string> = {
   "BS Computer Science": "BSCS",
   "BS Information Technology": "BSIT",
+  "Bachelor of Multimedia Arts": "BMMA",
+  "Bachelor of Library and Information Science": "BLIS",
   "BS Business Administration": "BSBA",
   "BS Accountancy": "BSA",
   "BS Civil Engineering": "BSCE",
@@ -44,6 +51,10 @@ export const PROGRAM_MAP: Record<string, string> = {
   "BS Pharmacy": "BSP",
   "BS Medical Technology": "BSMT",
   "BS Hospitality Management": "BSHM",
+  "BSCS": "BSCS",
+  "BSIT": "BSIT",
+  "BMMA": "BMMA",
+  "BLIS": "BLIS",
 };
 
 /**
@@ -53,7 +64,7 @@ export function getDepartmentForProgram(program: string | undefined | null): str
   if (!program) return "CCIS";
   const p = program.toUpperCase();
 
-  if (p.includes("COMPUTER") || p.includes("INFORMATION") || p.includes("CS") || p.includes("IT") || p.includes("BSCS") || p.includes("BSIT")) return "CCIS";
+  if (p.includes("COMPUTER") || p.includes("INFORMATION") || p.includes("CS") || p.includes("IT") || p.includes("BSCS") || p.includes("BSIT") || p.includes("BMMA") || p.includes("MMA") || p.includes("MULTIMEDIA") || p.includes("BLIS") || p.includes("LIS") || p.includes("LIBRARY")) return "CCIS";
   if (p.includes("CIVIL") || p.includes("MECHANICAL") || p.includes("ELECTRICAL") || p.includes("ENGINEERING") || p.includes("CE") || p.includes("ME") || p.includes("EE")) return "COE";
   if (p.includes("DATA") || p.includes("MATHEMATICS") || p.includes("DS") || p.includes("AM")) return "CEDAS";
   if (p.includes("NURSING") || p.includes("PHARMACY") || p.includes("MEDICAL") || p.includes("NURS") || p.includes("PHARM") || p.includes("MED")) return "CHS";

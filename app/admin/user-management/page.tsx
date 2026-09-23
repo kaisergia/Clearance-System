@@ -86,6 +86,11 @@ export default function UnifiedUserManagementPage() {
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<any | null>(null);
   const [resetConfirmUser, setResetConfirmUser] = useState<any | null>(null);
 
+  // Bulk Selection & Mass Actions State
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+
   // Edit Office Modal States
   const [showEditOfficeModal, setShowEditOfficeModal] = useState(false);
   const [editingOffice, setEditingOffice] = useState<any | null>(null);
@@ -244,6 +249,31 @@ export default function UnifiedUserManagementPage() {
     setResetConfirmUser(null);
   };
 
+  // Bulk Constituent Actions
+  const handleBulkDelete = async () => {
+    if (selectedUserIds.length === 0) return;
+    setBulkActionLoading(true);
+    try {
+      let deletedCount = 0;
+      for (const id of selectedUserIds) {
+        try {
+          await clearanceService.deleteUser(id);
+          deletedCount++;
+        } catch (err) {
+          console.error(`Failed to delete user ${id}:`, err);
+        }
+      }
+      showToast(`Successfully deleted ${deletedCount} user(s)/constituent(s).`);
+      setSelectedUserIds([]);
+      setShowBulkDeleteModal(false);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete selected constituents");
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
   // Excel Template Download Handler
   const handleDownloadTemplate = () => {
     const csvContent = "data:text/csv;charset=utf-8,Student ID,Name,Email,Department,Program,Year Level\n2026-0001,Sample Student,sample@g.cjc.edu.ph,CCIS,BSIT,1st Year\n2026-0002,Jane Doe,jane@g.cjc.edu.ph,CABE,BSBA,2nd Year";
@@ -370,6 +400,29 @@ export default function UnifiedUserManagementPage() {
     return matchesSearch && matchesRole;
   });
 
+  // Mass / Bulk Selection State & Handlers
+  const isAllSelected =
+    filteredUsers.length > 0 &&
+    filteredUsers.every((user) => selectedUserIds.includes(user.id));
+
+  const handleSelectAllChange = (checked: boolean) => {
+    if (checked) {
+      const allFilteredIds = filteredUsers.map((u) => u.id);
+      setSelectedUserIds((prev) => Array.from(new Set([...prev, ...allFilteredIds])));
+    } else {
+      const filteredIds = filteredUsers.map((u) => u.id);
+      setSelectedUserIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+    }
+  };
+
+  const handleSelectUser = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedUserIds((prev) => [...prev, id]);
+    } else {
+      setSelectedUserIds((prev) => prev.filter((item) => item !== id));
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12 font-sans">
       {/* Toast Notification Banner */}
@@ -463,12 +516,50 @@ export default function UnifiedUserManagementPage() {
             </div>
           </div>
 
+          {/* Bulk Action Toolbar */}
+          {selectedUserIds.length > 0 && (
+            <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl px-4 py-3 flex flex-wrap justify-between items-center gap-3 animate-fadeIn shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-emerald-900">
+                  {selectedUserIds.length} {selectedUserIds.length === 1 ? "constituent" : "constituents"} selected for bulk actions
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowBulkDeleteModal(true)}
+                  disabled={bulkActionLoading}
+                  className="inline-flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                  title="Delete selected constituents"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Selected ({selectedUserIds.length})</span>
+                </button>
+                <button
+                  onClick={() => setSelectedUserIds([])}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2 py-1 underline cursor-pointer"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Constituents User Table (Real DB Users) */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50 text-gray-400 text-[10px] font-extrabold uppercase tracking-wider border-b border-gray-200">
+                    <th className="px-4 py-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={(e) => handleSelectAllChange(e.target.checked)}
+                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
+                        title="Mass check / select all students"
+                      />
+                    </th>
                     <th className="px-6 py-3">User</th>
                     <th className="px-6 py-3">Role</th>
                     <th className="px-6 py-3">Department</th>
@@ -481,109 +572,125 @@ export default function UnifiedUserManagementPage() {
                 <tbody className="divide-y divide-gray-100 text-xs font-medium">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-gray-500">
+                      <td colSpan={8} className="text-center py-8 text-gray-500">
                         <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#b51b15] border-r-transparent mr-2" />
                         Loading database users...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-gray-500 text-xs">
+                      <td colSpan={8} className="text-center py-8 text-gray-500 text-xs">
                         No user records found matching your search.
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
-                        {/* USER */}
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-3">
-                            {user.avatarUrl ? (
-                              <img
-                                src={user.avatarUrl}
-                                alt={user.name}
-                                className="w-8 h-8 rounded-full object-cover shrink-0 shadow-2xs border border-gray-200"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-[#800000] text-[#ffffff] flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                                {user.initials}
+                    filteredUsers.map((user) => {
+                      const isSelected = selectedUserIds.includes(user.id);
+                      return (
+                        <tr
+                          key={user.id}
+                          className={`hover:bg-slate-50/80 transition-colors ${isSelected ? "bg-emerald-50/20" : ""}`}
+                        >
+                          {/* CHECKBOX */}
+                          <td className="px-4 py-3.5 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => handleSelectUser(user.id, e.target.checked)}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
+                            />
+                          </td>
+
+                          {/* USER */}
+                          <td className="px-6 py-3.5">
+                            <div className="flex items-center gap-3">
+                              {user.avatarUrl ? (
+                                <img
+                                  src={user.avatarUrl}
+                                  alt={user.name}
+                                  className="w-8 h-8 rounded-full object-cover shrink-0 shadow-2xs border border-gray-200"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-[#800000] text-[#ffffff] flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                                  {user.initials}
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                                  {user.name}
+                                  {user.studentId && (
+                                    <Link
+                                      href={`/admin/user-management/students/${encodeURIComponent(user.studentId)}`}
+                                      className="text-xs text-[#b51b15] hover:underline font-normal inline-flex items-center gap-0.5"
+                                      title="View Clearance Status"
+                                    >
+                                      (View Clearance Status)
+                                    </Link>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-gray-400 font-mono">{user.email}</div>
                               </div>
-                            )}
-                            <div>
-                              <div className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
-                                {user.name}
-                                {user.studentId && (
-                                  <Link
-                                    href={`/admin/user-management/students/${encodeURIComponent(user.studentId)}`}
-                                    className="text-xs text-[#b51b15] hover:underline font-normal inline-flex items-center gap-0.5"
-                                    title="View Clearance Status"
-                                  >
-                                    (View Clearance Status)
-                                  </Link>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-gray-400 font-mono">{user.email}</div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* ROLE */}
-                        <td className="px-6 py-3.5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            user.role === "System Admin"
-                              ? "bg-purple-50 text-purple-800 border-purple-200"
-                              : user.role === "Office Head"
-                              ? "bg-blue-50 text-blue-800 border-blue-200"
-                              : "bg-amber-50 text-amber-800 border-amber-200"
-                          }`}>
-                            {user.role}
-                          </span>
-                        </td>
+                          {/* ROLE */}
+                          <td className="px-6 py-3.5">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              user.role === "System Admin"
+                                ? "bg-purple-50 text-purple-800 border-purple-200"
+                                : user.role === "Office Head"
+                                ? "bg-blue-50 text-blue-800 border-blue-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
+                            }`}>
+                              {user.role}
+                            </span>
+                          </td>
 
-                        {/* DEPARTMENT */}
-                        <td className="px-6 py-3.5 font-semibold text-gray-700">
-                          {user.department}
-                        </td>
+                          {/* DEPARTMENT */}
+                          <td className="px-6 py-3.5 font-semibold text-gray-700">
+                            {user.department}
+                          </td>
 
-                        {/* PROGRAM */}
-                        <td className="px-6 py-3.5 text-gray-600">
-                          {user.program}
-                        </td>
+                          {/* PROGRAM */}
+                          <td className="px-6 py-3.5 text-gray-600">
+                            {user.program}
+                          </td>
 
-                        {/* STATUS */}
-                        <td className="px-6 py-3.5 text-center">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {user.status}
-                          </span>
-                        </td>
+                          {/* STATUS */}
+                          <td className="px-6 py-3.5 text-center">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {user.status}
+                            </span>
+                          </td>
 
-                        {/* JOINED */}
-                        <td className="px-6 py-3.5 text-gray-500">
-                          {user.joined}
-                        </td>
+                          {/* JOINED */}
+                          <td className="px-6 py-3.5 text-gray-500">
+                            {user.joined}
+                          </td>
 
-                        {/* ACTIONS */}
-                        <td className="px-6 py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-2 text-gray-400">
-                            <button
-                              onClick={() => handleOpenEditUser(user)}
-                              className="hover:text-gray-700 transition-colors p-1"
-                              title="Edit User"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmUser(user)}
-                              className="hover:text-red-600 transition-colors p-1"
-                              title="Delete User"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          {/* ACTIONS */}
+                          <td className="px-6 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2 text-gray-400">
+                              <button
+                                onClick={() => handleOpenEditUser(user)}
+                                className="hover:text-gray-700 transition-colors p-1"
+                                title="Edit User"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmUser(user)}
+                                className="hover:text-red-600 transition-colors p-1"
+                                title="Delete User"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1103,6 +1210,33 @@ export default function UnifiedUserManagementPage() {
               </button>
               <button onClick={handleConfirmDeleteUser} className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md active:scale-95">
                 Delete User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4" onClick={() => setShowBulkDeleteModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-scaleUp" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertCircle className="w-7 h-7" />
+              <h3 className="font-bold text-base text-gray-900">Confirm Bulk Deletion</h3>
+            </div>
+            <p className="text-xs text-gray-600">
+              Are you sure you want to delete <strong>{selectedUserIds.length}</strong> selected user(s) / student(s)? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowBulkDeleteModal(false)} className="flex-1 py-2 rounded-xl border border-gray-300 font-bold text-gray-600 text-xs hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkActionLoading}
+                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md active:scale-95 disabled:opacity-50"
+              >
+                {bulkActionLoading ? "Deleting..." : `Delete (${selectedUserIds.length})`}
               </button>
             </div>
           </div>

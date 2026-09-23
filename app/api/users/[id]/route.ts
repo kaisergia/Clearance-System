@@ -134,10 +134,62 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
     const userIdNum = parseInt(id, 10);
 
     if (!isNaN(userIdNum)) {
-      await prisma.user.delete({ where: { id: userIdNum } });
+      const existingUser = await prisma.user.findUnique({
+        where: { id: userIdNum },
+        select: { id: true, studentId: true, email: true },
+      });
+
+      if (!existingUser) {
+        return NextResponse.json({ success: true, message: "User not found or already deleted" });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        if (existingUser.studentId) {
+          const sid = existingUser.studentId;
+          await tx.requirementSubmission.deleteMany({ where: { studentId: sid } });
+          await tx.clearanceRecord.deleteMany({ where: { studentId: sid } });
+          await tx.notification.deleteMany({ where: { studentId: sid } });
+          await tx.orgMember.deleteMany({ where: { studentId: sid } });
+          await tx.user.deleteMany({ where: { OR: [{ id: userIdNum }, { studentId: sid }] } });
+          await tx.student.deleteMany({ where: { id: sid } });
+        } else {
+          await tx.user.delete({ where: { id: userIdNum } });
+        }
+      });
     } else {
       const cleanStudentId = id.replace(/^student-/, "");
-      await prisma.student.delete({ where: { id: cleanStudentId } });
+
+      await prisma.$transaction(async (tx) => {
+        // 1. Delete requirement submissions
+        await tx.requirementSubmission.deleteMany({
+          where: { studentId: cleanStudentId },
+        });
+
+        // 2. Delete clearance records
+        await tx.clearanceRecord.deleteMany({
+          where: { studentId: cleanStudentId },
+        });
+
+        // 3. Delete notifications
+        await tx.notification.deleteMany({
+          where: { studentId: cleanStudentId },
+        });
+
+        // 4. Delete org memberships
+        await tx.orgMember.deleteMany({
+          where: { studentId: cleanStudentId },
+        });
+
+        // 5. Delete linked user accounts
+        await tx.user.deleteMany({
+          where: { studentId: cleanStudentId },
+        });
+
+        // 6. Delete student record
+        await tx.student.deleteMany({
+          where: { id: cleanStudentId },
+        });
+      });
     }
 
     return NextResponse.json({ success: true });

@@ -423,11 +423,17 @@ export default function ReportsPage() {
       const storedOfficeId = localStorage.getItem("officeId");
       if (storedOfficeId) {
         const oid = parseInt(storedOfficeId, 10);
-        const currentOffice = await clearanceService.getOfficeById(oid);
+
+        const [currentOffice, reqs, fetchedStudents, officeRecords, allSubmissions] = await Promise.all([
+          clearanceService.getOfficeById(oid),
+          clearanceService.getOfficeRequirements(oid),
+          clearanceService.getStudents(),
+          clearanceService.getClearanceRecordsByEntity({ officeId: oid }),
+          clearanceService.getSubmissions({ officeId: oid }),
+        ]);
+
         if (currentOffice) setActiveOffice(currentOffice);
 
-        // Fetch office requirements
-        const reqs = await clearanceService.getOfficeRequirements(oid);
         const mappedReqs = reqs.map((r: any) => ({
           id: String(r.id),
           name: r.name,
@@ -436,21 +442,30 @@ export default function ReportsPage() {
         }));
         setOfficeRequirementsList(mappedReqs);
 
-        // Fetch all students
-        const fetchedStudents = await clearanceService.getStudents();
         // Filter by selected term
         const termFilteredStudents = fetchedStudents.filter((s: any) => s.semester === selectedTerm);
+
+        const officeRecMap = new Map<string, any>();
+        for (const rec of officeRecords) {
+          if (rec.studentId) officeRecMap.set(rec.studentId, rec);
+        }
+
+        const submissionsByStudent = new Map<string, any[]>();
+        for (const sub of allSubmissions) {
+          if (sub.studentId) {
+            const existing = submissionsByStudent.get(sub.studentId) || [];
+            existing.push(sub);
+            submissionsByStudent.set(sub.studentId, existing);
+          }
+        }
 
         const mappedStudents: Student[] = [];
         const gatheredRecords: ClearanceRecord[] = [];
 
         for (const s of termFilteredStudents) {
-          const studentRecs = await clearanceService.getStudentClearanceRecords(s.id);
-          const officeRec = studentRecs.find((r: any) => r.officeId === oid);
-
-          // Find the student's requirements specifically for this office
-          const studentOfficeReqs = await clearanceService.getStudentRequirements(s.id);
-          const currentOfficeReq = studentOfficeReqs.find((r: any) => r.type === "office" && r.id === oid);
+          const officeRec = officeRecMap.get(s.id);
+          const studentSubmissions = submissionsByStudent.get(s.id) || [];
+          const completedTasks = Array.isArray(officeRec?.completedTasks) ? officeRec.completedTasks : [];
 
           mappedStudents.push({
             id: s.id,
@@ -463,20 +478,16 @@ export default function ReportsPage() {
           });
 
           // Map the individual requirement records
-          for (const req of reqs) {
+          for (let taskIdx = 0; taskIdx < reqs.length; taskIdx++) {
+            const req = reqs[taskIdx];
             let isCleared = false;
             if (officeRec?.status === "Cleared") {
               isCleared = true;
-            } else if (currentOfficeReq) {
-              const task = currentOfficeReq.tasks?.find((t: any) => t.id === String(req.id));
-              if (task) {
-                const subStatus = task.submission?.status;
-                const isTaskApproved = subStatus === "approved";
-                const completedTasks = officeRec?.completedTasks || [];
-                const taskIdx = reqs.findIndex((x: any) => x.id === req.id);
-                const isManualCompleted = (req.type === "MANUAL" || !req.type) && completedTasks.includes(taskIdx);
-                isCleared = isTaskApproved || isManualCompleted;
-              }
+            } else if (req.type === "MANUAL" || !req.type) {
+              isCleared = completedTasks.includes(taskIdx);
+            } else {
+              const sub = studentSubmissions.find((x: any) => x.requirementId === req.id);
+              isCleared = sub?.status === "approved";
             }
 
             gatheredRecords.push({

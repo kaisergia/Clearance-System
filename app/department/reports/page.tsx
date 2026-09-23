@@ -425,11 +425,17 @@ export default function ReportsPage() {
       const storedDepartmentId = localStorage.getItem("departmentId");
       if (storedDepartmentId) {
         const did = parseInt(storedDepartmentId, 10);
-        const currentDept = await clearanceService.getDepartmentById(did);
+
+        const [currentDept, reqs, fetchedStudents, deptRecords, allSubmissions] = await Promise.all([
+          clearanceService.getDepartmentById(did),
+          clearanceService.getDepartmentRequirements(did),
+          clearanceService.getStudents(),
+          clearanceService.getClearanceRecordsByEntity({ departmentId: did }),
+          clearanceService.getSubmissions({ departmentId: did }),
+        ]);
+
         if (currentDept) setActiveDepartment(currentDept);
 
-        // Fetch department requirements
-        const reqs = await clearanceService.getDepartmentRequirements(did);
         const mappedReqs = reqs.map((r: any) => ({
           id: String(r.id),
           name: r.name,
@@ -438,8 +444,6 @@ export default function ReportsPage() {
         }));
         setDeptRequirementsList(mappedReqs);
 
-        // Fetch all students
-        const fetchedStudents = await clearanceService.getStudents();
         // Filter by department abbreviation and selected term
         const filtered = fetchedStudents.filter(
           (s: any) =>
@@ -447,16 +451,27 @@ export default function ReportsPage() {
             (!currentDept || s.department === currentDept.abbreviation)
         );
 
+        const deptRecMap = new Map<string, any>();
+        for (const rec of deptRecords) {
+          if (rec.studentId) deptRecMap.set(rec.studentId, rec);
+        }
+
+        const submissionsByStudent = new Map<string, any[]>();
+        for (const sub of allSubmissions) {
+          if (sub.studentId) {
+            const existing = submissionsByStudent.get(sub.studentId) || [];
+            existing.push(sub);
+            submissionsByStudent.set(sub.studentId, existing);
+          }
+        }
+
         const mappedStudents: Student[] = [];
         const gatheredRecords: ClearanceRecord[] = [];
 
         for (const s of filtered) {
-          const studentRecs = await clearanceService.getStudentClearanceRecords(s.id);
-          const deptRec = studentRecs.find((r: any) => r.departmentId === did);
-
-          // Find the student's requirements specifically for this department
-          const studentDeptReqs = await clearanceService.getStudentRequirements(s.id);
-          const currentDeptReq = studentDeptReqs.find((r: any) => r.type === "department" && r.id === did);
+          const deptRec = deptRecMap.get(s.id);
+          const studentSubmissions = submissionsByStudent.get(s.id) || [];
+          const completedTasks = Array.isArray(deptRec?.completedTasks) ? deptRec.completedTasks : [];
 
           mappedStudents.push({
             id: s.id,
@@ -469,20 +484,16 @@ export default function ReportsPage() {
           });
 
           // Map the individual requirement records
-          for (const req of reqs) {
+          for (let taskIdx = 0; taskIdx < reqs.length; taskIdx++) {
+            const req = reqs[taskIdx];
             let isCleared = false;
             if (deptRec?.status === "Cleared") {
               isCleared = true;
-            } else if (currentDeptReq) {
-              const task = currentDeptReq.tasks?.find((t: any) => t.id === String(req.id));
-              if (task) {
-                const subStatus = task.submission?.status;
-                const isTaskApproved = subStatus === "approved";
-                const completedTasks = deptRec?.completedTasks || [];
-                const taskIdx = reqs.findIndex((x: any) => x.id === req.id);
-                const isManualCompleted = (req.type === "MANUAL" || !req.type) && completedTasks.includes(taskIdx);
-                isCleared = isTaskApproved || isManualCompleted;
-              }
+            } else if (req.type === "MANUAL" || !req.type) {
+              isCleared = completedTasks.includes(taskIdx);
+            } else {
+              const sub = studentSubmissions.find((x: any) => x.requirementId === req.id);
+              isCleared = sub?.status === "approved";
             }
 
             gatheredRecords.push({

@@ -101,7 +101,12 @@ function ClearanceStepRow({ step, isLast }: { step: any; isLast: boolean }) {
           style={{ cursor: hasSubs ? "pointer" : "default" }}
         >
           <div className="flex items-start justify-between">
-            <span className="text-[15px] font-semibold text-on-surface">{step.office}</span>
+            <div className="min-w-0">
+              <span className="text-[15px] font-semibold text-on-surface block leading-tight">{step.office}</span>
+              {step.identifier && (
+                <span className="text-[12px] text-secondary mt-0.5 block">{step.identifier}</span>
+              )}
+            </div>
             <div className="flex flex-col items-center gap-1">
               <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${styles.badge}`}>
                 {styles.label}
@@ -218,32 +223,21 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
 
   // Dynamically map requirements (which represent active signatories in sequence order) to steps
   const steps = requirements.map((req) => {
-    let officeName = req.responsible;
-    if (req.type === "department") {
-      officeName = `${req.responsible} Department Clearance`;
-    } else if (req.type === "org") {
-      if (req.name.toLowerCase().includes("student government")) {
-        officeName = "Student Government Clearance";
-      } else {
-        officeName = `${req.responsible} Club Clearance`;
-      }
-    }
+    const officeHeading = req.responsible || req.name;
+    const subIdentifier = req.name && req.name !== officeHeading
+      ? req.name
+      : req.type === "office"
+      ? "Office Clearance"
+      : req.type === "department"
+      ? "Department Clearance"
+      : "Organization Clearance";
 
     // Map prerequisite signatories to subClearances
     const prereqSubs = (req.prerequisiteSignatories || [])
       .map((item: any) => {
         const found = requirements.find((r) => r.type === item.type && r.id === item.id);
         if (!found) return null;
-        let displayName = found.responsible;
-        if (found.type === "department") {
-          displayName = `${found.responsible} Department Clearance`;
-        } else if (found.type === "org") {
-          if (found.name.toLowerCase().includes("student government")) {
-            displayName = "Student Government";
-          } else {
-            displayName = `${found.responsible} Club`;
-          }
-        }
+        const displayName = found.responsible || found.name;
         return {
           id: `${found.type}-${found.id}`,
           name: displayName,
@@ -265,7 +259,8 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
 
     return {
       id: `${req.type}-${req.id}`,
-      office: officeName,
+      office: officeHeading,
+      identifier: subIdentifier,
       status: req.status === "Cleared" ? "cleared" : "pending",
       dateCleared: req.status === "Cleared" ? req.dateCleared : null,
       prereqClearances: prereqSubs,
@@ -301,8 +296,14 @@ export default function ClearanceStatus({ requirements, studentId, viewingOffice
       </p>
 
       {visibleSteps.length === 0 ? (
-        <div className="text-center py-6 border border-dashed border-gray-300 rounded-xl bg-gray-50/50">
-          <p className="text-sm font-semibold text-secondary">No published clearance available</p>
+        <div className="text-center py-8 border border-dashed border-surface-container-high rounded-xl bg-surface-container-lowest/50 space-y-2 p-4">
+          <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 border border-amber-200/60 flex items-center justify-center mx-auto shadow-sm">
+            <span className="material-symbols-outlined text-xl">lock_clock</span>
+          </div>
+          <p className="text-sm font-bold text-on-surface">No Published Clearance Flow</p>
+          <p className="text-xs text-secondary max-w-xs mx-auto leading-relaxed">
+            There are no active clearance signatories assigned for this academic term yet.
+          </p>
         </div>
       ) : (
         <div className="space-y-1">

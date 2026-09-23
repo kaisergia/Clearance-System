@@ -53,8 +53,9 @@ model Student {
   department String
   program    String
   year       String
-  status     String @default("Pending")
-  semester   String
+  status       String  @default("Pending")
+  semester     String
+  academicYear String? @default("2025-2026")
 
   users            User[]
   clearanceRecords ClearanceRecord[]
@@ -334,10 +335,11 @@ enum AnnouncementPriority {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model AcademicTerm {
-  id        Int             @id @default(autoincrement())
-  name      String          @unique
-  status    String          @default("Active") // "Active" | "Archived"
-  flows     ClearanceFlow[]
+  id             Int            @id @default(autoincrement())
+  academicYear   String         @default("2025-2026")
+  semester       String         @default("1st Semester")
+  status         String         @default("Active") // "Active" | "Archived"
+  flows          ClearanceFlow[]
   
   // Back-relations for term-specific requirements and clearance records
   officeRequirements     OfficeRequirement[]
@@ -346,6 +348,10 @@ model AcademicTerm {
   clearanceRecords       ClearanceRecord[]
   
   createdAt DateTime        @default(now())
+
+  @@unique([academicYear, semester])
+  @@index([academicYear])
+  @@index([semester])
 }
 
 model ClearanceFlow {

@@ -57,7 +57,11 @@ export async function POST(
 
     if (!activeTerm) {
       activeTerm = await prisma.academicTerm.create({
-        data: { name: "1st Semester 2025-2026", status: "Active" },
+        data: {
+          academicYear: "2025-2026",
+          semester: "1st Semester",
+          status: "Active",
+        },
       });
     }
 

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, FileSpreadsheet, RefreshCw, Upload, Download, X, KeyRound, Sparkles, CheckCircle2, Layers } from "lucide-react";
+import { UserPlus, FileSpreadsheet, Upload, Download, X, KeyRound, Sparkles, CheckCircle2, Layers } from "lucide-react";
 import AddUserModal from "@/components/constituents/AddUserModal";
 import { BatchCsvImporterModal } from "@/components/clearance/BatchCsvImporterModal";
-import { SSCSyncModal } from "@/components/clearance/SSCSyncModal";
 
 interface ConstituentActionsToolbarProps {
   onDataRefresh: () => void;
@@ -17,7 +16,6 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName, entityTyp
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showCsvBatchModal, setShowCsvBatchModal] = useState(false);
-  const [showSscSyncModal, setShowSscSyncModal] = useState(false);
   const [resetConfirmUser, setResetConfirmUser] = useState<any | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
@@ -79,15 +77,6 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName, entityTyp
         >
           <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
           <span>Import Excel</span>
-        </button>
-
-        <button
-          onClick={() => setShowSscSyncModal(true)}
-          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
-          title="Sync student masterlist records from live SSC System API with custom filters"
-        >
-          <RefreshCw className="w-4 h-4 text-blue-600" />
-          <span>Sync SSC API</span>
         </button>
 
         <button
@@ -183,16 +172,6 @@ export function ConstituentActionsToolbar({ onDataRefresh, entityName, entityTyp
           </div>
         </div>
       )}
-
-      {/* SSC Masterlist API Filter Sync Modal */}
-      <SSCSyncModal
-        isOpen={showSscSyncModal}
-        onClose={() => setShowSscSyncModal(false)}
-        onSuccess={(msg) => {
-          showToast(msg);
-          onDataRefresh();
-        }}
-      />
     </>
   );
 }

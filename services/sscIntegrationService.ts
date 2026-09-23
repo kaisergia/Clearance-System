@@ -96,21 +96,39 @@ export interface SSCFileListResponse {
  */
 export async function getSSCMasterlist(includeSensitive = true): Promise<SSCStudent[]> {
   try {
-    const url = `${SSC_BACKEND_URL}/api/v1/integration/masterlist?includeSensitive=${includeSensitive}`;
-    const res = await fetch(url, {
-      headers: {
-        "X-API-Key": SSC_BACKEND_API_KEY,
-        "Accept": "application/json",
-      },
-      cache: "no-store",
-    });
+    let allStudents: SSCStudent[] = [];
+    let page = 0;
+    let totalPages = 1;
+    const pageSize = 500;
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `SSC Masterlist fetch failed with status ${res.status}`);
-    }
+    do {
+      const url = `${SSC_BACKEND_URL}/api/v1/integration/masterlist?includeSensitive=${includeSensitive}&page=${page}&size=${pageSize}`;
+      const res = await fetch(url, {
+        headers: {
+          "X-API-Key": SSC_BACKEND_API_KEY,
+          "Accept": "application/json",
+        },
+        cache: "no-store",
+      });
 
-    return await res.json();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `SSC Masterlist fetch failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        allStudents = data;
+        break;
+      }
+
+      const pageContent: SSCStudent[] = data.content || data.data || [];
+      allStudents = allStudents.concat(pageContent);
+      totalPages = typeof data.totalPages === "number" ? data.totalPages : 1;
+      page++;
+    } while (page < totalPages);
+
+    return allStudents;
   } catch (err) {
     console.error("getSSCMasterlist error:", err);
     throw err;

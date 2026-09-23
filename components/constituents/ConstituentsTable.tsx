@@ -61,22 +61,24 @@ export function ConstituentsTable({
           <span className="text-xs font-bold text-emerald-800">
             {selectedIds.length} {selectedIds.length === 1 ? "student" : "students"} selected for bulk actions
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onBulkStatusChange("Cleared")}
-              className="bg-green-600 text-white text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-xs hover:bg-green-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-sm font-bold">done</span>
-              Mark Cleared
-            </button>
-            <button
-              onClick={() => onBulkStatusChange("Pending")}
-              className="bg-red-50 text-coral-red border border-coral-red text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-xs hover:bg-coral-red hover:text-white active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-sm font-bold">close</span>
-              Mark Uncleared
-            </button>
-          </div>
+          {!isSysAdmin && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onBulkStatusChange("Cleared")}
+                className="bg-green-600 text-white text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-xs hover:bg-green-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm font-bold">done</span>
+                Mark Cleared
+              </button>
+              <button
+                onClick={() => onBulkStatusChange("Pending")}
+                className="bg-red-50 text-coral-red border border-coral-red text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-xs hover:bg-coral-red hover:text-white active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm font-bold">close</span>
+                Mark Uncleared
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -85,16 +87,14 @@ export function ConstituentsTable({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 text-gray-400 text-[10px] font-extrabold uppercase tracking-wider border-b border-gray-200">
-              {!isSysAdmin && (
-                <th className="px-6 py-3.5 w-10">
-                  <input
-                    type="checkbox"
-                    checked={isAllSelected}
-                    onChange={(e) => onSelectAllChange(e.target.checked)}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
-                  />
-                </th>
-              )}
+              <th className="px-6 py-3.5 w-10">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={(e) => onSelectAllChange(e.target.checked)}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
+                />
+              </th>
               <th className="px-6 py-3.5">User</th>
               <th className="px-6 py-3.5">Role</th>
               <th className="px-6 py-3.5">Department</th>
@@ -124,18 +124,16 @@ export function ConstituentsTable({
                     key={student.id}
                     className={`hover:bg-slate-50/80 transition-colors ${isSelected ? "bg-emerald-50/20" : ""}`}
                   >
-                    {!isSysAdmin && (
-                      <td className="px-6 py-3.5">
-                        {student.hasRequirements !== false && (
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => onSelectStudent(student.id, e.target.checked)}
-                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
-                          />
-                        )}
-                      </td>
-                    )}
+                    <td className="px-6 py-3.5">
+                      {student.hasRequirements !== false && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => onSelectStudent(student.id, e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
+                        />
+                      )}
+                    </td>
 
                     {/* USER Column: Avatar + Name + View Clearance Status Link + Email/ID */}
                     <td className="px-6 py-3.5">

@@ -27,7 +27,17 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(flows);
+    const formattedFlows = flows.map((f) => ({
+      ...f,
+      term: f.term
+        ? {
+            ...f.term,
+            name: `${f.term.semester} ${f.term.academicYear}`,
+          }
+        : null,
+    }));
+
+    return NextResponse.json(formattedFlows);
   } catch (err) {
     console.error("[GET /api/flows]", err);
     return NextResponse.json({ error: "Database error" }, { status: 500 });
@@ -165,10 +175,23 @@ export async function POST(req: NextRequest) {
           },
           orderBy: { sequenceOrder: "asc" },
         },
+        term: true,
       },
     });
 
-    return NextResponse.json(fullFlow);
+    const formattedFlow = fullFlow
+      ? {
+          ...fullFlow,
+          term: fullFlow.term
+            ? {
+                ...fullFlow.term,
+                name: `${fullFlow.term.semester} ${fullFlow.term.academicYear}`,
+              }
+            : null,
+        }
+      : null;
+
+    return NextResponse.json(formattedFlow);
   } catch (err) {
     console.error("[POST /api/flows]", err);
     return NextResponse.json({ error: "Database error" }, { status: 500 });

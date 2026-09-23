@@ -47,13 +47,20 @@ export default function DepartmentDashboard() {
         if (currentDepartment) setActiveDepartment(currentDepartment);
       }
 
-      const allStudents = await clearanceService.getStudents();
+      const [allStudents, deptRecords] = await Promise.all([
+        clearanceService.getStudents(),
+        departmentId ? clearanceService.getClearanceRecordsByEntity({ departmentId: Number(departmentId) }) : Promise.resolve([]),
+      ]);
+
       const termStudents = allStudents.filter((s: any) => s.semester === selectedTerm);
       setStudents(termStudents);
       const records: Record<string, any[]> = {};
       
-      for (const student of termStudents) {
-        records[student.id] = await clearanceService.getStudentClearanceRecords(student.id);
+      for (const rec of deptRecords) {
+        if (rec.studentId) {
+          if (!records[rec.studentId]) records[rec.studentId] = [];
+          records[rec.studentId].push(rec);
+        }
       }
       setClearanceRecords(records);
 

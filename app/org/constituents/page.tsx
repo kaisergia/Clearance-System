@@ -7,7 +7,6 @@ import { useSettings } from "@/components/contexts/SettingsContext";
 import * as clearanceService from "@/services/clearanceService";
 import { ConstituentsFilterBar } from "@/components/constituents/ConstituentsFilterBar";
 import { ConstituentsTable } from "@/components/constituents/ConstituentsTable";
-import { ConstituentActionsToolbar } from "@/components/constituents/ConstituentActionsToolbar";
 import { ClearanceStatusView } from "@/components/constituents/ClearanceStatusView";
 import { PinConfirmationModal } from "@/components/clearance/PinConfirmationModal";
 import { PROGRAM_MAP } from "@/lib/constants";
@@ -114,15 +113,32 @@ export default function OrgConstituentsPage() {
           );
         };
 
-        const allSubmissions = await clearanceService.getSubmissions({ orgId: currentOrg.id });
+        const [allSubmissions, orgRecords] = await Promise.all([
+          clearanceService.getSubmissions({ orgId: currentOrg.id }),
+          clearanceService.getClearanceRecordsByEntity({ orgId: currentOrg.id }),
+        ]);
+
+        const orgRecMap = new Map<string, any>();
+        for (const rec of orgRecords) {
+          if (rec.studentId) orgRecMap.set(rec.studentId, rec);
+        }
+
+        const submissionsByStudent = new Map<string, any[]>();
+        for (const sub of allSubmissions) {
+          if (sub.studentId) {
+            const existing = submissionsByStudent.get(sub.studentId) || [];
+            existing.push(sub);
+            submissionsByStudent.set(sub.studentId, existing);
+          }
+        }
+
         const mappedList = [];
         for (const student of list) {
           const studentApplicable = liveReqs.filter((req: any) => isApplicable(req, student));
           const hasRequirements = studentApplicable.length > 0;
 
-          const records = await clearanceService.getStudentClearanceRecords(student.id);
-          const orgRec = records.find((r: any) => r.orgId === currentOrg.id);
-          const studentSubmissions = allSubmissions.filter((s: any) => s.studentId === student.id);
+          const orgRec = orgRecMap.get(student.id);
+          const studentSubmissions = submissionsByStudent.get(student.id) || [];
 
           let computedStatus: "Cleared" | "Submitted" | "Rejected" | "Pending" = "Pending";
           if (!hasRequirements) {
@@ -395,11 +411,6 @@ export default function OrgConstituentsPage() {
             </span>
           </span>
         </div>
-
-        <ConstituentActionsToolbar
-          onDataRefresh={loadData}
-          entityName={org?.name}
-        />
       </section>
 
       {/* Stats Section */}

@@ -25,17 +25,57 @@ export function SSCSyncModal({
   const [program, setProgram] = useState(defaultProgram);
   const [yearLevel, setYearLevel] = useState("All Year Levels");
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Dynamic Options Loaded from Live SSC API
+  const [departmentsList, setDepartmentsList] = useState<string[]>(DEPARTMENTS);
+  const [deptProgramsMap, setDeptProgramsMap] = useState<Record<string, string[]>>(DEPT_PROGRAMS);
+  const [allProgramsList, setAllProgramsList] = useState<string[]>(ALL_PROGRAMS);
+  const [yearLevelsList, setYearLevelsList] = useState<string[]>(YEAR_LEVELS);
+  const [totalStudentsCount, setTotalStudentsCount] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Fetch dynamic departments, programs, and year levels from SSC API on modal open
   useEffect(() => {
     if (isOpen) {
       setDepartment(defaultDepartment && defaultDepartment !== "All" ? defaultDepartment : "All Departments");
       setProgram(defaultProgram && defaultProgram !== "All" ? defaultProgram : "All Programs");
       setError(null);
+
+      const fetchOptions = async () => {
+        setIsLoadingOptions(true);
+        try {
+          const res = await fetch("/api/integration/ssc/masterlist?options=true");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.departments && Array.isArray(data.departments)) {
+              setDepartmentsList(data.departments);
+            }
+            if (data.departmentPrograms && typeof data.departmentPrograms === "object") {
+              setDeptProgramsMap(data.departmentPrograms);
+            }
+            if (data.allPrograms && Array.isArray(data.allPrograms)) {
+              setAllProgramsList(data.allPrograms);
+            }
+            if (data.yearLevels && Array.isArray(data.yearLevels)) {
+              setYearLevelsList(data.yearLevels);
+            }
+            if (typeof data.totalStudents === "number") {
+              setTotalStudentsCount(data.totalStudents);
+            }
+          }
+        } catch (e) {
+          console.warn("Could not load dynamic SSC options, using defaults:", e);
+        } finally {
+          setIsLoadingOptions(false);
+        }
+      };
+
+      fetchOptions();
     }
   }, [isOpen, defaultDepartment, defaultProgram]);
 
@@ -43,9 +83,9 @@ export function SSCSyncModal({
 
   // Compute available programs based on selected department
   const availablePrograms =
-    department && department !== "All Departments" && DEPT_PROGRAMS[department]
-      ? DEPT_PROGRAMS[department]
-      : ALL_PROGRAMS;
+    department && department !== "All Departments" && deptProgramsMap[department]
+      ? deptProgramsMap[department]
+      : allProgramsList;
 
   const handleDepartmentChange = (newDept: string) => {
     setDepartment(newDept);
@@ -101,6 +141,11 @@ export function SSCSyncModal({
             <div>
               <h3 className="font-bold text-base text-white flex items-center gap-2">
                 Sync SSC Masterlist API
+                {totalStudentsCount !== null && (
+                  <span className="text-[10px] font-mono font-semibold bg-blue-500/30 text-blue-200 px-2 py-0.5 rounded-full border border-blue-400/30">
+                    {totalStudentsCount} In API
+                  </span>
+                )}
               </h3>
               <p className="text-xs text-blue-200 mt-0.5">Filter students to sync in targeted batches</p>
             </div>
@@ -131,7 +176,7 @@ export function SSCSyncModal({
             <div className="space-y-0.5">
               <span className="font-bold block">Batch Sync Filtering</span>
               <p className="text-blue-800 leading-relaxed">
-                To prevent heavy system load, select specific filters below to pull only the relevant student batch from the SSC Masterlist API.
+                Select specific filters below to pull only the relevant student batch from the SSC Masterlist API. Options automatically reflect all live programs and departments in the API.
               </p>
             </div>
           </div>
@@ -151,7 +196,7 @@ export function SSCSyncModal({
                 className="w-full h-10 px-3 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all cursor-pointer"
               >
                 <option value="All Departments">All Departments (All)</option>
-                {DEPARTMENTS.map((dept) => (
+                {departmentsList.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
                   </option>
@@ -193,7 +238,7 @@ export function SSCSyncModal({
                 className="w-full h-10 px-3 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all cursor-pointer"
               >
                 <option value="All Year Levels">All Year Levels (All)</option>
-                {YEAR_LEVELS.map((yr) => (
+                {yearLevelsList.map((yr) => (
                   <option key={yr} value={yr}>
                     {yr}
                   </option>

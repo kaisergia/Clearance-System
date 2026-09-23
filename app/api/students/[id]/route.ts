@@ -31,3 +31,27 @@ export async function GET(
     return NextResponse.json({ error: "Database error" }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const cleanStudentId = id.replace(/^student-/, "");
+
+    await prisma.$transaction(async (tx) => {
+      await tx.requirementSubmission.deleteMany({ where: { studentId: cleanStudentId } });
+      await tx.clearanceRecord.deleteMany({ where: { studentId: cleanStudentId } });
+      await tx.notification.deleteMany({ where: { studentId: cleanStudentId } });
+      await tx.orgMember.deleteMany({ where: { studentId: cleanStudentId } });
+      await tx.user.deleteMany({ where: { studentId: cleanStudentId } });
+      await tx.student.deleteMany({ where: { id: cleanStudentId } });
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("[DELETE /api/students/:id]", err);
+    return NextResponse.json({ error: err.message || "Failed to delete student" }, { status: 500 });
+  }
+}
