@@ -161,7 +161,7 @@ export async function GET(
     // Evaluate clearance status
     const totalRecords = formattedRecords.length;
     const clearedRecords = formattedRecords.filter((r) => r.status === "Cleared").length;
-    const isFullyCleared = studentData.status === "Cleared" || (totalRecords > 0 && clearedRecords === totalRecords);
+    const isFullyCleared = totalRecords > 0 && clearedRecords === totalRecords;
 
     const formattedCode = `CJC-CLR-2026-${studentData.id}`;
     const dateCleared = formattedRecords.find((r) => r.dateCleared)?.dateCleared || "July 2026";

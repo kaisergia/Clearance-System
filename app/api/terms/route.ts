@@ -114,6 +114,15 @@ export async function POST(req: NextRequest) {
           },
           data: { status: "Draft" },
         });
+      } else {
+        // If this term is Archived, demote all its flows to Draft
+        await tx.clearanceFlow.updateMany({
+          where: {
+            termId: term.id,
+            status: "Published",
+          },
+          data: { status: "Draft" },
+        });
       }
 
       return {
@@ -178,3 +187,55 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: err?.message || "Database error" }, { status: 500 });
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { id, status } = await req.json();
+    if (!id || !status) {
+      return NextResponse.json({ error: "Term ID and Status are required" }, { status: 400 });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      if (status === "Active") {
+        await tx.academicTerm.updateMany({
+          where: { status: "Active" },
+          data: { status: "Archived" },
+        });
+      }
+
+      const term = await tx.academicTerm.update({
+        where: { id: Number(id) },
+        data: { status },
+      });
+
+      if (term.status === "Active") {
+        await tx.clearanceFlow.updateMany({
+          where: {
+            termId: { not: term.id },
+            status: "Published",
+          },
+          data: { status: "Draft" },
+        });
+      } else {
+        await tx.clearanceFlow.updateMany({
+          where: {
+            termId: term.id,
+            status: "Published",
+          },
+          data: { status: "Draft" },
+        });
+      }
+
+      return {
+        ...term,
+        name: `${term.semester} ${term.academicYear}`,
+      };
+    });
+
+    return NextResponse.json(result);
+  } catch (err: any) {
+    console.error("[PATCH /api/terms] Error:", err);
+    return NextResponse.json({ error: err?.message || "Database error" }, { status: 500 });
+  }
+}
+

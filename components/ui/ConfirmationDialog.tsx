@@ -12,6 +12,8 @@ interface ConfirmationDialogProps {
   onCancel?: () => void;
   isAlert?: boolean;
   confirmButtonClass?: string;
+  isLoading?: boolean;
+  loadingText?: string;
 }
 
 export function ConfirmationDialog({
@@ -24,6 +26,8 @@ export function ConfirmationDialog({
   onCancel,
   isAlert = false,
   confirmButtonClass = "bg-brand-red hover:bg-primary",
+  isLoading = false,
+  loadingText,
 }: ConfirmationDialogProps) {
   if (!isOpen) return null;
 
@@ -40,18 +44,27 @@ export function ConfirmationDialog({
           {!isAlert && onCancel && (
             <button
               type="button"
+              disabled={isLoading}
               onClick={onCancel}
-              className="px-4 py-2.5 border border-outline-variant text-secondary rounded-lg font-label-md text-sm hover:bg-surface-container-low transition-colors cursor-pointer"
+              className="px-4 py-2.5 border border-outline-variant text-secondary rounded-lg font-label-md text-sm hover:bg-surface-container-low transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {cancelText}
             </button>
           )}
           <button
             type="button"
+            disabled={isLoading}
             onClick={onConfirm}
-            className={`px-4 py-2.5 text-white rounded-lg font-label-md text-sm shadow-sm transition-colors cursor-pointer active:scale-95 ${confirmButtonClass}`}
+            className={`px-4 py-2.5 text-white rounded-lg font-label-md text-sm shadow-sm transition-colors cursor-pointer active:scale-95 flex items-center gap-2 ${confirmButtonClass} ${
+              isLoading ? "opacity-75 cursor-not-allowed" : ""
+            }`}
           >
-            {confirmText}
+            {isLoading && (
+              <span className="material-symbols-outlined text-sm animate-spin">
+                progress_activity
+              </span>
+            )}
+            {isLoading ? loadingText || confirmText : confirmText}
           </button>
         </div>
       </div>

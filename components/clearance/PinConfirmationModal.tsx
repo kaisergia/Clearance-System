@@ -16,6 +16,50 @@ interface PinConfirmationModalProps {
   devEmail?: string;
 }
 
+const getDevEmailFallback = (): string | undefined => {
+  if (typeof window === "undefined") return undefined;
+
+  const role = localStorage.getItem("role");
+  if (!role) return undefined;
+
+  if (role === "admin") {
+    return "admin@clearance.edu";
+  }
+
+  if (role === "head-office" || role === "head_office") {
+    const officeId = localStorage.getItem("officeId");
+    const officeEmails: Record<string, string> = {
+      "1": "registrar@uni.edu.ph",
+      "2": "library@uni.edu.ph",
+      "3": "guidance@uni.edu.ph",
+      "4": "accounting@uni.edu.ph",
+      "5": "discipline@uni.edu.ph",
+    };
+    return officeId ? officeEmails[officeId] : undefined;
+  }
+
+  if (role === "department") {
+    const departmentId = localStorage.getItem("departmentId");
+    const deptEmails: Record<string, string> = {
+      "1": "ccis@uni.edu.ph",
+      "2": "coe@uni.edu.ph",
+    };
+    return departmentId ? deptEmails[departmentId] : undefined;
+  }
+
+  if (role === "org") {
+    const orgId = localStorage.getItem("orgId");
+    const orgEmails: Record<string, string> = {
+      "1": "csso@uni.edu.ph",
+      "2": "jma@uni.edu.ph",
+      "3": "dance@uni.edu.ph",
+    };
+    return orgId ? orgEmails[orgId] : undefined;
+  }
+
+  return undefined;
+};
+
 export function PinConfirmationModal({
   isOpen,
   onClose,
@@ -38,10 +82,11 @@ export function PinConfirmationModal({
     setError("");
 
     try {
+      const activeEmail = devEmail || getDevEmailFallback();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      if (devEmail) headers["x-dev-email"] = devEmail;
+      if (activeEmail) headers["x-dev-email"] = activeEmail;
 
       const res = await fetch("/api/users/pin/verify", {
         method: "POST",
@@ -200,10 +245,11 @@ export function SetPinModal({
 
     setIsSaving(true);
     try {
+      const activeEmail = devEmail || getDevEmailFallback();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      if (devEmail) headers["x-dev-email"] = devEmail;
+      if (activeEmail) headers["x-dev-email"] = activeEmail;
 
       const res = await fetch("/api/users/pin/update", {
         method: "POST",

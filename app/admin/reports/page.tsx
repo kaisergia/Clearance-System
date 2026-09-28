@@ -148,7 +148,7 @@ export default function ReportsPage() {
   // Calculations derived from dynamic term records
   const clearedStudents = students.filter((s) => {
     const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
-    return s.status === "Cleared" || (studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
+    return Boolean(studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
   });
 
   const totalApproved = clearedStudents.length;
@@ -172,7 +172,7 @@ export default function ReportsPage() {
     }
     deptStats[deptKey].total += 1;
     const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
-    const isCleared = s.status === "Cleared" || (studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
+    const isCleared = Boolean(studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
     if (isCleared) {
       deptStats[deptKey].cleared += 1;
     }
@@ -356,7 +356,7 @@ export default function ReportsPage() {
     if (exportStatuses.length > 0) {
       list = list.filter((s) => {
         const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
-        const isCleared = s.status === "Cleared" || (studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
+        const isCleared = Boolean(studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
         const statusVal = isCleared ? "cleared" : "uncleared";
         return exportStatuses.includes(statusVal);
       });
@@ -400,7 +400,7 @@ export default function ReportsPage() {
       const headers = ["Student ID", "Name", "Department", "Program", "Year Level", "Clearance Status"];
       const rows = list.map((s) => {
         const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
-        const isCleared = s.status === "Cleared" || (studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
+        const isCleared = Boolean(studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
         return [
           s.id,
           s.name,
@@ -441,7 +441,7 @@ export default function ReportsPage() {
       const rowsHtml = list
         .map((s) => {
           const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
-          const isCleared = s.status === "Cleared" || (studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
+          const isCleared = Boolean(studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
           return `
             <tr>
               <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">${s.id}</td>
@@ -543,7 +543,7 @@ export default function ReportsPage() {
 
       dataList.forEach((s) => {
         const studentRecs = clearanceRecords.filter((r) => r.studentId === s.id);
-        const isCleared = s.status === "Cleared" || (studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
+        const isCleared = Boolean(studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
         sheet += `
       <Row>
         <Cell><Data ss:Type="String">${s.id}</Data></Cell>
@@ -1215,7 +1215,7 @@ export default function ReportsPage() {
                       <tbody className="divide-y divide-outline-variant/30 text-[11px] font-medium text-on-surface">
                         {getFilteredStudentsForExport().map((student) => {
                           const studentRecs = clearanceRecords.filter((r) => r.studentId === student.id);
-                          const isCleared = student.status === "Cleared" || (studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
+                          const isCleared = Boolean(studentRecs.length > 0 && studentRecs.every((r) => r.status === "Cleared"));
                           return (
                             <tr key={student.id} className="hover:bg-surface-bright/50 transition-colors">
                               <td className="py-2 px-3 font-bold">{student.id}</td>

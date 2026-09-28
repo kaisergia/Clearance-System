@@ -22,6 +22,7 @@ export default function AdminSettingsPage() {
     confirmText?: string;
     onConfirm: () => void;
   } | null>(null);
+  const [isUpdatingTerm, setIsUpdatingTerm] = useState(false);
 
   // Sync local instName state with settings context
   useEffect(() => {
@@ -56,12 +57,12 @@ export default function AdminSettingsPage() {
   };
 
   const handleActiveTermChange = async (ay: string, sem: string) => {
+    setIsUpdatingTerm(true);
     saveSettings({
       ...settings,
       currentAcademicYear: ay,
       currentSemester: sem,
     });
-    triggerSuccessBanner();
 
     try {
       const res = await fetch("/api/terms", {
@@ -72,10 +73,14 @@ export default function AdminSettingsPage() {
       if (!res.ok) {
         console.error("Failed to sync active term to database");
       } else {
+        triggerSuccessBanner();
         window.dispatchEvent(new Event("clearanceTermsUpdated"));
       }
     } catch (err) {
       console.error("Error syncing active term to database:", err);
+    } finally {
+      setIsUpdatingTerm(false);
+      setConfirmOpen(false);
     }
   };
 
@@ -425,14 +430,17 @@ export default function AdminSettingsPage() {
       {confirmConfig && (
         <ConfirmationDialog
           isOpen={confirmOpen}
+          isLoading={isUpdatingTerm}
+          loadingText="Switching Term..."
           title={confirmConfig.title}
           message={confirmConfig.message}
           confirmText={confirmConfig.confirmText}
           onConfirm={() => {
             confirmConfig.onConfirm();
-            setConfirmOpen(false);
           }}
-          onCancel={() => setConfirmOpen(false)}
+          onCancel={() => {
+            if (!isUpdatingTerm) setConfirmOpen(false);
+          }}
         />
       )}
 

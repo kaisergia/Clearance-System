@@ -76,6 +76,11 @@ export default function ClearanceRequirementsPage() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [showConfirmPublish, setShowConfirmPublish] = useState(false);
   const [pendingPublishFlow, setPendingPublishFlow] = useState<{ id: number; status: string } | null>(null);
+  const [showActivateTermConfirm, setShowActivateTermConfirm] = useState(false);
+  const [termToActivate, setTermToActivate] = useState<AcademicTerm | null>(null);
+  const [isPublishingFlow, setIsPublishingFlow] = useState(false);
+  const [publishingFlowId, setPublishingFlowId] = useState<number | null>(null);
+  const [isActivatingTerm, setIsActivatingTerm] = useState(false);
 
   // Modals / Form States
   const [showTermModal, setShowTermModal] = useState(false);
@@ -167,6 +172,12 @@ export default function ClearanceRequirementsPage() {
   useEffect(() => {
     fetchTerms();
     fetchEntityData();
+
+    const handleTermsUpdate = () => {
+      fetchTerms();
+    };
+    window.addEventListener("clearanceTermsUpdated", handleTermsUpdate);
+    return () => window.removeEventListener("clearanceTermsUpdated", handleTermsUpdate);
   }, []);
 
   // Fetch flows when active term changes
@@ -252,16 +263,60 @@ export default function ClearanceRequirementsPage() {
   };
 
   const handleTogglePublish = (flowId: number, currentStatus: string) => {
+    const selectedTerm = terms.find((t) => t.id === activeTermId);
+    if (currentStatus !== "Published" && selectedTerm && selectedTerm.status === "Archived") {
+      setWarningTitle("Cannot Publish Flow in Archived Term");
+      setWarningMessage(`"${selectedTerm.name}" is an archived academic term. Only the currently active academic term can have a published clearance flow. Please switch or activate this term in Settings first.`);
+      setShowWarningDialog(true);
+      return;
+    }
     setPendingPublishFlow({ id: flowId, status: currentStatus });
     setShowConfirmPublish(true);
+  };
+
+  const handleActivateTermClick = (term: AcademicTerm) => {
+    setTermToActivate(term);
+    setShowActivateTermConfirm(true);
+  };
+
+  const executeActivateTerm = async () => {
+    if (!termToActivate) return;
+    setIsActivatingTerm(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/terms", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: termToActivate.id, status: "Active" }),
+      });
+      if (res.ok) {
+        setShowActivateTermConfirm(false);
+        setTermToActivate(null);
+        await fetchTerms();
+        window.dispatchEvent(new Event("clearanceTermsUpdated"));
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to activate term.");
+        setShowActivateTermConfirm(false);
+        setTermToActivate(null);
+      }
+    } catch (err: any) {
+      console.error("Error activating term:", err);
+      setError(err.message || "Error activating term.");
+      setShowActivateTermConfirm(false);
+      setTermToActivate(null);
+    } finally {
+      setIsActivatingTerm(false);
+    }
   };
 
   const executeTogglePublish = async () => {
     if (!pendingPublishFlow) return;
     const { id: flowId, status: currentStatus } = pendingPublishFlow;
     const newStatus = currentStatus === "Published" ? "Draft" : "Published";
-    setShowConfirmPublish(false);
-    setPendingPublishFlow(null);
+    setIsPublishingFlow(true);
+    setPublishingFlowId(flowId);
+    setError(null);
     try {
       const res = await fetch("/api/flows", {
         method: "PATCH",
@@ -269,16 +324,25 @@ export default function ClearanceRequirementsPage() {
         body: JSON.stringify({ id: flowId, status: newStatus }),
       });
       if (res.ok) {
+        setShowConfirmPublish(false);
+        setPendingPublishFlow(null);
         if (activeTermId !== null) {
-          fetchFlows(activeTermId);
+          await fetchFlows(activeTermId);
         }
       } else {
         const data = await res.json();
         setError(data.error || "Failed to update flow status.");
+        setShowConfirmPublish(false);
+        setPendingPublishFlow(null);
       }
     } catch (err: any) {
       console.error("Error toggling publish status:", err);
       setError(err.message || "Error toggling publish status.");
+      setShowConfirmPublish(false);
+      setPendingPublishFlow(null);
+    } finally {
+      setIsPublishingFlow(false);
+      setPublishingFlowId(null);
     }
   };
 
@@ -644,6 +708,11 @@ export default function ClearanceRequirementsPage() {
       setModalError("No active academic term selected.");
       return;
     }
+    const selectedTerm = terms.find((t) => t.id === activeTermId);
+    if (flowStatus === "Published" && selectedTerm && selectedTerm.status === "Archived") {
+      setModalError(`Cannot publish a clearance flow for "${selectedTerm.name}" because it is an archived academic term. Please set the flow status to Draft or activate the term first.`);
+      return;
+    }
     setModalError(null);
     setShowSaveFlowConfirm(true);
   };
@@ -730,6 +799,9 @@ export default function ClearanceRequirementsPage() {
     return "Unknown Signatory";
   };
 
+  const currentSelectedTerm = terms.find((t) => t.id === activeTermId);
+  const isArchivedTerm = currentSelectedTerm?.status === "Archived";
+
   return (
     <div className="p-margin-desktop max-w-7xl mx-auto">
       {/* Header */}
@@ -760,24 +832,34 @@ export default function ClearanceRequirementsPage() {
 
       {/* Error Alert */}
       {error && (
-        <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 shadow-xs animate-fade-in ${
+        <div className={`mb-6 p-4 rounded-xl border flex items-start justify-between gap-3 shadow-xs animate-fade-in ${
           error.includes("already a published clearance flow")
             ? "border-amber-200 bg-amber-50 text-amber-800"
             : "border-red-200 bg-red-50 text-red-800"
         }`}>
-          <span className={`material-symbols-outlined mt-0.5 ${
-            error.includes("already a published clearance flow") ? "text-amber-600" : "text-red-600"
-          }`}>
-            {error.includes("already a published clearance flow") ? "warning" : "error_outline"}
-          </span>
-          <div>
-            <h4 className="font-semibold text-sm">
-              {error.includes("already a published clearance flow") ? "Clearance Flow Restriction" : "Connection or Database Error"}
-            </h4>
-            <p className={`text-xs mt-1 ${
-              error.includes("already a published clearance flow") ? "text-amber-800" : "text-red-700"
-            }`}>{error}</p>
+          <div className="flex items-start gap-3">
+            <span className={`material-symbols-outlined mt-0.5 ${
+              error.includes("already a published clearance flow") ? "text-amber-600" : "text-red-600"
+            }`}>
+              {error.includes("already a published clearance flow") ? "warning" : "error_outline"}
+            </span>
+            <div>
+              <h4 className="font-semibold text-sm">
+                {error.includes("already a published clearance flow") ? "Clearance Flow Restriction" : "Connection or Database Error"}
+              </h4>
+              <p className={`text-xs mt-1 ${
+                error.includes("already a published clearance flow") ? "text-amber-800" : "text-red-700"
+              }`}>{error}</p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-secondary hover:text-on-surface p-1 rounded-md transition-colors cursor-pointer"
+            title="Dismiss"
+          >
+            <span className="material-symbols-outlined text-sm">close</span>
+          </button>
         </div>
       )}
 
@@ -845,6 +927,33 @@ export default function ClearanceRequirementsPage() {
         )}
       </div>
 
+      {/* Notice when viewing Archived Term */}
+      {isArchivedTerm && (
+        <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50/80 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-amber-600 text-lg">archive</span>
+            <div>
+              <p className="font-semibold text-sm">Archived Academic Term ({currentSelectedTerm?.name})</p>
+              <p className="text-secondary text-xs mt-0.5">
+                Clearance flows in archived terms are kept in <strong>Draft</strong> for historical reference. To publish and use flows in this term, activate it as the current academic term.
+              </p>
+            </div>
+          </div>
+          {currentSelectedTerm && (
+            <button
+              disabled={isActivatingTerm}
+              onClick={() => handleActivateTermClick(currentSelectedTerm)}
+              className="px-3.5 py-1.5 bg-brand-red text-white hover:bg-primary font-medium rounded-lg text-xs shadow-xs transition-all whitespace-nowrap flex items-center gap-1.5 self-start sm:self-auto cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+            >
+              <span className={`material-symbols-outlined text-xs ${isActivatingTerm ? "animate-spin" : ""}`}>
+                {isActivatingTerm ? "progress_activity" : "check_circle"}
+              </span>
+              {isActivatingTerm ? "Activating Term..." : "Set as Active Term"}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Flow Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">
         {Array.isArray(flows) && flows.map((flow) => (
@@ -860,20 +969,35 @@ export default function ClearanceRequirementsPage() {
                   Target: All Students
                 </span>
               </div>
-              <button
-                onClick={() => flow.id && handleTogglePublish(flow.id, flow.status)}
-                className={`px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all hover:scale-105 active:scale-95 flex items-center gap-1 select-none border ${
-                  flow.status === "Published"
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
-                    : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
-                }`}
-                title={flow.status === "Published" ? "Click to set as Draft (Unpublish)" : "Click to Publish Live"}
-              >
-                <span className="material-symbols-outlined text-[12px] leading-none">
-                  {flow.status === "Published" ? "public" : "drafts"}
+              {isArchivedTerm ? (
+                <span
+                  className="px-2.5 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 select-none border bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
+                  title="Archived terms cannot have live published flows"
+                >
+                  <span className="material-symbols-outlined text-[12px] leading-none">lock</span>
+                  Draft (Archived)
                 </span>
-                {flow.status}
-              </button>
+              ) : (
+                <button
+                  disabled={publishingFlowId === flow.id}
+                  onClick={() => flow.id && handleTogglePublish(flow.id, flow.status)}
+                  className={`px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 select-none border disabled:opacity-75 disabled:cursor-not-allowed ${
+                    flow.status === "Published"
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                      : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                  }`}
+                  title={flow.status === "Published" ? "Click to set as Draft (Unpublish)" : "Click to Publish Live"}
+                >
+                  <span className={`material-symbols-outlined text-[12px] leading-none ${publishingFlowId === flow.id ? "animate-spin" : ""}`}>
+                    {publishingFlowId === flow.id ? "progress_activity" : flow.status === "Published" ? "public" : "drafts"}
+                  </span>
+                  <span>
+                    {publishingFlowId === flow.id
+                      ? flow.status === "Published" ? "Unpublishing..." : "Publishing..."
+                      : flow.status}
+                  </span>
+                </button>
+              )}
             </div>
 
             <p className="font-body-sm text-body-sm text-secondary mb-6 flex-1">
@@ -1318,17 +1442,40 @@ export default function ClearanceRequirementsPage() {
       )}
       <ConfirmationDialog
         isOpen={showConfirmPublish}
+        isLoading={isPublishingFlow}
+        loadingText={pendingPublishFlow?.status === "Published" ? "Unpublishing..." : "Publishing Flow..."}
         title={pendingPublishFlow?.status === "Published" ? "Unpublish Clearance Flow?" : "Publish Clearance Flow?"}
         message={
           pendingPublishFlow?.status === "Published"
             ? "Unpublishing this clearance flow will set it back to Draft. Students will no longer see these signatories or requirements until it is published again. Are you sure you want to proceed?"
+            : flows.some((f) => f.status === "Published" && f.id !== pendingPublishFlow?.id)
+            ? `Publishing this flow will make it the live active clearance flow for ${currentSelectedTerm?.name || "this term"}. The currently published flow ("${flows.find((f) => f.status === "Published")?.name}") will automatically be moved to Draft. Are you sure you want to proceed?`
             : "Publishing this clearance flow will make it active. Students matching the targeting criteria will immediately receive this flow's signatories. Are you sure you want to proceed?"
         }
         confirmText={pendingPublishFlow?.status === "Published" ? "Unpublish" : "Publish"}
         onConfirm={executeTogglePublish}
         onCancel={() => {
-          setShowConfirmPublish(false);
-          setPendingPublishFlow(null);
+          if (!isPublishingFlow) {
+            setShowConfirmPublish(false);
+            setPendingPublishFlow(null);
+          }
+        }}
+      />
+      <ConfirmationDialog
+        isOpen={showActivateTermConfirm}
+        isLoading={isActivatingTerm}
+        loadingText="Activating Term..."
+        title="Set as Active Academic Term?"
+        message={`Are you sure you want to activate "${termToActivate?.name}" as the current academic term? This will archive the currently active term. Clearance flows under "${termToActivate?.name}" can then be published live.`}
+        confirmText="Activate Term"
+        cancelText="Cancel"
+        confirmButtonClass="bg-brand-red hover:bg-primary"
+        onConfirm={executeActivateTerm}
+        onCancel={() => {
+          if (!isActivatingTerm) {
+            setShowActivateTermConfirm(false);
+            setTermToActivate(null);
+          }
         }}
       />
       <ConfirmationDialog

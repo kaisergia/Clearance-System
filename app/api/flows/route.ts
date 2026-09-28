@@ -54,16 +54,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (status === "Published") {
-      const existingPublished = await prisma.clearanceFlow.findFirst({
-        where: {
-          termId: Number(termId),
-          status: "Published",
-          id: id ? { not: Number(id) } : undefined,
-        },
+      // Target term active check
+      const targetTerm = await prisma.academicTerm.findUnique({
+        where: { id: Number(termId) },
       });
-      if (existingPublished) {
+      if (!targetTerm || targetTerm.status === "Archived") {
         return NextResponse.json(
-          { error: "You cannot publish another clearance flow because there is already a published clearance flow for this term. Please unpublish the existing one in order to publish a new clearance flow." },
+          { error: "Cannot publish a clearance flow for an archived academic term. Only the active academic term can have a published clearance flow." },
           { status: 400 }
         );
       }
@@ -153,12 +150,24 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Sync student clearance records if published
+      // Sync student clearance records and demote other flows if published
       if (status === "Published") {
+        await tx.clearanceFlow.updateMany({
+          where: {
+            termId: Number(termId),
+            status: "Published",
+            id: { not: flowId },
+          },
+          data: { status: "Draft" },
+        });
+
         await syncStudentClearanceRecords(flowId, tx);
       }
 
       return flowId;
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
 
     // Fetch and return the fully populated flow
@@ -192,9 +201,9 @@ export async function POST(req: NextRequest) {
       : null;
 
     return NextResponse.json(formattedFlow);
-  } catch (err) {
+  } catch (err: any) {
     console.error("[POST /api/flows]", err);
-    return NextResponse.json({ error: "Database error" }, { status: 500 });
+    return NextResponse.json({ error: err?.message || "Database error" }, { status: 500 });
   }
 }
 
@@ -224,6 +233,21 @@ async function syncStudentClearanceRecords(flowId: number, tx: any) {
     whereClause.department = { in: criteria.departments };
   }
   const students = await tx.student.findMany({ where: whereClause });
+  const studentIds = students.map((s: any) => s.id);
+
+  // 1. Fetch departments into memory map to avoid per-student queries
+  const allDepartments = await tx.department.findMany();
+  const deptMap = new Map<string, number>(allDepartments.map((d: any) => [d.abbreviation, d.id]));
+
+  // 2. Fetch org memberships into memory map to avoid per-student queries
+  const allMemberships = await tx.orgMember.findMany({
+    where: { studentId: { in: studentIds } },
+  });
+  const studentOrgsMap = new Map<string, number[]>();
+  allMemberships.forEach((m: any) => {
+    if (!studentOrgsMap.has(m.studentId)) studentOrgsMap.set(m.studentId, []);
+    studentOrgsMap.get(m.studentId)!.push(m.orgId);
+  });
 
   const officeReqs = await tx.officeRequirement.findMany({
     where: { termId: flow.termId },
@@ -244,73 +268,46 @@ async function syncStudentClearanceRecords(flowId: number, tx: any) {
     ...orgReqs.map((r: any) => r.id),
   ];
 
-  if (termReqIds.length > 0 && students.length > 0) {
+  if (termReqIds.length > 0 && studentIds.length > 0) {
     await tx.requirementSubmission.deleteMany({
       where: {
-        studentId: { in: students.map((s: any) => s.id) },
+        studentId: { in: studentIds },
         requirementId: { in: termReqIds },
       },
     });
   }
 
+  // 3. Build all clearance records in memory
+  const recordsToInsert: any[] = [];
   for (const student of students) {
     for (const step of flow.steps) {
-      if (step.isPrerequisiteOnly) continue; // Skip prerequisite-only steps from receiving records
-
-      let recordsToCreate: { officeId?: number; departmentId?: number; orgId?: number }[] = [];
+      if (step.isPrerequisiteOnly) continue; // Skip prerequisite-only steps
 
       if (step.officeId) {
-        recordsToCreate.push({ officeId: step.officeId });
+        recordsToInsert.push({ studentId: student.id, termId: flow.termId, officeId: step.officeId, status: "Pending" });
       } else if (step.departmentId) {
-        recordsToCreate.push({ departmentId: step.departmentId });
+        recordsToInsert.push({ studentId: student.id, termId: flow.termId, departmentId: step.departmentId, status: "Pending" });
       } else if (step.orgId) {
-        recordsToCreate.push({ orgId: step.orgId });
+        recordsToInsert.push({ studentId: student.id, termId: flow.termId, orgId: step.orgId, status: "Pending" });
       } else if (step.isDynamicDept) {
-        if (student.department) {
-          const dept = await tx.department.findUnique({
-            where: { abbreviation: student.department },
-          });
-          if (dept) {
-            recordsToCreate.push({ departmentId: dept.id });
-          }
+        if (student.department && deptMap.has(student.department)) {
+          recordsToInsert.push({ studentId: student.id, termId: flow.termId, departmentId: deptMap.get(student.department)!, status: "Pending" });
         }
       } else if (step.isDynamicOrgs) {
-        const memberships = await tx.orgMember.findMany({
-          where: { studentId: student.id },
-        });
-        for (const m of memberships) {
-          recordsToCreate.push({ orgId: m.orgId });
-        }
-      }
-
-      for (const item of recordsToCreate) {
-        let actualWhereClause: any = null;
-        if (item.officeId) {
-          actualWhereClause = { studentId_officeId_termId: { studentId: student.id, officeId: item.officeId, termId: flow.termId } };
-        } else if (item.orgId) {
-          actualWhereClause = { studentId_orgId_termId: { studentId: student.id, orgId: item.orgId, termId: flow.termId } };
-        } else if (item.departmentId) {
-          actualWhereClause = { studentId_departmentId_termId: { studentId: student.id, departmentId: item.departmentId, termId: flow.termId } };
-        }
-
-        if (actualWhereClause) {
-          await tx.clearanceRecord.upsert({
-            where: actualWhereClause,
-            update: {
-              status: "Pending",
-              dateCleared: null,
-              remarks: "",
-            },
-            create: {
-              studentId: student.id,
-              termId: flow.termId,
-              status: "Pending",
-              ...item,
-            },
-          });
+        const orgIds = studentOrgsMap.get(student.id) || [];
+        for (const orgId of orgIds) {
+          recordsToInsert.push({ studentId: student.id, termId: flow.termId, orgId, status: "Pending" });
         }
       }
     }
+  }
+
+  // 4. Single bulk insert with skipDuplicates
+  if (recordsToInsert.length > 0) {
+    await tx.clearanceRecord.createMany({
+      data: recordsToInsert,
+      skipDuplicates: true,
+    });
   }
 }
 
@@ -330,35 +327,49 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (status === "Published") {
-      const existingPublished = await prisma.clearanceFlow.findFirst({
-        where: {
-          termId: flowToUpdate.termId,
-          status: "Published",
-          id: { not: flowToUpdate.id },
-        },
+      // 1. Check if the academic term is active
+      const targetTerm = await prisma.academicTerm.findUnique({
+        where: { id: flowToUpdate.termId },
       });
-      if (existingPublished) {
+      if (!targetTerm || targetTerm.status === "Archived") {
         return NextResponse.json(
-          { error: "You cannot publish another clearance flow because there is already a published clearance flow for this term. Please unpublish the existing one in order to publish a new clearance flow." },
+          { error: "Cannot publish a clearance flow for an archived academic term. Only the active academic term can have a published clearance flow." },
           { status: 400 }
         );
       }
     }
 
-    const updatedFlow = await prisma.clearanceFlow.update({
-      where: { id: Number(id) },
-      data: { status },
+    const updatedFlow = await prisma.$transaction(async (tx) => {
+      if (status === "Published") {
+        // Demote any other published flow for this term to Draft
+        await tx.clearanceFlow.updateMany({
+          where: {
+            termId: flowToUpdate.termId,
+            status: "Published",
+            id: { not: flowToUpdate.id },
+          },
+          data: { status: "Draft" },
+        });
+      }
+
+      const flow = await tx.clearanceFlow.update({
+        where: { id: Number(id) },
+        data: { status },
+      });
+
+      if (status === "Published") {
+        await syncStudentClearanceRecords(flow.id, tx);
+      }
+
+      return flow;
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
 
-    if (status === "Published") {
-      await prisma.$transaction(async (tx) => {
-        await syncStudentClearanceRecords(updatedFlow.id, tx);
-      });
-    }
-
     return NextResponse.json(updatedFlow);
-  } catch (err) {
+  } catch (err: any) {
     console.error("[PATCH /api/flows]", err);
-    return NextResponse.json({ error: "Database error" }, { status: 500 });
+    return NextResponse.json({ error: err?.message || "Database error" }, { status: 500 });
   }
 }
