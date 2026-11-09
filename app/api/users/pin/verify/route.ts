@@ -12,12 +12,22 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    const forwardedHost = req.headers.get("x-forwarded-host") ?? "";
+    const host = req.headers.get("host") ?? "";
+    const requestHost = forwardedHost || host;
+    const configuredDevHosts = (process.env.PIN_DEV_BYPASS_HOSTS ?? "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    const isConfiguredDevHost = configuredDevHosts.includes(requestHost.toLowerCase());
+    const devEmail = process.env.PIN_DEV_AUTH_EMAIL ?? "";
 
-    // Dev-bypass: allow passing email via header for testing when session isn't set
+    // Prefer the authenticated user. For explicitly configured development
+    // hosts only, allow the seeded admin identity when no session email exists.
     const email =
       (session?.user as any)?.email ??
       req.headers.get("x-dev-email") ??
-      null;
+      (isConfiguredDevHost ? devEmail : null);
 
     if (!email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

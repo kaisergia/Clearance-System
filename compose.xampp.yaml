@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-mysql://root:@host.docker.internal:3306/clearance_system}
+      NEXTAUTH_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    command: sh -c "./node_modules/.bin/prisma db push && npm run start -- -H 0.0.0.0"

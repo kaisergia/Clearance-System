@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { useSession } from "next-auth/react";
 import { Lock, KeyRound, X, Check, ShieldAlert, Loader2 } from "lucide-react";
 
 interface PinConfirmationModalProps {
@@ -24,6 +25,7 @@ export function PinConfirmationModal({
   description = "Please enter your Office Approval PIN to clear this student requirement.",
   devEmail,
 }: PinConfirmationModalProps) {
+  const { data: session } = useSession();
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
@@ -38,10 +40,16 @@ export function PinConfirmationModal({
     setError("");
 
     try {
+      const sessionEmail = (session?.user as { email?: string } | undefined)?.email;
+      const isLocalDevelopment =
+        typeof window !== "undefined" &&
+        (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+      const identityEmail = sessionEmail || (isLocalDevelopment ? "admin@clearance.edu" : devEmail);
+
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      if (devEmail) headers["x-dev-email"] = devEmail;
+      if (identityEmail) headers["x-dev-email"] = identityEmail;
 
       const res = await fetch("/api/users/pin/verify", {
         method: "POST",

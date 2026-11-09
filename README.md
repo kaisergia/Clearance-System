@@ -5,8 +5,8 @@ University clearance management system with role-based access.
 ## Tech Stack
 - **Design** — Google Stitch / Material 3 Tailwind tokens
 - **Frontend** — Next.js 16 (App Router) + TypeScript + Tailwind CSS
-- **Planned Backend** — Prisma ORM + MySQL (XAMPP)
-- **Hosting** — Vercel (frontend) / XAMPP localhost (DB, development)
+- **Planned Backend** — Prisma ORM + MySQL-compatible MariaDB (XAMPP)
+- **Hosting** — Vercel (frontend) / XAMPP MariaDB (development)
 
 ## Roles
 | Role | Dashboard Route |
@@ -21,7 +21,7 @@ University clearance management system with role-based access.
 ## Getting Started
 
 ### 1. Prerequisites
-Make sure you have **Node.js 18+** installed.
+Make sure you have **Node.js 22 LTS** installed.
 Check with: `node -v`
 Download from: https://nodejs.org
 
@@ -33,7 +33,7 @@ cd clearance-system
 
 ### 3. Install dependencies
 ```bash
-npm install
+npm ci
 ```
 
 ### 4. Run the development server
@@ -43,6 +43,35 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 You'll be redirected to the login page automatically.
+
+### Docker (local development)
+Install Docker Desktop or Docker Engine with the Compose plugin, then run:
+```bash
+docker compose up --build
+```
+
+Open [http://localhost:3000](http://localhost:3000). Compose starts MariaDB, phpMyAdmin, and the app. The app applies the Prisma schema with `prisma db push` before starting. Open [http://localhost:8080](http://localhost:8080) for phpMyAdmin; connect with username `clearance` and password `clearance_dev_only`. The database is also available to host tools at `127.0.0.1:3307`, leaving XAMPP's usual port 3306 free. Data is kept in a named volume; remove it with `docker compose down -v` to reset the Docker database.
+
+The Docker database starts empty; it does not import data from an existing XAMPP installation. Export and import your database before switching if you need to keep existing records.
+
+The Compose database credentials are for local development only. Do not expose this setup publicly or reuse those credentials in production. Docker excludes `.env*`, `.pem`, and `.key` files from its build context; OAuth and external integrations still need to be configured separately if you use them.
+
+### Use XAMPP's database
+You do not need XAMPP when using the default Docker setup. To use XAMPP instead, start MySQL in the XAMPP Control Panel and make sure it listens on port `3306`. Create a database named `clearance_system` in phpMyAdmin first; Prisma creates the tables but not the database itself.
+
+To run Next.js directly on Windows, set the connection for the current PowerShell session, generate Prisma Client, apply the schema, and start the app:
+```powershell
+$env:DATABASE_URL = "mysql://root:@127.0.0.1:3306/clearance_system"
+npx prisma generate
+npx prisma db push
+npm run dev
+```
+
+To keep the app in Docker while using XAMPP on Windows, run:
+```powershell
+docker compose -f compose.xampp.yaml up --build
+```
+This uses `host.docker.internal` to reach Windows. The default connection assumes the usual XAMPP `root` account with no password. If your account uses a password, set `DATABASE_URL` in the PowerShell session before starting Compose, using a URL-encoded password. This mode does not start the bundled MariaDB or phpMyAdmin containers.
 
 ---
 
@@ -95,9 +124,10 @@ seeded from `mock/mockData.ts` and `mock/mockStudents.ts`.
 > **Rule:** No page or component should read/write `localStorage` for student or requirement
 > data directly. All such access must go through `clearanceService`.
 
-### Planned database: Prisma + XAMPP MySQL
+### Planned database: Prisma + XAMPP MariaDB
 ```
-Database URL: mysql://root:@localhost:3306/clearance_system
+XAMPP on host: mysql://root:@localhost:3306/clearance_system
+Docker app:    mysql://clearance:clearance_dev_only@db:3306/clearance_system
 ```
 
 ### Swapping to Prisma (Phase 2)

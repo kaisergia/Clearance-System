@@ -1,0 +1,10 @@
+.git
+.next
+node_modules
+.env*
+**/.env*
+*.pem
+*.key
+**/*.pem
+**/*.key
+npm-debug.log*

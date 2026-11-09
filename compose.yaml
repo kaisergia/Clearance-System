@@ -1,0 +1,45 @@
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: clearance_system
+      MARIADB_USER: clearance
+      MARIADB_PASSWORD: clearance_dev_only
+      MARIADB_ROOT_PASSWORD: clearance_root_dev_only
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - clearance-mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    command: sh -c "./node_modules/.bin/prisma db push && npm run start -- -H 0.0.0.0"
+
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    ports:
+      - "127.0.0.1:8080:80"
+
+volumes:
+  clearance-mariadb:
